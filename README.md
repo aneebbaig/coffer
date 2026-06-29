@@ -6,8 +6,8 @@
 
 Zero-based budgeting, savings pots, goals, investments, loans, and more — on a stack you own. Web app + Android client, one database.
 
-[![Web CI](https://github.com/your-username/coffer/actions/workflows/web-ci.yml/badge.svg)](../../actions/workflows/web-ci.yml)
-[![Mobile CI](https://github.com/your-username/coffer/actions/workflows/mobile-ci.yml/badge.svg)](../../actions/workflows/mobile-ci.yml)
+[![Web CI](https://github.com/aneebbaig/coffer/actions/workflows/web-ci.yml/badge.svg)](../../actions/workflows/web-ci.yml)
+[![Mobile CI](https://github.com/aneebbaig/coffer/actions/workflows/mobile-ci.yml/badge.svg)](../../actions/workflows/mobile-ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
