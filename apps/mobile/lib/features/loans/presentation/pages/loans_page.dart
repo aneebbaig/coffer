@@ -1,0 +1,315 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/extensions/currency_ext.dart';
+import '../../../../core/extensions/datetime_ext.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/app_badge.dart';
+import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_divider.dart';
+import '../../../../core/widgets/app_empty_state.dart';
+import '../../../../core/widgets/app_progress_bar.dart';
+import '../../domain/entities/loan_entity.dart';
+import '../providers/loans_provider.dart';
+import 'record_payment_page.dart';
+
+class LoansPage extends ConsumerWidget {
+  const LoansPage({super.key});
+
+  void _showPayment(BuildContext context, LoanEntity loan) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => RecordPaymentPage(loan: loan),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(loansProvider);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/quick-add-loan'),
+        tooltip: 'New loan',
+        child: const Icon(Icons.add, size: 28),
+      ),
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        backgroundColor: AppColors.card,
+        onRefresh: () => ref.refresh(loansProvider.future),
+        child: CustomScrollView(
+          slivers: [
+            const SliverAppBar(
+              backgroundColor: AppColors.background,
+              floating: true,
+              snap: true,
+              elevation: 0,
+              title: Text('Loans', style: AppTextStyles.headlineSmall),
+            ),
+            async.when(
+              data: (loans) {
+                if (loans.isEmpty) {
+                  return const SliverFillRemaining(
+                    child: AppEmptyState(
+                      title: 'No active loans',
+                      icon: Icons.handshake_outlined,
+                    ),
+                  );
+                }
+                final given = loans.where((l) => l.type == 'GIVEN').toList();
+                final received =
+                    loans.where((l) => l.type == 'RECEIVED').toList();
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      if (given.isNotEmpty) ...[
+                        _GroupHeader(
+                          label: 'Money Given',
+                          total: given.fold(
+                              0, (sum, l) => sum + l.remainingPaisas),
+                          color: const Color(0xFFE67E22),
+                        ),
+                        const SizedBox(height: 8),
+                        ...given.map((l) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _LoanCard(
+                                loan: l,
+                                onPay: l.status != 'PAID' ? () => _showPayment(context, l) : null,
+                              ),
+                            )),
+                        const SizedBox(height: 12),
+                      ],
+                      if (received.isNotEmpty) ...[
+                        _GroupHeader(
+                          label: 'Money Received',
+                          total: received.fold(
+                              0, (sum, l) => sum + l.remainingPaisas),
+                          color: AppColors.destructive,
+                        ),
+                        const SizedBox(height: 8),
+                        ...received.map((l) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _LoanCard(
+                                loan: l,
+                                onPay: l.status != 'PAID' ? () => _showPayment(context, l) : null,
+                              ),
+                            )),
+                      ],
+                    ]),
+                  ),
+                );
+              },
+              loading: () => const SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              ),
+              error: (_, __) => SliverFillRemaining(
+                child: AppEmptyState(
+                  title: 'Could not load loans',
+                  icon: Icons.wifi_off_outlined,
+                  onRetry: () => ref.refresh(loansProvider.future),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({
+    required this.label,
+    required this.total,
+    required this.color,
+  });
+  final String label;
+  final int total;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: AppTextStyles.labelSmall.copyWith(
+              color: AppColors.mutedForeground,
+              letterSpacing: 0.8,
+            ),
+          ),
+          Text(
+            total.formatPKR(),
+            style: AppTextStyles.labelMedium.copyWith(color: color),
+          ),
+        ],
+      );
+}
+
+class _LoanCard extends StatelessWidget {
+  const _LoanCard({required this.loan, this.onPay});
+  final LoanEntity loan;
+  final VoidCallback? onPay;
+
+  AppBadgeVariant get _badgeVariant => switch (loan.status) {
+        'ACTIVE' => AppBadgeVariant.warning,
+        'PARTIALLY_PAID' => AppBadgeVariant.primary,
+        _ => AppBadgeVariant.success,
+      };
+
+  @override
+  Widget build(BuildContext context) => AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(loan.personName,
+                          style: AppTextStyles.bodyMedium
+                              .copyWith(fontWeight: FontWeight.w600)),
+                      if (loan.description != null)
+                        Text(loan.description!,
+                            style: AppTextStyles.bodySmall
+                                .copyWith(color: AppColors.mutedForeground)),
+                    ],
+                  ),
+                ),
+                AppBadge(
+                  label: loan.status == 'PARTIALLY_PAID'
+                      ? 'Partial'
+                      : loan.status == 'ACTIVE'
+                          ? 'Active'
+                          : 'Paid',
+                  variant: _badgeVariant,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Principal',
+                        style: AppTextStyles.labelSmall
+                            .copyWith(color: AppColors.mutedForeground)),
+                    Text(loan.principalPaisas.formatPKR(),
+                        style: AppTextStyles.currencySmall),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Remaining',
+                        style: AppTextStyles.labelSmall
+                            .copyWith(color: AppColors.mutedForeground)),
+                    Text(
+                      loan.remainingPaisas.formatPKR(),
+                      style: AppTextStyles.currencySmall.copyWith(
+                        color: loan.type == 'RECEIVED'
+                            ? AppColors.destructive
+                            : const Color(0xFFE67E22),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            AppProgressBar(value: loan.paidPct),
+            if (loan.dueDate != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined,
+                      size: 12, color: AppColors.mutedForeground),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Due ${loan.dueDate!.toShortDate}',
+                    style: AppTextStyles.labelSmall
+                        .copyWith(color: AppColors.mutedForeground),
+                  ),
+                ],
+              ),
+            ],
+            if (loan.recentPayments.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const AppDivider(),
+              const SizedBox(height: 10),
+              Text(
+                'RECENT PAYMENTS',
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: AppColors.mutedForeground,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ...loan.recentPayments.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(p.date.toShortDate, style: AppTextStyles.bodySmall),
+                        Text(
+                          p.amountPaisas.formatPKR(),
+                          style: AppTextStyles.labelMedium.copyWith(
+                            color: const Color(0xFF4CAF50),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+            ],
+            if (onPay != null) ...[
+              const SizedBox(height: 12),
+              const AppDivider(),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: GestureDetector(
+                  onTap: onPay,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.payments_outlined,
+                            size: 15, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Record Payment',
+                          style: AppTextStyles.labelMedium.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+}

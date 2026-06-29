@@ -1,0 +1,465 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, Trash2, CheckCircle, Clock, Tag, Store, CheckCircle2, AlertTriangle, TrendingUp, Info } from "lucide-react";
+import Link from "next/link";
+import { format } from "date-fns";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { createPlannerItem, updatePlannerItem, deletePlannerItem, updatePlannerStatus, deletePlanner } from "@/actions/planner";
+import { cn } from "@/lib/utils";
+
+interface PlannerItem {
+  id: string; plannerId: string; name: string; description: string | null;
+  estimatedCost: number; actualCost: number | null; status: string;
+  dueDate: Date | null; notes: string | null; eventGroup: string | null; vendor: string | null;
+}
+interface Planner {
+  id: string; name: string; description: string | null; coverColor: string;
+  type: string; status: string; completedAt: Date | null; estimatedTotalCost: number;
+  targetDate: Date | null; items: PlannerItem[];
+}
+interface FinancialPosition {
+  accumulatedSavings: number;
+  savingsPotsTotal: number;
+  investmentsTotal: number;
+  loansOwed: number;
+  loansReceivable: number;
+  liquidAvailable: number;
+  netWorth: number;
+}
+
+const ITEM_STATUS_COLORS: Record<string, string> = {
+  PENDING: "bg-slate-100 text-slate-600 dark:bg-slate-800",
+  BOOKED: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+  PAID: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+  SKIPPED: "bg-slate-100 text-slate-400",
+};
+
+const PLANNER_STATUS_FLOW = ["PLANNING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
+const PLANNER_STATUS_LABELS: Record<string, string> = {
+  PLANNING: "Planning",
+  IN_PROGRESS: "In Progress",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+// Suggested event groups for wedding planners (also usable for other types)
+const WEDDING_GROUPS = ["Nikkah", "Mehndi", "Barat", "Valima", "Dholki", "General"];
+const GENERIC_GROUPS = ["Phase 1", "Phase 2", "Phase 3", "Venue", "Catering", "Decor", "Transport", "Other"];
+
+export function PlannerDetailClient({ planner, financialPosition }: { planner: Planner; financialPosition: FinancialPosition }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [addOpen, setAddOpen] = useState(false);
+  const [editItem, setEditItem] = useState<PlannerItem | null>(null);
+  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [deletePlanId, setDeletePlanId] = useState<string | null>(null);
+
+  const [newItem, setNewItem] = useState({
+    name: "", estimatedCost: "", dueDate: "", notes: "", eventGroup: "", vendor: "",
+  });
+
+  const totalEstimated = planner.items.reduce((s, i) => s + i.estimatedCost, 0);
+  const totalActual = planner.items.reduce((s, i) => s + (i.actualCost ?? 0), 0);
+  const paidCount = planner.items.filter((i) => i.status === "PAID").length;
+  const pct = planner.items.length > 0 ? Math.round((paidCount / planner.items.length) * 100) : 0;
+
+  // Group items by eventGroup
+  const grouped: Record<string, PlannerItem[]> = {};
+  const ungrouped: PlannerItem[] = [];
+  for (const item of planner.items) {
+    if (item.eventGroup) {
+      if (!grouped[item.eventGroup]) grouped[item.eventGroup] = [];
+      grouped[item.eventGroup].push(item);
+    } else {
+      ungrouped.push(item);
+    }
+  }
+
+  const suggestedGroups = planner.type === "WEDDING" ? WEDDING_GROUPS : GENERIC_GROUPS;
+
+  async function handleAddItem() {
+    if (!newItem.name) return;
+    startTransition(async () => {
+      const result = await createPlannerItem(planner.id, {
+        name: newItem.name,
+        estimatedCost: parseFloat(newItem.estimatedCost) || 0,
+        dueDate: newItem.dueDate || undefined,
+        notes: newItem.notes || undefined,
+        eventGroup: newItem.eventGroup || undefined,
+        vendor: newItem.vendor || undefined,
+      });
+      if (result.success) {
+        toast.success("Item added");
+        setAddOpen(false);
+        setNewItem({ name: "", estimatedCost: "", dueDate: "", notes: "", eventGroup: "", vendor: "" });
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Failed");
+      }
+    });
+  }
+
+  async function handleStatusChange(itemId: string, status: string) {
+    startTransition(async () => {
+      await updatePlannerItem(itemId, { status });
+      toast.success("Status updated");
+      router.refresh();
+    });
+  }
+
+  async function handleActualCost(itemId: string, actualCost: number) {
+    startTransition(async () => {
+      await updatePlannerItem(itemId, { actualCost, status: "PAID" });
+      toast.success("Actual cost saved");
+      router.refresh();
+    });
+  }
+
+  async function handleDeleteItem() {
+    if (!deleteItemId) return;
+    await deletePlannerItem(deleteItemId);
+    toast.success("Item deleted");
+    setDeleteItemId(null);
+    router.refresh();
+  }
+
+  async function handlePlanStatus(status: string) {
+    startTransition(async () => {
+      const result = await updatePlannerStatus(planner.id, status);
+      if (result.success) {
+        toast.success(`Plan marked as ${PLANNER_STATUS_LABELS[status]}`);
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Failed");
+      }
+    });
+  }
+
+  async function handleDeletePlan() {
+    await deletePlanner(planner.id);
+    toast.success("Plan deleted");
+    router.push("/planner");
+  }
+
+  function ItemRow({ item }: { item: PlannerItem }) {
+    const [editCost, setEditCost] = useState(false);
+    const [costInput, setCostInput] = useState(item.actualCost ? String(item.actualCost / 100) : "");
+
+    return (
+      <div className={cn("p-3 rounded-lg border border-border bg-background", item.status === "SKIPPED" && "opacity-50")}>
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-foreground">{item.name}</span>
+              {item.vendor && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Store className="h-3 w-3" />{item.vendor}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+              <span>Est: Rs {(item.estimatedCost / 100).toLocaleString()}</span>
+              {item.actualCost !== null && (
+                <span className="text-emerald-600 font-medium">Paid: Rs {(item.actualCost / 100).toLocaleString()}</span>
+              )}
+              {item.dueDate && (
+                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{format(new Date(item.dueDate), "d MMM yyyy")}</span>
+              )}
+            </div>
+            {item.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">{item.notes}</p>}
+
+            {/* Actual cost entry (shown when PAID status) */}
+            {editCost && (
+              <div className="flex gap-2 mt-2">
+                <Input
+                  type="number"
+                  value={costInput}
+                  onChange={(e) => setCostInput(e.target.value)}
+                  placeholder="Actual cost paid"
+                  className="h-7 text-xs w-40"
+                  autoFocus
+                />
+                <Button size="sm" className="h-7 text-xs" onClick={() => {
+                  handleActualCost(item.id, parseFloat(costInput) || 0);
+                  setEditCost(false);
+                }}>Save</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditCost(false)}>Cancel</Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Select onValueChange={(v) => {
+              handleStatusChange(item.id, v);
+              if (v === "PAID" && !item.actualCost) setEditCost(true);
+            }} defaultValue={item.status}>
+              <SelectTrigger className="w-28 h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="BOOKED">Booked</SelectItem>
+                <SelectItem value="PAID">Paid</SelectItem>
+                <SelectItem value="SKIPPED">Skip</SelectItem>
+              </SelectContent>
+            </Select>
+            <button onClick={() => setDeleteItemId(item.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Wedding migration banner */}
+      {planner.type === "WEDDING" && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-pink-200 bg-pink-50 dark:border-pink-800 dark:bg-pink-950/30 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span>💍</span>
+            <span className="text-pink-800 dark:text-pink-200">
+              There&apos;s a dedicated Wedding Planner now with events, vendor quotes, and budget breakdown.
+            </span>
+          </div>
+          <Link
+            href="/wedding"
+            className="shrink-0 text-xs font-semibold text-pink-600 dark:text-pink-400 hover:underline"
+          >
+            Open Wedding Planner →
+          </Link>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Link href="/planner">
+          <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+        </Link>
+        <div className="h-3 w-1 rounded-full" style={{ backgroundColor: planner.coverColor }} />
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-foreground">{planner.name}</h1>
+          {planner.description && <p className="text-sm text-muted-foreground mt-0.5">{planner.description}</p>}
+        </div>
+        <Badge className={cn("text-xs", {
+          "bg-blue-100 text-blue-700": planner.status === "PLANNING",
+          "bg-amber-100 text-amber-700": planner.status === "IN_PROGRESS",
+          "bg-emerald-100 text-emerald-700": planner.status === "COMPLETED",
+          "bg-slate-100 text-slate-500": planner.status === "CANCELLED",
+        })}>{PLANNER_STATUS_LABELS[planner.status]}</Badge>
+      </div>
+
+      {/* Status actions */}
+      {planner.status !== "COMPLETED" && planner.status !== "CANCELLED" && (
+        <div className="flex gap-2 flex-wrap">
+          {planner.status === "PLANNING" && (
+            <Button size="sm" variant="outline" onClick={() => handlePlanStatus("IN_PROGRESS")} disabled={isPending}>
+              Mark In Progress
+            </Button>
+          )}
+          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handlePlanStatus("COMPLETED")} disabled={isPending}>
+            <CheckCircle className="h-3.5 w-3.5 mr-1" />Complete Plan
+          </Button>
+          <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => handlePlanStatus("CANCELLED")} disabled={isPending}>
+            Cancel Plan
+          </Button>
+          <Button size="sm" variant="ghost" className="text-red-500 ml-auto" onClick={() => setDeletePlanId(planner.id)}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
+          </Button>
+        </div>
+      )}
+      {planner.completedAt && (
+        <p className="text-xs text-muted-foreground">Completed on {format(new Date(planner.completedAt), "d MMMM yyyy")}</p>
+      )}
+
+      {/* Cost summary */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="text-xs text-muted-foreground mb-1">Estimated Total</div>
+          <div className="text-xl font-bold text-foreground">Rs {(totalEstimated / 100).toLocaleString()}</div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="text-xs text-muted-foreground mb-1">Actually Paid</div>
+          <div className="text-xl font-bold text-emerald-600">Rs {(totalActual / 100).toLocaleString()}</div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="text-xs text-muted-foreground mb-1">Progress</div>
+          <div className="text-xl font-bold text-primary">{pct}%</div>
+          <div className="text-xs text-muted-foreground">{paidCount}/{planner.items.length} items</div>
+        </div>
+      </div>
+
+      {/* Affordability Panel */}
+      {totalEstimated > 0 && (() => {
+        const remaining = totalEstimated - totalActual;
+        const canAfford = financialPosition.liquidAvailable >= remaining;
+        const coveragePct = remaining > 0 ? Math.round((financialPosition.liquidAvailable / remaining) * 100) : 100;
+        return (
+          <div className={cn("rounded-xl border p-5",
+            canAfford
+              ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800"
+              : coveragePct >= 50
+              ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800"
+              : "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800"
+          )}>
+            <div className="flex items-center gap-2 mb-3">
+              {canAfford
+                ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                : <AlertTriangle className={cn("h-4 w-4", coveragePct >= 50 ? "text-amber-600" : "text-red-500")} />
+              }
+              <span className="font-semibold text-foreground text-sm">
+                {totalActual > 0
+                  ? canAfford
+                    ? "You can cover the remaining balance"
+                    : `${Math.min(coveragePct, 100)}% of remaining cost is covered`
+                  : canAfford
+                    ? "You can afford this plan right now"
+                    : `You can cover ${Math.min(coveragePct, 100)}% of this plan`
+                }
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+              <div>
+                <div className="text-xs text-muted-foreground">Still to pay</div>
+                <div className="text-base font-bold text-foreground">Rs {(remaining / 100).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Available (liquid)</div>
+                <div className="text-base font-bold text-foreground">Rs {(financialPosition.liquidAvailable / 100).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Investments</div>
+                <div className="text-base font-bold text-foreground">Rs {(financialPosition.investmentsTotal / 100).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Net worth</div>
+                <div className="text-base font-bold text-foreground">Rs {(financialPosition.netWorth / 100).toLocaleString()}</div>
+              </div>
+            </div>
+            {!canAfford && remaining > financialPosition.liquidAvailable && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground border-t border-border pt-3">
+                <TrendingUp className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Shortfall: Rs {((remaining - financialPosition.liquidAvailable) / 100).toLocaleString()}.
+                  {financialPosition.investmentsTotal >= (remaining - financialPosition.liquidAvailable)
+                    ? " Your investments can cover the gap if liquidated."
+                    : " Build your savings before committing to this expense."}
+                </span>
+              </div>
+            )}
+            {canAfford && (
+              <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 border-t border-emerald-200 dark:border-emerald-800 pt-3">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                Your savings can fund this plan without touching investments.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Items */}
+      <div className="bg-card border border-border rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-foreground">Items & Checklist</h3>
+          <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="h-3.5 w-3.5" />Add Item</Button>
+        </div>
+
+        {planner.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No items yet. Add your first expense item!</p>
+        ) : (
+          <div className="space-y-4">
+            {/* Grouped items */}
+            {Object.entries(grouped).map(([group, items]) => (
+              <div key={group}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group}</span>
+                  <span className="text-xs text-muted-foreground">· Rs {(items.reduce((s, i) => s + i.estimatedCost, 0) / 100).toLocaleString()} est.</span>
+                </div>
+                <div className="space-y-2 pl-2 border-l-2 border-muted">
+                  {items.map((item) => <ItemRow key={item.id} item={item} />)}
+                </div>
+              </div>
+            ))}
+
+            {/* Ungrouped items */}
+            {ungrouped.length > 0 && (
+              <div>
+                {Object.keys(grouped).length > 0 && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Other</span>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {ungrouped.map((item) => <ItemRow key={item.id} item={item} />)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Add Item Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Add Item</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Item Name</Label>
+              <Input value={newItem.name} onChange={(e) => setNewItem((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Book wedding hall" autoFocus />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Estimated Cost (Rs )</Label>
+                <Input type="number" value={newItem.estimatedCost} onChange={(e) => setNewItem((p) => ({ ...p, estimatedCost: e.target.value }))} placeholder="0" />
+              </div>
+              <div>
+                <Label>Due Date (optional)</Label>
+                <Input type="date" value={newItem.dueDate} onChange={(e) => setNewItem((p) => ({ ...p, dueDate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Event Group (optional)</Label>
+                <Input
+                  list={`groups-${planner.id}`}
+                  value={newItem.eventGroup}
+                  onChange={(e) => setNewItem((p) => ({ ...p, eventGroup: e.target.value }))}
+                  placeholder={planner.type === "WEDDING" ? "e.g. Barat" : "e.g. Phase 1"}
+                />
+                <datalist id={`groups-${planner.id}`}>
+                  {suggestedGroups.map((g) => <option key={g} value={g} />)}
+                </datalist>
+              </div>
+              <div>
+                <Label>Vendor / Supplier (optional)</Label>
+                <Input value={newItem.vendor} onChange={(e) => setNewItem((p) => ({ ...p, vendor: e.target.value }))} placeholder="e.g. Pearl Continental" />
+              </div>
+            </div>
+            <div>
+              <Label>Notes (optional)</Label>
+              <Textarea rows={2} value={newItem.notes} onChange={(e) => setNewItem((p) => ({ ...p, notes: e.target.value }))} placeholder="Any extra details, quotation comparison..." />
+            </div>
+            <Button className="w-full" onClick={handleAddItem} disabled={isPending}>
+              {isPending ? "Adding..." : "Add Item"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog open={!!deleteItemId} onOpenChange={(o) => !o && setDeleteItemId(null)} title="Delete this item?" description="This cannot be undone." onConfirm={handleDeleteItem} />
+      <ConfirmDialog open={!!deletePlanId} onOpenChange={(o) => !o && setDeletePlanId(null)} title="Delete this plan?" description="All items will be permanently deleted." onConfirm={handleDeletePlan} />
+    </div>
+  );
+}

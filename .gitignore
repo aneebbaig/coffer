@@ -1,0 +1,16 @@
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+*.iml
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env (never commit real secrets; only *.example is tracked)
+.env
+.env.*
+!.env.example
+
+# Per-app build artifacts are ignored by each app's own .gitignore

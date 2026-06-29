@@ -1,0 +1,102 @@
+import 'package:dio/dio.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../../../core/constants/api_constants.dart';
+import '../../../../core/errors/error_handler.dart';
+import '../../../../core/network/api_client.dart';
+import '../../domain/entities/loan_entity.dart';
+
+part 'loans_datasource.g.dart';
+
+@riverpod
+LoansDatasource loansDatasource(Ref ref) =>
+    LoansDatasource(ref.watch(apiClientProvider));
+
+class LoansDatasource {
+  const LoansDatasource(this._dio);
+  final Dio _dio;
+
+  Future<String> createLoan({
+    required String personName,
+    required String type,
+    required int principalPaisas,
+    required DateTime date,
+    String? description,
+    DateTime? dueDate,
+    String? notes,
+  }) async {
+    try {
+      final res = await _dio.post(
+        ApiConstants.loans,
+        data: {
+          'personName': personName,
+          'type': type,
+          'principalPaisas': principalPaisas,
+          'date': date.toIso8601String(),
+          if (description != null && description.isNotEmpty) 'description': description,
+          if (dueDate != null) 'dueDate': dueDate.toIso8601String(),
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+        },
+      );
+      return (res.data['data'] as Map<String, dynamic>)['id'] as String;
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<void> recordPayment({
+    required String loanId,
+    required int amountPaisas,
+    required DateTime date,
+    String? notes,
+  }) async {
+    try {
+      await _dio.post(
+        ApiConstants.loanPayments(loanId),
+        data: {
+          'amountPaisas': amountPaisas,
+          'date': date.toIso8601String(),
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+        },
+      );
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<List<LoanEntity>> getLoans() async {
+    try {
+      final res = await _dio.get(ApiConstants.loans);
+      final list = res.data['data'] as List<dynamic>;
+      return list.map((e) => _parse(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  static LoanEntity _parse(Map<String, dynamic> m) => LoanEntity(
+        id: m['id'] as String,
+        personName: m['personName'] as String,
+        description: m['description'] as String?,
+        type: m['type'] as String,
+        principalPaisas: m['principalAmount'] as int,
+        remainingPaisas: m['remainingAmount'] as int,
+        date: DateTime.parse(m['date'] as String),
+        dueDate: m['dueDate'] != null
+            ? DateTime.parse(m['dueDate'] as String)
+            : null,
+        status: m['status'] as String,
+        notes: m['notes'] as String?,
+        recentPayments: (m['payments'] as List<dynamic>)
+            .map((p) => _parsePayment(p as Map<String, dynamic>))
+            .toList(),
+      );
+
+  static LoanPaymentEntity _parsePayment(Map<String, dynamic> m) =>
+      LoanPaymentEntity(
+        id: m['id'] as String,
+        amountPaisas: m['amount'] as int,
+        date: DateTime.parse(m['date'] as String),
+        notes: m['notes'] as String?,
+      );
+}

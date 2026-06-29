@@ -1,0 +1,46 @@
+class LoanPaymentEntity {
+  const LoanPaymentEntity({
+    required this.id,
+    required this.amountPaisas,
+    required this.date,
+    this.notes,
+  });
+
+  final String id;
+  final int amountPaisas;
+  final DateTime date;
+  final String? notes;
+}
+
+class LoanEntity {
+  const LoanEntity({
+    required this.id,
+    required this.personName,
+    required this.type,
+    required this.principalPaisas,
+    required this.remainingPaisas,
+    required this.date,
+    required this.status,
+    required this.recentPayments,
+    this.description,
+    this.dueDate,
+    this.notes,
+  });
+
+  final String id;
+  final String personName;
+  final String? description;
+  final String type; // GIVEN | RECEIVED
+  final int principalPaisas;
+  final int remainingPaisas;
+  final DateTime date;
+  final DateTime? dueDate;
+  final String status; // ACTIVE | PARTIALLY_PAID | PAID
+  final String? notes;
+  final List<LoanPaymentEntity> recentPayments;
+
+  double get paidPct =>
+      principalPaisas > 0
+          ? ((principalPaisas - remainingPaisas) / principalPaisas).clamp(0.0, 1.0)
+          : 0.0;
+}
