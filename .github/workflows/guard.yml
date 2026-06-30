@@ -1,0 +1,23 @@
+name: Leak guard
+
+# Fails if any AI-assistant reference or personal identifier is committed
+# to the public repo. Keeps the portfolio repo clean for good.
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for forbidden strings
+        run: |
+          if grep -rIniE 'cla[u]de|anthrop[i]c|aneebbaig123|bbaig0425' . \
+               --exclude-dir=node_modules --exclude-dir=.git \
+               --exclude='*.lock' --exclude='package-lock.json' \
+               --exclude='guard.yml'; then
+            echo "::error::Forbidden term found (AI reference / personal data). Remove before merging."
+            exit 1
+          fi
+          echo "No forbidden terms found. ✓"
