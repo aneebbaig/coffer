@@ -30,6 +30,9 @@ dependencies:
   # Home screen widget bridge
   home_widget: ^0.9.2+1
 
+  # Floating overlay bubble (quick-add from any app)
+  flutter_overlay_window: ^0.5.0
+
   # Toast notifications
   toastification: ^3.0.3
 

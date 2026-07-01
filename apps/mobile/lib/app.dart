@@ -1,10 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:toastification/toastification.dart';
 
 import 'core/constants/app_constants.dart';
+import 'core/constants/storage_keys.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/auth/presentation/pages/splash_page.dart';
@@ -217,11 +223,47 @@ class _ErrorPage extends StatelessWidget {
       );
 }
 
-class CofferApp extends ConsumerWidget {
+class CofferApp extends ConsumerStatefulWidget {
   const CofferApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CofferApp> createState() => _CofferAppState();
+}
+
+class _CofferAppState extends ConsumerState<CofferApp> {
+  static const _windowChannel = MethodChannel('com.coffer.app/window');
+  StreamSubscription<dynamic>? _overlaySub;
+
+  @override
+  void initState() {
+    super.initState();
+    _overlaySub = FlutterOverlayWindow.overlayListener.listen(_onOverlayData);
+  }
+
+  @override
+  void dispose() {
+    _overlaySub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _onOverlayData(dynamic data) async {
+    if (data is! Map) return;
+    switch (data['action']) {
+      case 'quick_add':
+        // Wake the screen so the keyguard fires biometric auth, then bring us forward
+        try {
+          await _windowChannel.invokeMethod('setTurnScreenOn', true);
+          await _windowChannel.invokeMethod('bringToFront');
+        } catch (_) {}
+        if (mounted) ref.read(goRouterProvider).go('/quick-add');
+      case 'overlay_dismissed':
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(StorageKeys.overlayEnabled, false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(goRouterProvider);
     return ToastificationWrapper(
       child: MaterialApp.router(
