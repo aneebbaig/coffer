@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getProject } from "@/actions/projects";
 import { ProjectDetailClient, ProjectDetailData } from "@/components/projects/project-detail-client";
 
-export const metadata: Metadata = { title: "Project — Coffer" };
+export const metadata: Metadata = { title: "Project" };
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

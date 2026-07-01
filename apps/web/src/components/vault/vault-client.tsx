@@ -55,7 +55,7 @@ export function VaultClient({ surprises }: { surprises: Surprise[] }) {
         <EmptyState
           icon={Gift}
           title="No surprises planned yet"
-          description="Plan secret gifts and surprises — only you can see these!"
+          description="Plan secret gifts and surprises - only you can see these!"
           action={{ label: "Plan a surprise", onClick: () => setOpen(true) }}
         />
       ) : (
@@ -87,7 +87,7 @@ export function VaultClient({ surprises }: { surprises: Surprise[] }) {
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Date</span>
                         <span className={cn("font-medium", daysLeft < 7 ? "text-red-500" : "text-muted-foreground")}>
-                          {s.targetDate ? format(new Date(s.targetDate), "d MMM") : "—"} {daysLeft > 0 ? `(${daysLeft}d)` : "(passed)"}
+                          {s.targetDate ? format(new Date(s.targetDate), "d MMM") : "-"} {daysLeft > 0 ? `(${daysLeft}d)` : "(passed)"}
                         </span>
                       </div>
                     )}

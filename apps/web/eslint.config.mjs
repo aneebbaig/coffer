@@ -7,7 +7,7 @@ export default [
   ...next,
   {
     rules: {
-      // Cosmetic — apostrophes/quotes in JSX copy are intentional.
+      // Cosmetic - apostrophes/quotes in JSX copy are intentional.
       "react/no-unescaped-entities": "off",
       // Newer strict React 19 rules: keep visible as warnings rather than
       // blocking CI on long-standing working patterns. Tighten over time.

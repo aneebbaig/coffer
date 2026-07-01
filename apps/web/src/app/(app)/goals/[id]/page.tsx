@@ -4,7 +4,7 @@ import { getGoal } from "@/actions/goals";
 import { getFinancialPosition } from "@/actions/savings";
 import { GoalDetailClient } from "@/components/goals/goal-detail-client";
 
-export const metadata: Metadata = { title: "Goal Detail — Coffer" };
+export const metadata: Metadata = { title: "Goal Detail" };
 
 export default async function GoalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

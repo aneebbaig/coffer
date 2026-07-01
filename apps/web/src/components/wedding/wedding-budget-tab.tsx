@@ -17,7 +17,7 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
     .filter((v) => v.paymentStatus === "DEPOSIT_PAID")
     .reduce((s, v) => s + (v.depositPaid ?? 0), 0);
 
-  // Expense costs — PKR and USD tracked separately (can't add across currencies)
+  // Expense costs - PKR and USD tracked separately (can't add across currencies)
   const totalExpensePkr = plan.expenses
     .filter((e) => e.source1Currency === "PKR").reduce((s, e) => s + e.source1Amount, 0)
     + plan.expenses

@@ -1,4 +1,4 @@
-# Coffer — Personal Finance Manager
+# Coffer - Personal Finance Manager
 
 A private finance app for two users. Tracks expenses, budgets, goals, savings, investments, loans, tasks, calendar, and a secret gift vault.
 
@@ -18,20 +18,20 @@ A private finance app for two users. Tracks expenses, budgets, goals, savings, i
 | **Investments** | Portfolio tracker |
 | **Loans** | Track money lent/borrowed; marking a received loan paid auto-creates an expense from the chosen funding source |
 | **Tasks** | Daily habits + one-time tasks with drag-to-reorder priority; milestone tasks for personal multi-step goals |
-| **Projects** | Freelance/client project management — projects → sub-tasks with statuses, priorities, and due dates; separate from personal tasks |
+| **Projects** | Freelance/client project management - projects → sub-tasks with statuses, priorities, and due dates; separate from personal tasks |
 | **Planner** | Life event planning (weddings, trips, renovations) |
 | **Calendar** | Events, reminders, and deadlines |
 | **Gym & Fitness** | Workouts (PPL templates, session logging, PRs), nutrition profile, recipes with import, weekly meal planner, body metrics, gym expenses |
 | **Want List** | 48-hour impulse purchase cooling-off list |
 | **Need List** | Priority-grouped list of planned purchases with expense logging |
-| **Vault** | 🔒 Secret surprise/gift planner — Super Admin only |
+| **Vault** | 🔒 Secret surprise/gift planner - Super Admin only |
 | **Settings** | Categories, notifications, user management, data export |
 
 ---
 
 ## Money Flow
 
-Coffer enforces a strict zero-based budgeting model — money cannot enter or leave any bucket without a declared source.
+Coffer enforces a strict zero-based budgeting model - money cannot enter or leave any bucket without a declared source.
 
 ### Income
 - Income enters the system only through the **Income page**.
@@ -47,7 +47,7 @@ Coffer enforces a strict zero-based budgeting model — money cannot enter or le
 - Depositing into any pot requires declaring a source: **monthly income** or **transfer from another pot**.
 - Deposits from income are validated: available income = this month's income − income-funded expenses − existing income-funded pot deposits. Cannot deposit more than available.
 - Transfers between pots are atomic (deduct + credit in one transaction, both sides logged).
-- To spend from a pot, create an expense and select the pot as the funding source — there is no standalone "withdraw" action.
+- To spend from a pot, create an expense and select the pot as the funding source - there is no standalone "withdraw" action.
 - Pots hold both PKR and USD; PKR and USD balances are tracked independently.
 - **Income deletion is blocked** if that month's income-funded expenses + income-funded pot deposits exceed the remaining income after deletion. PKR and USD are checked separately. Remove the allocations first, then delete the income.
 - USD/PKR exchange rate is **auto-synced daily** from `open.er-api.com` (free, no API key, ~30 calls/month). Can also be updated manually.
@@ -62,7 +62,7 @@ Coffer enforces a strict zero-based budgeting model — money cannot enter or le
 
 ## Design System
 
-All UI follows a single card pattern — no one-off gradients or colored backgrounds on data cards.
+All UI follows a single card pattern - no one-off gradients or colored backgrounds on data cards.
 
 ### Card pattern
 ```
@@ -80,10 +80,10 @@ Icon lives in `p-2 rounded-lg bg-muted` with a semantic color class (`text-prima
 | `primary` (violet/indigo) | Brand actions, buttons, icons on neutral cards |
 
 ### Status cards only
-Colored `bg-*-50 dark:bg-*-950` backgrounds are reserved for **status banners** (Ready to Assign, Emergency Fund health, budget exceeded) — not for primary data display cards.
+Colored `bg-*-50 dark:bg-*-950` backgrounds are reserved for **status banners** (Ready to Assign, Emergency Fund health, budget exceeded) - not for primary data display cards.
 
 ### Sub-tiles inside cards
-Use `bg-muted/50 rounded-lg` — never hardcoded colors or gradients.
+Use `bg-muted/50 rounded-lg` - never hardcoded colors or gradients.
 
 ---
 
@@ -98,7 +98,7 @@ Use `bg-muted/50 rounded-lg` — never hardcoded colors or gradients.
 
 ## Local Development
 
-You need a free [Neon](https://neon.tech) account. Neon gives you a cloud PostgreSQL database with separate **branches** (like git) — use the `dev` branch locally and `main` for production. No local database installation needed.
+You need a free [Neon](https://neon.tech) account. Neon gives you a cloud PostgreSQL database with separate **branches** (like git) - use the `dev` branch locally and `main` for production. No local database installation needed.
 
 ```bash
 # 1. Clone and install
@@ -106,8 +106,8 @@ npm install
 
 # 2. Copy env template and fill in your Neon dev branch URL
 cp .env.example .env.local
-# Edit .env.local — paste DATABASE_URL from Neon → Connect → Prisma tab (dev branch)
-# Use the DIRECT (non-pooler) URL for migrations — remove "-pooler" from the hostname
+# Edit .env.local - paste DATABASE_URL from Neon → Connect → Prisma tab (dev branch)
+# Use the DIRECT (non-pooler) URL for migrations - remove "-pooler" from the hostname
 
 # 3. Create tables + seed users
 npx prisma migrate dev --name init
@@ -118,13 +118,13 @@ npm run dev
 # → http://localhost:3000
 ```
 
-> **Neon pooler vs direct URL**: `prisma migrate dev` requires a direct connection (non-pooler hostname — no `-pooler` in the URL). The pooler URL is fine for the running app (`DATABASE_URL` at runtime). For production migrations, use `DATABASE_URL_UNPOOLED` with `npx prisma migrate deploy`.
+> **Neon pooler vs direct URL**: `prisma migrate dev` requires a direct connection (non-pooler hostname - no `-pooler` in the URL). The pooler URL is fine for the running app (`DATABASE_URL` at runtime). For production migrations, use `DATABASE_URL_UNPOOLED` with `npx prisma migrate deploy`.
 
 ---
 
 ## Deployment
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)** — Vercel + Neon, completely free, ~10 minutes.
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** - Vercel + Neon, completely free, ~10 minutes.
 
 ---
 
@@ -132,14 +132,14 @@ See **[DEPLOYMENT.md](DEPLOYMENT.md)** — Vercel + Neon, completely free, ~10 m
 
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | Neon pooled connection URL — dev branch for local, main branch for production |
-| `DATABASE_URL_UNPOOLED` | Neon direct (non-pooler) URL — required for `prisma migrate deploy` on production |
+| `DATABASE_URL` | Neon pooled connection URL - dev branch for local, main branch for production |
+| `DATABASE_URL_UNPOOLED` | Neon direct (non-pooler) URL - required for `prisma migrate deploy` on production |
 | `AUTH_SECRET` | Random secret: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
 | `NEXTAUTH_URL` | `http://localhost:3000` locally · `https://your-domain.com` in production |
 | `USER1_EMAIL` | Super Admin email |
 | `USER1_PASSWORD` | Super Admin password |
 | `USER2_EMAIL` | Admin email |
 | `USER2_PASSWORD` | Admin password |
-| `GMAIL_USER` | Optional — Gmail for email alerts and daily digest |
-| `GMAIL_APP_PASSWORD` | Optional — 16-char Google App Password |
-| `CRON_SECRET` | Random secret that authenticates the daily email digest cron — generate same as AUTH_SECRET |
+| `GMAIL_USER` | Optional - Gmail for email alerts and daily digest |
+| `GMAIL_APP_PASSWORD` | Optional - 16-char Google App Password |
+| `CRON_SECRET` | Random secret that authenticates the daily email digest cron - generate same as AUTH_SECRET |

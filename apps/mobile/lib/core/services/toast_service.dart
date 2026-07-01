@@ -10,7 +10,7 @@ part 'toast_service.g.dart';
 ToastService toastService(Ref ref) => ToastService();
 
 /// Single entry point for all in-app notifications.
-/// Never call [toastification] directly from UI — use this service.
+/// Never call [toastification] directly from UI - use this service.
 class ToastService {
   void success(BuildContext context, String message) => _show(
         context,

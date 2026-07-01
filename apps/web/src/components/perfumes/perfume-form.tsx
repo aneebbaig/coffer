@@ -266,7 +266,7 @@ export function PerfumeForm({
               onCheckedChange={(v) => setFormData((f) => ({ ...f, blindBuy: !!v }))}
             />
             <Label htmlFor="p-blind-buy" className="cursor-pointer font-normal">
-              Blind buy — haven&apos;t smelled it
+              Blind buy - haven&apos;t smelled it
             </Label>
           </div>
 

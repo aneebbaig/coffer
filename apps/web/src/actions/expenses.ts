@@ -42,7 +42,7 @@ function incomePkrForTransaction(t: {
       .filter((s) => s.source === "INCOME")
       .reduce((sum, s) => sum + s.pkrAmount, 0);
   }
-  return t.amount; // INCOME — full amount
+  return t.amount; // INCOME - full amount
 }
 
 // ─── income availability ──────────────────────────────────────────────────────
@@ -356,7 +356,7 @@ export async function createTransaction(data: {
       });
       if (recentExpenses.length >= 3 && user.notifyDoomSpending) {
         const total = recentExpenses.reduce((s, t) => s + t.amount, 0) + amountPaisas;
-        await sendEmail(user.email as string, "🛑 Doom Spending Alert — Coffer", doomSpendingEmail(recentExpenses.length + 1, total));
+        await sendEmail(user.email as string, "🛑 Doom Spending Alert", doomSpendingEmail(recentExpenses.length + 1, total));
       }
 
       const [budgetCat, spent] = await Promise.all([
@@ -373,11 +373,11 @@ export async function createTransaction(data: {
         const totalSpent = (spent._sum.amount ?? 0) + amountPaisas;
         const pct = Math.round((totalSpent / budgetCat.allocatedAmount) * 100);
         if (pct >= 100 && (totalSpent - amountPaisas) < budgetCat.allocatedAmount) {
-          await sendEmail(user.email as string, `🚨 Budget Exceeded: ${budgetCat.category.name} — Coffer`, budgetExceededEmail(budgetCat.category.name, totalSpent, budgetCat.allocatedAmount));
+          await sendEmail(user.email as string, `🚨 Budget Exceeded: ${budgetCat.category.name}`, budgetExceededEmail(budgetCat.category.name, totalSpent, budgetCat.allocatedAmount));
         } else if (pct >= 85 && pct < 100) {
           const prevPct = Math.round(((totalSpent - amountPaisas) / budgetCat.allocatedAmount) * 100);
           if (prevPct < 85) {
-            await sendEmail(user.email as string, `⚠️ Budget Warning: ${budgetCat.category.name} — Coffer`, budgetWarningEmail(budgetCat.category.name, pct, totalSpent, budgetCat.allocatedAmount));
+            await sendEmail(user.email as string, `⚠️ Budget Warning: ${budgetCat.category.name}`, budgetWarningEmail(budgetCat.category.name, pct, totalSpent, budgetCat.allocatedAmount));
           }
         }
       }
@@ -436,7 +436,7 @@ export async function updateTransaction(id: string, data: {
       const newMonthPkrIncome = d.totalPkrIncome - existing.amount + amountPaisas;
       if (newMonthPkrIncome < d.pkrExpenses + d.pkrPotDeposits) {
         const deficit = d.pkrExpenses + d.pkrPotDeposits - newMonthPkrIncome;
-        return { success: false, error: `Cannot reduce income — Rs ${(deficit / 100).toLocaleString()} in expenses/savings this month would be left unfunded.` };
+        return { success: false, error: `Cannot reduce income - Rs ${(deficit / 100).toLocaleString()} in expenses/savings this month would be left unfunded.` };
       }
     }
 
@@ -548,13 +548,13 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
       const remainingPkrIncome = d.totalPkrIncome - existing.amount;
       if (remainingPkrIncome < d.pkrExpenses + d.pkrPotDeposits) {
         const deficit = d.pkrExpenses + d.pkrPotDeposits - remainingPkrIncome;
-        return { success: false, error: `Cannot delete — Rs ${(deficit / 100).toLocaleString()} in expenses/savings this month depend on this income. Remove those first.` };
+        return { success: false, error: `Cannot delete - Rs ${(deficit / 100).toLocaleString()} in expenses/savings this month depend on this income. Remove those first.` };
       }
       if (existing.originalCurrency === "USD" && (existing.originalAmount ?? 0) > 0) {
         const remainingUsdIncome = d.totalUsdIncome - (existing.originalAmount ?? 0);
         if (remainingUsdIncome < d.usdPotDeposits) {
           const deficit = d.usdPotDeposits - remainingUsdIncome;
-          return { success: false, error: `Cannot delete — $${(deficit / 100).toFixed(2)} in savings depends on this USD income. Remove those pot deposits first.` };
+          return { success: false, error: `Cannot delete - $${(deficit / 100).toFixed(2)} in savings depends on this USD income. Remove those pot deposits first.` };
         }
       }
     }

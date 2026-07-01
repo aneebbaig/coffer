@@ -232,7 +232,7 @@ export function VaultDetailClient({ surprise }: { surprise: Surprise }) {
             </div>
           ))}
           {surprise.items.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">No items yet — add your first gift idea!</p>
+            <p className="text-sm text-muted-foreground text-center py-8">No items yet - add your first gift idea!</p>
           )}
         </div>
       </div>
@@ -262,7 +262,7 @@ export function VaultDetailClient({ surprise }: { surprise: Surprise }) {
               <div><Label>Item Name</Label><Input value={editItem.name} onChange={(e) => setEditItem((p) => p ? { ...p, name: e.target.value } : p)} placeholder="e.g. Perfume" /></div>
               <div><Label>Estimated Cost (Rs)</Label><Input type="number" value={editItem.estimatedCost} onChange={(e) => setEditItem((p) => p ? { ...p, estimatedCost: e.target.value } : p)} placeholder="0" /></div>
               <div>
-                <Label>Actual Cost (Rs) <span className="text-muted-foreground text-xs font-normal">— fill once bought</span></Label>
+                <Label>Actual Cost (Rs) <span className="text-muted-foreground text-xs font-normal">- fill once bought</span></Label>
                 <Input type="number" value={editItem.actualCost} onChange={(e) => setEditItem((p) => p ? { ...p, actualCost: e.target.value } : p)} placeholder="Leave blank if not purchased yet" />
               </div>
               <div><Label>Product Link (optional)</Label><Input value={editItem.purchaseLink} onChange={(e) => setEditItem((p) => p ? { ...p, purchaseLink: e.target.value } : p)} placeholder="https://..." /></div>

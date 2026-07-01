@@ -71,7 +71,7 @@ class AppButton extends StatelessWidget {
   }
 }
 
-/// Large full-width primary button — used on quick-add confirm.
+/// Large full-width primary button - used on quick-add confirm.
 class AppPrimaryButton extends StatelessWidget {
   const AppPrimaryButton({
     required this.label,

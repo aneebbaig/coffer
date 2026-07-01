@@ -208,7 +208,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
           </div>
           {rtaNegative && (
             <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">
-              You&apos;ve assigned more than your income — reduce some allocations or add more income.
+              You&apos;ve assigned more than your income - reduce some allocations or add more income.
             </p>
           )}
         </div>
@@ -389,7 +389,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
                 <AlertTriangle className="h-4 w-4 text-amber-500" />Unplanned Expenses
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                No budget allocation for these categories — spending here directly reduces your savings
+                No budget allocation for these categories - spending here directly reduces your savings
               </p>
             </div>
             <div className="text-right shrink-0 ml-4">
@@ -417,7 +417,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
         open={confirmNewMonth}
         onOpenChange={setConfirmNewMonth}
         title="Start new budget month?"
-        description={`New income and expenses will be filed under ${getMonthName(upcoming.month)} ${upcoming.year} from now on — regardless of the calendar date. Do this when your salary for the new month arrives.`}
+        description={`New income and expenses will be filed under ${getMonthName(upcoming.month)} ${upcoming.year} from now on - regardless of the calendar date. Do this when your salary for the new month arrives.`}
         confirmLabel="Start New Month"
         onConfirm={handleStartNewMonth}
         loading={isPending}

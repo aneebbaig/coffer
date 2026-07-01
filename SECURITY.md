@@ -18,6 +18,6 @@ Coffer is self-hosted: each deployment owns its database and secrets. Reports ab
 
 ## Hardening notes for self-hosters
 
-- Keep `AUTH_SECRET`, `CRON_SECRET`, and database credentials out of the repo — they belong in your host's environment variables, never in committed files. Only `.env.example` is tracked.
+- Keep `AUTH_SECRET`, `CRON_SECRET`, and database credentials out of the repo - they belong in your host's environment variables, never in committed files. Only `.env.example` is tracked.
 - Use strong, unique passwords for the seeded users and rotate `AUTH_SECRET` if you suspect exposure.
 - Restrict who can reach the deployment; this app is designed for one or two trusted users, not public sign-up.

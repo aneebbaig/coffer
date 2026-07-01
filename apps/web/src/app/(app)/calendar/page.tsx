@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { CalendarClient } from "@/components/calendar/calendar-client";
 
-export const metadata: Metadata = { title: "Calendar — Coffer" };
+export const metadata: Metadata = { title: "Calendar" };
 
 export default function CalendarPage() {
   return (

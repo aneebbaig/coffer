@@ -5,7 +5,7 @@ import { getExpenseFundingContext } from "@/actions/expenses";
 import { getOpenBudgetPeriod } from "@/actions/budget";
 import { LoansClient } from "@/components/loans/loans-client";
 
-export const metadata: Metadata = { title: "Loans — Coffer" };
+export const metadata: Metadata = { title: "Loans" };
 
 export default async function LoansPage() {
   const period = await getOpenBudgetPeriod();

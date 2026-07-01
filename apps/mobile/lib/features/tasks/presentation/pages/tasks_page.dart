@@ -220,7 +220,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
               _TaskTab(
                 tasks: daily,
                 emptyTitle: 'No daily tasks',
-                emptySubtitle: 'Daily tasks repeat every day — habits, reviews, routines.',
+                emptySubtitle: 'Daily tasks repeat every day - habits, reviews, routines.',
                 onToggle: _toggleDone,
                 onDelete: _delete,
               ),

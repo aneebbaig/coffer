@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// Shimmer-free loading skeleton — uses muted background color, adequate for dark theme.
+/// Shimmer-free loading skeleton - uses muted background color, adequate for dark theme.
 class AppSkeleton extends StatelessWidget {
   const AppSkeleton({
     this.width,

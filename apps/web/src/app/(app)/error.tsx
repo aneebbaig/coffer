@@ -27,7 +27,7 @@ export default function Error({
         </div>
 
         <p className="text-sm text-muted-foreground leading-relaxed">
-          An unexpected error occurred while loading this page. Your data is safe — this is
+          An unexpected error occurred while loading this page. Your data is safe - this is
           likely a temporary issue.
           {error.digest && (
             <span className="block mt-2 font-mono text-xs text-muted-foreground/60">

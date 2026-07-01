@@ -26,7 +26,7 @@ export function prevPeriod(month: number, year: number): { month: number; year: 
 
 /**
  * Calendar-month date range. Use ONLY for genuine calendar analytics (e.g. the multi-month
- * trend chart) — NOT for budget-period bucketing, which filters on budgetMonth/budgetYear.
+ * trend chart) - NOT for budget-period bucketing, which filters on budgetMonth/budgetYear.
  */
 export function getCalendarMonthRange(month: number, year: number) {
   return {

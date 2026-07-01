@@ -4,7 +4,7 @@ import { getPlanner } from "@/actions/planner";
 import { getFinancialPosition } from "@/actions/savings";
 import { PlannerDetailClient } from "@/components/planner/planner-detail-client";
 
-export const metadata: Metadata = { title: "Planner Detail — Coffer" };
+export const metadata: Metadata = { title: "Planner Detail" };
 
 export default async function PlannerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

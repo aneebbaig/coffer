@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { getServerUser } from "@/lib/session";
 import { LoginForm } from "@/components/auth/login-form";
 import { CofferLogo } from "@/components/shared/coffer-logo";
+import { APP_NAME } from "@/lib/brand";
 
-export const metadata: Metadata = { title: "Sign in — Coffer" };
+export const metadata: Metadata = { title: "Sign in" };
 
 export default async function LoginPage({
   searchParams,
@@ -24,7 +25,7 @@ export default async function LoginPage({
           <div className="inline-flex items-center justify-center mb-4">
             <CofferLogo size={52} />
           </div>
-          <h1 className="text-lg font-bold tracking-tight text-foreground">Coffer</h1>
+          <h1 className="text-lg font-bold tracking-tight text-foreground">{APP_NAME}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Private Finance OS</p>
         </div>
 

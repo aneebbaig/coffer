@@ -359,7 +359,7 @@ export function SavingsClient({ pots, goals: _goals, cumulativeSavings, avgMonth
 
       <Dialog open={potDialog.type === "add"} onOpenChange={(o) => !o && setPotDialog({ type: null })}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Money — {activePot?.name}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Add Money - {activePot?.name}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Source</Label>
@@ -401,7 +401,7 @@ export function SavingsClient({ pots, goals: _goals, cumulativeSavings, avgMonth
                   className="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm">
                   <option value="">Select a pot…</option>
                   {pots.filter((p) => p.id !== activePot?.id).map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} — Rs {fmt(p.currentAmount)}{p.currentAmountUsd > 0 ? ` / $${fmtUsd(p.currentAmountUsd)}` : ""}</option>
+                    <option key={p.id} value={p.id}>{p.name} - Rs {fmt(p.currentAmount)}{p.currentAmountUsd > 0 ? ` / $${fmtUsd(p.currentAmountUsd)}` : ""}</option>
                   ))}
                 </select>
               )}
@@ -427,7 +427,7 @@ export function SavingsClient({ pots, goals: _goals, cumulativeSavings, avgMonth
 
       <Dialog open={potDialog.type === "correct"} onOpenChange={(o) => !o && setPotDialog({ type: null })}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Correct Balance — {activePot?.name}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Correct Balance - {activePot?.name}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg bg-muted/50 border border-border px-3 py-2 text-xs space-y-0.5">
               {activePot && activePot.currentAmount > 0 && (

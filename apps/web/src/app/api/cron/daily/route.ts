@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       }
     }
   } catch {
-    // Non-fatal — continue with existing stored rate
+    // Non-fatal - continue with existing stored rate
   }
 
   const now = new Date();
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysLeftInMonth = daysInMonth - now.getDate();
 
-  // Parallel DB fetch — all shared household data
+  // Parallel DB fetch - all shared household data
   const [
     users,
     todayEvents,
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
   if (users.length === 0) return NextResponse.json({ ok: true, skipped: "no users" });
 
   // Surplus reconciliation is event-driven: it runs in startNewBudgetPeriod() when a period
-  // is closed (budget.ts), not on the calendar 1st — periods no longer align with calendar months.
+  // is closed (budget.ts), not on the calendar 1st - periods no longer align with calendar months.
   const autoReconciledSurplus = 0;
 
   // Compute shared metrics
@@ -198,7 +198,7 @@ export async function GET(req: NextRequest) {
 
     await sendEmail(
       user.email,
-      `🌅 Daily digest — ${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`,
+      `🌅 Daily digest - ${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`,
       dailyDigestEmail({ name: firstName, ...userPayload })
     );
     sent++;

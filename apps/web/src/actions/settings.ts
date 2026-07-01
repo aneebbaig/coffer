@@ -82,7 +82,7 @@ export async function deleteCategory(id: string): Promise<ActionResult> {
     try {
       await prisma.category.delete({ where: { id } });
     } catch {
-      // Category has transactions referencing it — hide it instead
+      // Category has transactions referencing it - hide it instead
       await prisma.category.update({ where: { id }, data: { isHidden: true } });
     }
     revalidatePath("/settings");

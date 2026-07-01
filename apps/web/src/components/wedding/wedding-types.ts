@@ -38,7 +38,7 @@ export interface WeddingExpense {
   category: string;
   // Priority-ordered funding sources (max 2)
   source1Currency: string;      // "PKR" | "USD"
-  source1Amount: number;        // estimated — paisas or cents
+  source1Amount: number;        // estimated - paisas or cents
   source1Paid: number | null;   // actual paid
   source2Currency: string | null;
   source2Amount: number | null;

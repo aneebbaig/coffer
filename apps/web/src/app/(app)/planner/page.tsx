@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { getPlanners } from "@/actions/planner";
 import { PlannerClient } from "@/components/planner/planner-client";
 
-export const metadata: Metadata = { title: "Planner — Coffer" };
+export const metadata: Metadata = { title: "Planner" };
 
 export default async function PlannerPage() {
   const planners = await getPlanners();

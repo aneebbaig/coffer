@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
-/// Single-source text field — all forms go through this widget.
+/// Single-source text field - all forms go through this widget.
 class AppTextField extends StatelessWidget {
   const AppTextField({
     required this.controller,

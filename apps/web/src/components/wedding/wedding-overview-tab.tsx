@@ -109,7 +109,7 @@ export function WeddingOverviewTab({ plan }: { plan: WeddingPlan }) {
         <StatCard label="Total Budget" value={fmt(plan.totalBudget)} />
         <StatCard label="Selected Vendors" value={fmt(selectedVendorCost)} sub={plan.totalBudget > 0 ? `${Math.round((selectedVendorCost / plan.totalBudget) * 100)}% of budget` : undefined} />
         <StatCard label="Paid So Far" value={fmt(paid)} highlight />
-        <StatCard label="Haq Mehr" value={plan.haqMehr ? fmt(plan.haqMehr) : "—"} sub={plan.haqMehrNote ?? undefined} />
+        <StatCard label="Haq Mehr" value={plan.haqMehr ? fmt(plan.haqMehr) : "-"} sub={plan.haqMehrNote ?? undefined} />
       </div>
 
       {/* Events timeline */}
@@ -173,12 +173,12 @@ export function WeddingOverviewTab({ plan }: { plan: WeddingPlan }) {
               <Input type="date" value={form.weddingDate} onChange={(e) => setForm((p) => ({ ...p, weddingDate: e.target.value }))} />
             </div>
             <div>
-              <Label>Total Budget — Rs</Label>
+              <Label>Total Budget - Rs</Label>
               <Input type="number" value={form.totalBudget} onChange={(e) => setForm((p) => ({ ...p, totalBudget: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Haq Mehr — Rs</Label>
+                <Label>Haq Mehr - Rs</Label>
                 <Input type="number" value={form.haqMehr} onChange={(e) => setForm((p) => ({ ...p, haqMehr: e.target.value }))} />
               </div>
               <div>

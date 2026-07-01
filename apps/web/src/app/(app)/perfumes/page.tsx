@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { PerfumesClient } from "@/components/perfumes/perfumes-client";
 import { getPerfumes } from "@/actions/perfumes";
 
-export const metadata: Metadata = { title: "Perfumes — Coffer" };
+export const metadata: Metadata = { title: "Perfumes" };
 
 export default async function PerfumesPage() {
   return (

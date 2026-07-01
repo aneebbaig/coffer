@@ -128,7 +128,7 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
-          'Pay — ${widget.loan.personName}',
+          'Pay - ${widget.loan.personName}',
           style: AppTextStyles.headlineSmall,
         ),
         leading: IconButton(

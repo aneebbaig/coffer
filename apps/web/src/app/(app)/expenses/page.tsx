@@ -5,7 +5,7 @@ import { getCategories, getUserSettings } from "@/actions/settings";
 import { getBudgetWithSpending } from "@/actions/budget";
 import { ExpensesClient } from "@/components/expenses/expenses-client";
 
-export const metadata: Metadata = { title: "Expenses — Coffer" };
+export const metadata: Metadata = { title: "Expenses" };
 
 export default async function ExpensesPage() {
   const settings = await getUserSettings();

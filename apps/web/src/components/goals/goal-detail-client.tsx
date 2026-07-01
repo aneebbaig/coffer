@@ -103,7 +103,7 @@ function SortableItem({
         {item.purchased && <Check className="h-3 w-3 text-white" />}
       </button>
 
-      {/* Name — click to edit inline */}
+      {/* Name - click to edit inline */}
       {editingName ? (
         <input
           autoFocus
@@ -129,7 +129,7 @@ function SortableItem({
         </span>
       )}
 
-      {/* Cost — click to edit inline */}
+      {/* Cost - click to edit inline */}
       {editingCost ? (
         <input
           autoFocus
@@ -185,7 +185,7 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
     : (goal.targetAmount > 0 ? Math.min(Math.round((goal.savedAmount / goal.targetAmount) * 100), 100) : 0);
   const daysLeft = getDaysUntil(goal.deadline);
 
-  // Affordability calculation — use items total if available, else targetAmount
+  // Affordability calculation - use items total if available, else targetAmount
   const goalCost = itemsTotal > 0 ? itemsTotal : goal.targetAmount;
   const coveragePct = goalCost > 0 ? Math.round((financialPosition.liquidAvailable / goalCost) * 100) : 100;
   const shortfall = goalCost - financialPosition.liquidAvailable;
@@ -401,7 +401,7 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
                 Shortfall: Rs {(shortfall / 100).toLocaleString()}.
                 {financialPosition.investmentsTotal >= shortfall
                   ? " Your investments cover the gap if liquidated."
-                  : " Keep saving — add money to this goal each month to reach it."}
+                  : " Keep saving - add money to this goal each month to reach it."}
               </span>
             </div>
           )}

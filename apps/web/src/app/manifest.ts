@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
+import { APP_NAME } from "@/lib/brand";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Coffer — Personal Finance",
-    short_name: "Coffer",
+    name: `${APP_NAME} - Personal Finance`,
+    short_name: APP_NAME,
     description: "Your private personal finance manager",
     start_url: "/dashboard",
     display: "standalone",

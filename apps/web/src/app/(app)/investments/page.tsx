@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { getInvestments } from "@/actions/savings";
 import { InvestmentsClient } from "@/components/investments/investments-client";
 
-export const metadata: Metadata = { title: "Investments — Coffer" };
+export const metadata: Metadata = { title: "Investments" };
 
 export default async function InvestmentsPage() {
   const investments = await getInvestments();

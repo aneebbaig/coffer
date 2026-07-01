@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { getGoals } from "@/actions/goals";
 import { GoalsClient } from "@/components/goals/goals-client";
 
-export const metadata: Metadata = { title: "Goals — Coffer" };
+export const metadata: Metadata = { title: "Goals" };
 
 export default async function GoalsPage() {
   const goals = await getGoals();

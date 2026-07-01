@@ -4,7 +4,7 @@ import { getUserSettings, getCategories, getRecurringTransactions } from "@/acti
 import { getUsers } from "@/actions/users";
 import { SettingsClient } from "@/components/settings/settings-client";
 
-export const metadata: Metadata = { title: "Settings — Coffer" };
+export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const session = await getServerUser();

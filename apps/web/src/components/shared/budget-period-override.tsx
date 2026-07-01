@@ -50,7 +50,7 @@ export function BudgetPeriodOverride({
         />
       ) : (
         <p className="text-xs text-muted-foreground">
-          Counts toward the open month — {getMonthName(openPeriod.month)} {openPeriod.year}.
+          Counts toward the open month - {getMonthName(openPeriod.month)} {openPeriod.year}.
         </p>
       )}
     </div>

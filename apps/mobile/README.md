@@ -1,6 +1,6 @@
-# Coffer Management — Android App
+# Coffer Management - Android App
 
-Flutter Android companion app for the Coffer personal finance platform ([your-coffer-instance.com](https://your-coffer-instance.com)). Distributed via [Obtainium](https://github.com/ImranR98/Obtainium) from this private GitHub repo — no Play Store.
+Flutter Android companion app for the Coffer personal finance platform ([your-coffer-instance.com](https://your-coffer-instance.com)). Distributed via [Obtainium](https://github.com/ImranR98/Obtainium) from this private GitHub repo - no Play Store.
 
 ---
 
@@ -11,9 +11,9 @@ Flutter Android companion app for the Coffer personal finance platform ([your-co
 3. [Project Structure](#project-structure)
 4. [Clean Architecture](#clean-architecture)
 5. [Key Patterns & Conventions](#key-patterns--conventions)
-6. [State Management — Riverpod](#state-management--riverpod)
-7. [Navigation — GoRouter](#navigation--gorouter)
-8. [HTTP Client — Dio](#http-client--dio)
+6. [State Management - Riverpod](#state-management--riverpod)
+7. [Navigation - GoRouter](#navigation--gorouter)
+8. [HTTP Client - Dio](#http-client--dio)
 9. [Design System](#design-system)
 10. [Icons](#icons)
 11. [Constants & Extensions](#constants--extensions)
@@ -29,23 +29,23 @@ Flutter Android companion app for the Coffer personal finance platform ([your-co
 
 ## What the App Does
 
-Mobile companion to the Coffer web app. All data lives on the server — the app is a client-only read/write layer.
+Mobile companion to the Coffer web app. All data lives on the server - the app is a client-only read/write layer.
 
 | Screen | Purpose |
 |--------|---------|
 | Dashboard | Budget summary, income vs spend bar, recent transactions, "See All" → `/money` |
 | Expenses | Paginated list of current-period expenses with pull-to-refresh |
 | Income | Income transactions for current period |
-| Quick Add (Expense) | `/quick-add` — amount, category, description, notes, date; modal, outside ShellRoute |
-| Quick Add (Income) | `/quick-add-income` — income-category, amount, description, date |
-| Quick Add (Task) | `/quick-add-task` — title, priority, due date |
-| Quick Add (Loan) | `/quick-add-loan` — person name, GIVEN/RECEIVED, amount, dates |
+| Quick Add (Expense) | `/quick-add` - amount, category, description, notes, date; modal, outside ShellRoute |
+| Quick Add (Income) | `/quick-add-income` - income-category, amount, description, date |
+| Quick Add (Task) | `/quick-add-task` - title, priority, due date |
+| Quick Add (Loan) | `/quick-add-loan` - person name, GIVEN/RECEIVED, amount, dates |
 | Budget | Per-category budget allocations with progress bars |
 | Savings | Savings pots with targets and progress |
 | Loans | Active loans; explicit "Record Payment" button per card; `RecordPaymentPage` pre-fills remaining balance |
 | Tasks | Daily / One-Time / Milestone tabs; optimistic toggle + item check; milestone inline checklist with "Add step" |
 | Settings | App version (matches git tag), logout |
-| Projects *(planned)* | Freelance/client project list and per-project task management — see `## Planned: Projects` below |
+| Projects *(planned)* | Freelance/client project list and per-project task management - see `## Planned: Projects` below |
 
 **Home screen widget** (4-button, responsive): Expense · Tasks · Loans · Income shortcuts. Row layout at wide widths, 2×2 grid at narrow. Tapping deep-links to the corresponding page or quick-add modal.
 
@@ -67,7 +67,7 @@ Mobile companion to the Coffer web app. All data lives on the server — the app
 | Fonts | Outfit Variable (bundled) | No Google Fonts CDN at runtime |
 | Toasts | `toastification` | Consistent short error/success messages |
 
-**All Flutter/Dart CLI commands use `fvm` prefix** — e.g. `fvm flutter run`, `fvm dart run build_runner build`.
+**All Flutter/Dart CLI commands use `fvm` prefix** - e.g. `fvm flutter run`, `fvm dart run build_runner build`.
 
 ---
 
@@ -81,7 +81,7 @@ lib/
 ├── shell/
 │   └── app_scaffold.dart          # Bottom-nav ShellRoute scaffold
 │
-├── core/                          # No feature logic — shared infrastructure
+├── core/                          # No feature logic - shared infrastructure
 │   ├── constants/
 │   │   ├── api_constants.dart     # Every API path string in one place
 │   │   ├── app_constants.dart     # App-level constants
@@ -111,11 +111,11 @@ lib/
 │   │   └── toast_service.dart          # success(ctx, msg) / error(ctx, msg) via toastification
 │   │
 │   ├── theme/
-│   │   ├── app_colors.dart        # Colour palette — single source of truth
+│   │   ├── app_colors.dart        # Colour palette - single source of truth
 │   │   ├── app_text_styles.dart   # Typography scale using Outfit font
 │   │   └── app_theme.dart         # ThemeData (dark only)
 │   │
-│   └── widgets/                   # Shared UI primitives — always use these, not raw Flutter widgets
+│   └── widgets/                   # Shared UI primitives - always use these, not raw Flutter widgets
 │       ├── app_badge.dart         # Pill badge (neutral/success/warning/destructive variants)
 │       ├── app_button.dart        # Primary/secondary/text button
 │       ├── app_card.dart          # Rounded card container
@@ -123,7 +123,7 @@ lib/
 │       ├── app_empty_state.dart   # Icon + message + optional retry callback
 │       ├── app_icon_box.dart      # Icon avatar: takes IconData OR emoji string
 │       ├── app_list_row.dart      # Leading icon + title + subtitle + trailing
-│       ├── app_progress_bar.dart  # Thin progress bar (0.0–1.0)
+│       ├── app_progress_bar.dart  # Thin progress bar (0.0-1.0)
 │       ├── app_section.dart       # Section header wrapper
 │       ├── app_skeleton.dart      # Loading placeholder shimmer
 │       ├── app_text_field.dart    # Styled text input
@@ -145,7 +145,7 @@ lib/
 android/
 ├── app/
 │   ├── build.gradle.kts           # Release signing config; R8 minify+shrink enabled
-│   ├── keystore.jks               # NEVER commit — local only / CI secret
+│   ├── keystore.jks               # NEVER commit - local only / CI secret
 │   └── src/main/
 │       ├── AndroidManifest.xml    # INTERNET, ACCESS_NETWORK_STATE, deep link filter, widget receiver
 │       ├── kotlin/.../
@@ -175,11 +175,11 @@ Every feature follows **vertical slice clean architecture** with three layers:
 ```
 features/<name>/
 ├── data/
-│   ├── datasources/    # Network calls via Dio — single responsibility
+│   ├── datasources/    # Network calls via Dio - single responsibility
 │   ├── models/         # Freezed + JSON models (extend domain entities with fromJson/toJson)
 │   └── repositories/   # Implement domain interface; map model → entity
 ├── domain/
-│   ├── entities/       # Pure Dart value objects — no JSON, no framework imports
+│   ├── entities/       # Pure Dart value objects - no JSON, no framework imports
 │   ├── repositories/   # Abstract interface (the contract)
 │   └── usecases/       # Optional; used when business logic > 1 step
 └── presentation/
@@ -190,10 +190,10 @@ features/<name>/
 
 ### Data layer
 
-Datasources make raw HTTP calls and return models. Repositories transform models into entities and implement the domain interface. This decoupling means the UI never imports `dio` directly — it only ever touches domain entities.
+Datasources make raw HTTP calls and return models. Repositories transform models into entities and implement the domain interface. This decoupling means the UI never imports `dio` directly - it only ever touches domain entities.
 
 ```dart
-// Datasource — raw API call
+// Datasource - raw API call
 class ExpenseRemoteDatasource {
   Future<String> createExpense({...}) async {
     final res = await _dio.post(ApiConstants.expenses, data: {...});
@@ -201,7 +201,7 @@ class ExpenseRemoteDatasource {
   }
 }
 
-// Repository — wraps datasource, implements domain contract
+// Repository - wraps datasource, implements domain contract
 class ExpenseRepositoryImpl implements ExpenseRepository {
   Future<String> createExpense({...}) =>
       _datasource.createExpense(...);
@@ -214,7 +214,7 @@ Entities are plain Dart classes with no framework deps. Repository interfaces ar
 
 ### Presentation layer
 
-Pages use `ref.watch()` for reactive state and `ref.read()` for one-shot actions. Providers use codegen — never manual `StateProvider` or `ChangeNotifierProvider`.
+Pages use `ref.watch()` for reactive state and `ref.read()` for one-shot actions. Providers use codegen - never manual `StateProvider` or `ChangeNotifierProvider`.
 
 ---
 
@@ -257,7 +257,7 @@ final formatted = paisas.formatPKR();          // "Rs 1,500"
 
 ### Error handling
 ```dart
-// Correct — errors propagate to UI
+// Correct - errors propagate to UI
 try {
   final result = await repo.doSomething();
   state = AsyncData(result);
@@ -266,7 +266,7 @@ try {
   rethrow;
 }
 
-// WRONG — silently swallows exceptions
+// WRONG - silently swallows exceptions
 state = await AsyncValue.guard(() => repo.doSomething());
 ```
 
@@ -275,7 +275,7 @@ Never dump raw exception messages or stack traces on the UI. Every error goes th
 
 ---
 
-## State Management — Riverpod
+## State Management - Riverpod
 
 ### Codegen syntax
 
@@ -314,11 +314,11 @@ WidgetService widgetService(Ref ref) => WidgetService();
 
 `RouterNotifier` is a special `AsyncNotifier<bool>` that implements `Listenable`. GoRouter uses it as `refreshListenable`. When auth state changes, the router re-evaluates its redirect.
 
-`Future.microtask(() => _routerListener?.call())` defers the GoRouter notification until after Riverpod has committed the new state — calling it synchronously during `build()` would fire GoRouter before state is updated.
+`Future.microtask(() => _routerListener?.call())` defers the GoRouter notification until after Riverpod has committed the new state - calling it synchronously during `build()` would fire GoRouter before state is updated.
 
 ---
 
-## Navigation — GoRouter
+## Navigation - GoRouter
 
 Routes defined in `lib/app.dart`:
 
@@ -343,7 +343,7 @@ Auth redirect logic in GoRouter:
 
 ---
 
-## HTTP Client — Dio
+## HTTP Client - Dio
 
 `ApiClient` (Riverpod `keepAlive` provider) provides the configured `Dio` instance:
 
@@ -378,7 +378,7 @@ Single source of truth in `lib/core/theme/`.
 | `border` | `#262626` | Borders, dividers |
 | `foreground` | `#FAFAFA` | Primary text |
 | `mutedForeground` | `#737373` | Secondary text, placeholders |
-| `primary` | `#F59E0B` | Amber — CTAs, highlights, active states |
+| `primary` | `#F59E0B` | Amber - CTAs, highlights, active states |
 | `destructive` | `#EF4444` | Errors, delete actions |
 
 ### Typography (`AppTextStyles`)
@@ -400,7 +400,7 @@ All styles use **Outfit Variable** font (bundled in `assets/fonts/`).
 
 ### Shared widgets
 
-Always use these — never raw Flutter equivalents:
+Always use these - never raw Flutter equivalents:
 
 | Widget | Replaces |
 |--------|---------|
@@ -422,10 +422,10 @@ The web app stores **Lucide icon names** as strings in the database (e.g. `"Uten
 **`lib/core/extensions/lucide_ext.dart`** has two extensions:
 
 ```dart
-// For in-app UI — maps to Material IconData
+// For in-app UI - maps to Material IconData
 category.icon.lucideIcon  // → Icons.restaurant
 
-// For Android widget RemoteViews — maps to emoji string
+// For Android widget RemoteViews - maps to emoji string
 category.icon.toEmoji     // → "🍽"
 ```
 
@@ -443,7 +443,7 @@ When a new category with an unmapped icon appears, add the mapping to both exten
 | `app_constants.dart` | App-wide constants (pagination limits etc.) |
 | `storage_keys.dart` | Keys used with `flutter_secure_storage` |
 
-Never hardcode strings in feature code — always reference a constant.
+Never hardcode strings in feature code - always reference a constant.
 
 ### Extensions
 
@@ -462,7 +462,7 @@ Extensions are preferred over utility classes or standalone functions. They live
 
 ## Home Screen Widget
 
-Android 3×2 app widget — quick access without opening the app.
+Android 3×2 app widget - quick access without opening the app.
 
 ### Flutter side (`lib/features/home_widget/widget_service.dart`)
 
@@ -473,7 +473,7 @@ Android 3×2 app widget — quick access without opening the app.
 
 ### Kotlin side (`QuickExpenseWidgetProvider.kt`)
 
-- `onUpdate()` wraps `updateWidget()` in try/catch — prevents "can't load widget" error banner on crash
+- `onUpdate()` wraps `updateWidget()` in try/catch - prevents "can't load widget" error banner on crash
 - Reads SharedPreferences via `HomeWidgetPlugin.getData(context)`
 - Sets text on RemoteViews text views
 - Sets `PendingIntent` on each category card → deep link `coffer://quick-add?category=<name>`
@@ -483,7 +483,7 @@ Android 3×2 app widget — quick access without opening the app.
 
 Critical constraint: **`<View>` is banned in RemoteViews on Android API 31+** (Pixel 7a runs API 37). Use `<TextView>` for dividers:
 ```xml
-<!-- Divider: TextView not View — View is banned in RemoteViews on API 31+ -->
+<!-- Divider: TextView not View - View is banned in RemoteViews on API 31+ -->
 <TextView
     android:layout_width="match_parent"
     android:layout_height="1dp"
@@ -562,7 +562,7 @@ fvm flutter build apk --release \
 
 ## Release / Deployment
 
-No Play Store — distributed via **Obtainium** from this private GitHub repo.
+No Play Store - distributed via **Obtainium** from this private GitHub repo.
 
 ### Tag a release
 
@@ -593,14 +593,14 @@ CI builds the signed APK, creates a GitHub Release. Obtainium on the Pixel detec
 
 ## CI Pipeline
 
-File: `.github/workflows/release.yml` — triggers on `v*` tags only.
+File: `.github/workflows/release.yml` - triggers on `v*` tags only.
 
 ```
 Checkout
   ↓
 Java 17 (Temurin) + Gradle cache
   ↓
-Flutter 3.44.4 (pinned, cached — stable cache key)
+Flutter 3.44.4 (pinned, cached - stable cache key)
   ↓
 Pub package cache restore (key: pubspec.lock hash)
   ↓
@@ -623,7 +623,7 @@ flutter build apk --release
 Create GitHub Release + upload APK
 ```
 
-Build time: ~5–8 min warm caches, ~12 min cold.
+Build time: ~5-8 min warm caches, ~12 min cold.
 
 ---
 
@@ -706,7 +706,7 @@ GoRoute(path: '/projects/:id', builder: (_, s) => ProjectDetailPage(id: s.pathPa
 GoRoute(path: '/projects/:id/add-task', builder: (_, s) => QuickAddProjectTaskPage(projectId: s.pathParameters['id']!)),
 ```
 
-Add "Projects" entry to `More` tab in `app_scaffold.dart` (or dedicated bottom-nav tab — decide when building).
+Add "Projects" entry to `More` tab in `app_scaffold.dart` (or dedicated bottom-nav tab - decide when building).
 
 ### Widget (future)
 
@@ -718,21 +718,21 @@ No widget changes needed for v1. Future: add a "Projects" shortcut button as 5th
 
 | Issue | Detail |
 |-------|--------|
-| `AsyncValue.guard` | Silently swallows exceptions — never use for mutations. Always manual `try/catch + rethrow`. |
-| **Auto-dispose double-toast** | `@riverpod` mutation notifiers (no `keepAlive`) get disposed mid-async when nothing watches them — causes false error toast even though DB write succeeded. **Fix: bypass mutation notifiers entirely in page code.** Call datasource directly, use local `bool _loading`. Applies to all quick-add pages, `tasks_page`, `record_payment_page`. |
-| **Modal black screen from widget** | Widget uses `context.go()` which replaces the entire nav stack. Popping the modal on an empty stack → black screen. **Fix:** all quick-add pages use `_close()` with `canPop()` guard — falls back to `context.go('/dashboard')`. |
-| **Widget deep link cold start** | `coffer://` deep link on cold start gets overwritten by auth splash redirect, losing destination. **Fix:** `pendingLink` pattern in `app.dart` — park on `/splash`, deliver after auth resolves. |
+| `AsyncValue.guard` | Silently swallows exceptions - never use for mutations. Always manual `try/catch + rethrow`. |
+| **Auto-dispose double-toast** | `@riverpod` mutation notifiers (no `keepAlive`) get disposed mid-async when nothing watches them - causes false error toast even though DB write succeeded. **Fix: bypass mutation notifiers entirely in page code.** Call datasource directly, use local `bool _loading`. Applies to all quick-add pages, `tasks_page`, `record_payment_page`. |
+| **Modal black screen from widget** | Widget uses `context.go()` which replaces the entire nav stack. Popping the modal on an empty stack → black screen. **Fix:** all quick-add pages use `_close()` with `canPop()` guard - falls back to `context.go('/dashboard')`. |
+| **Widget deep link cold start** | `coffer://` deep link on cold start gets overwritten by auth splash redirect, losing destination. **Fix:** `pendingLink` pattern in `app.dart` - park on `/splash`, deliver after auth resolves. |
 | RouterNotifier timing | `_routerListener?.call()` inside `build()` fires before Riverpod commits state. Must be `Future.microtask(() => _routerListener?.call())`. |
 | `<View>` in widget XML | Banned in RemoteViews on Android API 31+. Use `<TextView>` even for dividers. |
 | INTERNET permission | Must be in main `AndroidManifest.xml`. Debug overlay manifest does NOT merge into release builds. |
 | Lucide icon strings | Web app stores Lucide icon names. Map them in `lucide_ext.dart` for Material Icons and emoji. |
 | Amounts in paisas | All monetary values are `int` (paisas). Never `double`. Format via `int.formatPKR()`. |
 | `--dart-define` mandatory | `API_BASE_URL` must be passed at build time. No fallback. |
-| `fvm` prefix | All Flutter and Dart commands use `fvm` — never raw `flutter` or `dart`. |
+| `fvm` prefix | All Flutter and Dart commands use `fvm` - never raw `flutter` or `dart`. |
 | No barrel files | Never create `index.dart` re-exports. Import the specific file path. |
 | Extensions over utils | Logic on a type → extension on that type. Never static utility classes. |
 | Custom widgets always | Never use raw Flutter widgets (`Card`, `ElevatedButton`, etc.) in feature code. |
 | Keystore backup | `android/app/keystore.jks` must be backed up to Filen cloud. Losing it = can't update the app. |
 | Widget today_spend | Hardcoded to 0 on expense add. A background task would be needed for accurate real-time spend. |
-| Optimistic UI flash | Don't remove optimistic state immediately on API success — the provider hasn't reloaded yet, causing a 1-frame revert. Keep optimistic entry until provider data lands with matching status; clean up via `addPostFrameCallback` in the `data()` callback. |
+| Optimistic UI flash | Don't remove optimistic state immediately on API success - the provider hasn't reloaded yet, causing a 1-frame revert. Keep optimistic entry until provider data lands with matching status; clean up via `addPostFrameCallback` in the `data()` callback. |
 | `pubspec.yaml` version | Must be bumped manually to match git tag before releasing, OR CI passes `--build-name` extracted from tag. Currently CI does both. |

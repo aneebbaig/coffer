@@ -65,7 +65,7 @@ export function WeddingClient({ plans: initialPlans }: { plans: WeddingPlan[] })
       <PageHeader
         section="Planning"
         title="Wedding"
-        description="Plan your Pakistani wedding — events, vendors, budget and Haq Mehr all in one place."
+        description="Plan your Pakistani wedding - events, vendors, budget and Haq Mehr all in one place."
         action={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />New Wedding Plan</Button>}
       />
 
@@ -73,7 +73,7 @@ export function WeddingClient({ plans: initialPlans }: { plans: WeddingPlan[] })
         <EmptyState
           icon={Heart}
           title="No wedding plan yet"
-          description="Start planning your big day — add events, compare vendors, track your budget."
+          description="Start planning your big day - add events, compare vendors, track your budget."
           action={{ label: "Create Wedding Plan", onClick: () => setOpen(true) }}
         />
       ) : (
@@ -182,12 +182,12 @@ export function WeddingClient({ plans: initialPlans }: { plans: WeddingPlan[] })
               <Input type="date" value={form.weddingDate} onChange={(e) => setForm((p) => ({ ...p, weddingDate: e.target.value }))} />
             </div>
             <div>
-              <Label>Total Budget — Rs (optional)</Label>
+              <Label>Total Budget - Rs (optional)</Label>
               <Input type="number" placeholder="e.g. 2000000" value={form.totalBudget} onChange={(e) => setForm((p) => ({ ...p, totalBudget: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Haq Mehr — Rs (optional)</Label>
+                <Label>Haq Mehr - Rs (optional)</Label>
                 <Input type="number" placeholder="e.g. 500000" value={form.haqMehr} onChange={(e) => setForm((p) => ({ ...p, haqMehr: e.target.value }))} />
               </div>
               <div>

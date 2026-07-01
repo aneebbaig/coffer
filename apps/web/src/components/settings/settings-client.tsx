@@ -256,10 +256,10 @@ export function SettingsClient({
               <Select onValueChange={(v) => setProfile((p) => ({ ...p, currency: v }))} defaultValue={profile.currency}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PKR">PKR — Pakistani Rupee (Rs )</SelectItem>
-                  <SelectItem value="USD">USD — US Dollar ($)</SelectItem>
-                  <SelectItem value="EUR">EUR — Euro (€)</SelectItem>
-                  <SelectItem value="GBP">GBP — British Pound (£)</SelectItem>
+                  <SelectItem value="PKR">PKR - Pakistani Rupee (Rs )</SelectItem>
+                  <SelectItem value="USD">USD - US Dollar ($)</SelectItem>
+                  <SelectItem value="EUR">EUR - Euro (€)</SelectItem>
+                  <SelectItem value="GBP">GBP - British Pound (£)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -480,7 +480,7 @@ export function SettingsClient({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Daily Digest Email</CardTitle>
-                <CardDescription>Morning summary sent at 7 AM — choose what to include</CardDescription>
+                <CardDescription>Morning summary sent at 7 AM - choose what to include</CardDescription>
               </div>
               <Switch
                 checked={notifications.notifyDailyDigest}
@@ -570,7 +570,7 @@ export function SettingsClient({
               <RefreshCw className="h-4 w-4" />
               Recurring Transactions
             </CardTitle>
-            <CardDescription>Transactions marked as recurring — add them manually each month</CardDescription>
+            <CardDescription>Transactions marked as recurring - add them manually each month</CardDescription>
           </CardHeader>
           <CardContent>
             {recurringTransactions.length === 0 ? (
@@ -600,13 +600,13 @@ export function SettingsClient({
         </Card>
       </TabsContent>
 
-      {/* Users Tab — SUPER_ADMIN only */}
+      {/* Users Tab - SUPER_ADMIN only */}
       {isSuperAdmin && (
         <TabsContent value="users" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>App Users</CardTitle>
-              <CardDescription>Manage who has access to Coffer</CardDescription>
+              <CardDescription>Manage who has access to this app</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {users.map((u) => (
@@ -655,7 +655,7 @@ export function SettingsClient({
           <Card>
             <CardHeader>
               <CardTitle>Add User</CardTitle>
-              <CardDescription>Create a new account — they can log in immediately</CardDescription>
+              <CardDescription>Create a new account - they can log in immediately</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -678,8 +678,8 @@ export function SettingsClient({
                   <Select onValueChange={(v) => setNewUser((p) => ({ ...p, role: v }))} defaultValue="ADMIN">
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ADMIN">Admin — no vault, no user mgmt</SelectItem>
-                      <SelectItem value="SUPER_ADMIN">Super Admin — full access</SelectItem>
+                      <SelectItem value="ADMIN">Admin - no vault, no user mgmt</SelectItem>
+                      <SelectItem value="SUPER_ADMIN">Super Admin - full access</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

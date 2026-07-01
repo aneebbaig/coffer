@@ -125,7 +125,7 @@ export function ExpensesClient({
       />
 
       <div className="space-y-6">
-        {/* Summary cards — always current period */}
+        {/* Summary cards - always current period */}
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">This Month</p>
@@ -133,7 +133,7 @@ export function ExpensesClient({
           </div>
           <div className="bg-card px-5 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">Budget</p>
-            <div className="text-xl font-bold text-foreground tabnum">{budgetTotal > 0 ? `Rs ${fmt(budgetTotal)}` : "—"}</div>
+            <div className="text-xl font-bold text-foreground tabnum">{budgetTotal > 0 ? `Rs ${fmt(budgetTotal)}` : "-"}</div>
             {budgetTotal === 0 && <div className="text-xs text-muted-foreground mt-0.5">Not set</div>}
           </div>
           <div className="bg-card px-5 py-4">
@@ -143,7 +143,7 @@ export function ExpensesClient({
             </p>
             <div className={cn("text-xl font-bold tabnum",
               budgetTotal === 0 ? "text-muted-foreground" : overUnder >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
-              {budgetTotal === 0 ? "—" : `Rs ${fmt(Math.abs(overUnder))}`}
+              {budgetTotal === 0 ? "-" : `Rs ${fmt(Math.abs(overUnder))}`}
             </div>
           </div>
         </div>

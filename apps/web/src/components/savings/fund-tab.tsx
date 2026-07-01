@@ -145,9 +145,9 @@ export function FundTab({
               status === "critical" ? "text-red-600" : status === "low" ? "text-amber-600" :
               status === "ok" ? "text-blue-600" : "text-emerald-600"
             )}>
-              {status === "critical" ? "Critical — under 3 months" :
-               status === "low" ? `Low — building toward ${months} months` :
-               status === "ok" ? "Building — almost there" : `Safe — ${months}+ months covered`}
+              {status === "critical" ? "Critical - under 3 months" :
+               status === "low" ? `Low - building toward ${months} months` :
+               status === "ok" ? "Building - almost there" : `Safe - ${months}+ months covered`}
             </span>
           </div>
           <div className="space-y-1.5">
@@ -191,7 +191,7 @@ export function FundTab({
           {totalUsdCents > 0 && (
             <div className="text-xs text-blue-500 mt-0.5">$ {fmtUsd(totalUsdCents)} + Rs {fmt(totalPkrOnly)} combined</div>
           )}
-          <p className="text-xs text-muted-foreground mt-1">For unplanned expenses — tap from here when over budget</p>
+          <p className="text-xs text-muted-foreground mt-1">For unplanned expenses - tap from here when over budget</p>
         </div>
       )}
 
@@ -200,7 +200,7 @@ export function FundTab({
           <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium">Target: {months} months of expenses</div>
-            <div className="text-xs text-muted-foreground">Recommended: 3–6 months minimum, 9–12 for security</div>
+            <div className="text-xs text-muted-foreground">Recommended: 3-6 months minimum, 9-12 for security</div>
           </div>
           {editingMonths ? (
             <div className="flex items-center gap-2">
@@ -316,7 +316,7 @@ export function FundTab({
                   className="w-full rounded-lg border border-border bg-background text-foreground px-3 py-2 text-sm">
                   <option value="">Select a pot…</option>
                   {transferablePots.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} — Rs {fmt(p.currentAmount)}{p.currentAmountUsd > 0 ? ` / $${fmtUsd(p.currentAmountUsd)}` : ""}</option>
+                    <option key={p.id} value={p.id}>{p.name} - Rs {fmt(p.currentAmount)}{p.currentAmountUsd > 0 ? ` / $${fmtUsd(p.currentAmountUsd)}` : ""}</option>
                   ))}
                 </select>
               )}
@@ -343,7 +343,7 @@ export function FundTab({
       <Dialog open={potDialog.type === "correct"} onOpenChange={(o) => !o && setPotDialog({ type: null })}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Correct Balance — {activePot?.name ?? label}</DialogTitle>
+            <DialogTitle>Correct Balance - {activePot?.name ?? label}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg bg-muted/50 border border-border px-3 py-2 text-xs space-y-0.5">

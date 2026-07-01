@@ -126,17 +126,17 @@ function VendorForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Quoted Amount — Rs</Label>
+          <Label>Quoted Amount - Rs</Label>
           <Input type="number" placeholder="e.g. 80000" value={form.quotedAmount} onChange={(e) => setForm((p) => ({ ...p, quotedAmount: e.target.value }))} />
         </div>
         <div>
-          <Label>Final/Negotiated — Rs</Label>
+          <Label>Final/Negotiated - Rs</Label>
           <Input type="number" placeholder="e.g. 70000" value={form.finalAmount} onChange={(e) => setForm((p) => ({ ...p, finalAmount: e.target.value }))} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Deposit Paid — Rs</Label>
+          <Label>Deposit Paid - Rs</Label>
           <Input type="number" value={form.depositPaid} onChange={(e) => setForm((p) => ({ ...p, depositPaid: e.target.value }))} />
         </div>
         <div>
@@ -309,7 +309,7 @@ function EventVendorSection({
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{getCategoryLabel(catValue)}</span>
                   {selected && (
                     <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ {selected.name} — {fmt(selected.finalAmount ?? selected.quotedAmount)}
+                      ✓ {selected.name} - {fmt(selected.finalAmount ?? selected.quotedAmount)}
                     </span>
                   )}
                 </div>

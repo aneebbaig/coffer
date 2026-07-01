@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Dark warm theme — exact hex conversions from web app globals.css oklch values.
+/// Dark warm theme - exact hex conversions from web app globals.css oklch values.
 /// Web app default: dark mode, warm hue (60°).
 abstract final class AppColors {
   // ── Backgrounds ──────────────────────────────────────────

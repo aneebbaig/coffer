@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CofferLogo } from "@/components/shared/coffer-logo";
+import { APP_NAME } from "@/lib/brand";
 import { useState } from "react";
 
 const NAV_GROUPS = [
@@ -71,7 +72,7 @@ export function Sidebar({ role }: { role?: string }) {
         <CofferLogo size={collapsed ? 26 : 28} />
         {!collapsed && (
           <span className="ml-2.5 font-semibold text-sidebar-foreground tracking-tight text-[14px]">
-            Coffer
+            {APP_NAME}
           </span>
         )}
       </div>

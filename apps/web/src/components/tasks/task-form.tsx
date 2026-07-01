@@ -85,15 +85,15 @@ export function TaskForm({ defaultType = "ONE_TIME", task, onSuccess }: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Type selector — show when creating, or always show when editing */}
+      {/* Type selector - show when creating, or always show when editing */}
       <div className="space-y-1">
         <Label>Task Type</Label>
         <Select onValueChange={setTaskType} defaultValue={taskType}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="ONE_TIME">One-Time — single task to complete</SelectItem>
-            <SelectItem value="MILESTONE">Milestone — list of sub-tasks to tick off</SelectItem>
-            <SelectItem value="DAILY">Daily — repeats every day</SelectItem>
+            <SelectItem value="ONE_TIME">One-Time - single task to complete</SelectItem>
+            <SelectItem value="MILESTONE">Milestone - list of sub-tasks to tick off</SelectItem>
+            <SelectItem value="DAILY">Daily - repeats every day</SelectItem>
           </SelectContent>
         </Select>
         {taskType === "MILESTONE" && (

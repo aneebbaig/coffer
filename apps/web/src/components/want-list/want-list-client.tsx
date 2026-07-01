@@ -79,7 +79,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
       coolingHours: parseInt(form.coolingHours),
     });
     if (result.success) {
-      toast.success("Added to Want List — come back in " + form.coolingHours + "h to decide");
+      toast.success("Added to Want List - come back in " + form.coolingHours + "h to decide");
       setAddOpen(false);
       setForm({ name: "", description: "", estimatedCost: "", url: "", categoryHint: "", coolingHours: "48" });
     } else toast.error(result.error ?? "Failed");
@@ -95,7 +95,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
       date: buyForm.date,
     });
     if (result.success) {
-      toast.success("Marked as bought — expense recorded!");
+      toast.success("Marked as bought - expense recorded!");
       setBuyItem(null);
     } else toast.error(result.error ?? "Failed");
     setLoading(false);
@@ -103,7 +103,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
 
   async function handleDismiss(id: string) {
     const result = await dismissWantListItem(id);
-    if (result.success) toast.success("Dismissed — good call!");
+    if (result.success) toast.success("Dismissed - good call!");
     else toast.error(result.error ?? "Failed");
   }
 
@@ -141,7 +141,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
         />
       )}
 
-      {/* Resurface section — items past cooling period */}
+      {/* Resurface section - items past cooling period */}
       {resurface.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -175,7 +175,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
             <Badge className="bg-blue-100 text-blue-700 text-xs">{cooling.length}</Badge>
           </div>
           <p className="text-sm text-muted-foreground -mt-1">
-            These are parked. Wait it out — the urge usually passes.
+            These are parked. Wait it out - the urge usually passes.
           </p>
           <div className="space-y-2">
             {cooling.map((item) => (
@@ -240,7 +240,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
             <div className="space-y-1.5">
               <Label>Why do you want it? <span className="text-muted-foreground">(optional)</span></Label>
               <Textarea
-                placeholder="Write it out — helps you think it through"
+                placeholder="Write it out - helps you think it through"
                 rows={2}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -280,7 +280,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
               />
             </div>
             <Button onClick={handleAdd} disabled={loading || !form.name.trim()} className="w-full">
-              Park It — Come Back Later
+              Park It - Come Back Later
             </Button>
           </div>
         </DialogContent>
@@ -290,7 +290,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
       <Dialog open={!!buyItem} onOpenChange={(o) => !o && setBuyItem(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Buy Now — {buyItem?.name}</DialogTitle>
+            <DialogTitle>Buy Now - {buyItem?.name}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             This will create an expense transaction and mark the item as bought.

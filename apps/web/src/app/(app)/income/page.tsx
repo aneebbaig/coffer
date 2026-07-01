@@ -4,7 +4,7 @@ import { getTransactions, getMonthlySummary, getExpenseFundingContext } from "@/
 import { getCategories, getUserSettings } from "@/actions/settings";
 import { IncomeClient } from "@/components/income/income-client";
 
-export const metadata: Metadata = { title: "Income — Coffer" };
+export const metadata: Metadata = { title: "Income" };
 
 export default async function IncomePage() {
   const [transactions, categories, settings] = await Promise.all([

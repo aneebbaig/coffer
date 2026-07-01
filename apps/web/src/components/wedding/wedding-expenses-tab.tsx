@@ -173,7 +173,7 @@ function ExpenseForm({
       <div className="rounded-xl border border-border p-3 space-y-3 bg-muted/20">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Source 1 — Primary
+            Source 1 - Primary
           </span>
           <CurrencyToggle value={f.s1Currency} onChange={(v) => set({ s1Currency: v })} />
         </div>
@@ -212,7 +212,7 @@ function ExpenseForm({
         <div className="rounded-xl border border-border p-3 space-y-3 bg-muted/20">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Source 2 — Remainder
+              Source 2 - Remainder
             </span>
             <div className="flex items-center gap-2">
               <CurrencyToggle value={f.s2Currency} onChange={(v) => set({ s2Currency: v })} />
@@ -465,7 +465,7 @@ export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold">Misc Expenses</h3>
-          <p className="text-xs text-muted-foreground">Dresses, flowers, fireworks, props — split across PKR and USD sources.</p>
+          <p className="text-xs text-muted-foreground">Dresses, flowers, fireworks, props - split across PKR and USD sources.</p>
         </div>
         <Button size="sm" onClick={() => openAddFor(null)}>
           <Plus className="h-3.5 w-3.5" />Add Expense
@@ -493,7 +493,7 @@ export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
         <EmptyState
           icon={Plus}
           title="No misc expenses yet"
-          description="Log dresses, jewellery, fireworks, flowers, transport, props — each with up to two funding sources."
+          description="Log dresses, jewellery, fireworks, flowers, transport, props - each with up to two funding sources."
           action={{ label: "Add Expense", onClick: () => setAddOpen(true) }}
         />
       ) : (

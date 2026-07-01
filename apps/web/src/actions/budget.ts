@@ -227,7 +227,7 @@ export async function getOpenBudgetPeriod(): Promise<{ month: number; year: numb
 
 /**
  * Advance (or set) the open budget period. With no args, advances to the period after the
- * current open one — the typical "my salary arrived, start next month" action.
+ * current open one - the typical "my salary arrived, start next month" action.
  */
 /**
  * Move a closed period's surplus (income − expenses, both by budgetMonth/budgetYear) into the

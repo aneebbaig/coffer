@@ -4,7 +4,7 @@ import { getWantList, getWantListHistory } from "@/actions/want-list";
 import { getCategoriesByType } from "@/actions/settings";
 import { ListsClient } from "@/components/lists/lists-client";
 
-export const metadata: Metadata = { title: "Lists — Coffer" };
+export const metadata: Metadata = { title: "Lists" };
 
 export default async function ListsPage({
   searchParams,

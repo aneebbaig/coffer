@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getWeddingPlan } from "@/actions/wedding";
 import { WeddingDetailClient } from "@/components/wedding/wedding-detail-client";
 
-export const metadata: Metadata = { title: "Wedding Plan — Coffer" };
+export const metadata: Metadata = { title: "Wedding Plan" };
 
 export default async function WeddingPlanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

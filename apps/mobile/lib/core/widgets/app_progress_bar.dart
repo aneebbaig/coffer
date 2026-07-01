@@ -12,7 +12,7 @@ class AppProgressBar extends StatelessWidget {
     super.key,
   });
 
-  /// 0.0 – 1.0 (clamped).
+  /// 0.0 - 1.0 (clamped).
   final double value;
   final Color? color;
   final Color? backgroundColor;

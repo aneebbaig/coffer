@@ -4,8 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ─────────────────────────────────────────────
-   WARM (default) — Craft / Bear / Superhuman
-   Hue 60 — warm brown-tinted darks
+   WARM (default) - Craft / Bear / Superhuman
+   Hue 60 - warm brown-tinted darks
 ──────────────────────────────────────────────── */
 :root {
   --radius: 0.5rem;
@@ -70,8 +70,8 @@
 }
 
 /* ─────────────────────────────────────────────
-   CARBON — GitHub / Vercel / Linear
-   Hue 255 — cool blue-gray
+   CARBON - GitHub / Vercel / Linear
+   Hue 255 - cool blue-gray
 ──────────────────────────────────────────────── */
 [data-color-theme="carbon"] {
   --background: oklch(0.96 0.006 255);
@@ -134,8 +134,8 @@
 }
 
 /* ─────────────────────────────────────────────
-   DUSK — Moody violet-slate
-   Hue 285 — blue-violet
+   DUSK - Moody violet-slate
+   Hue 285 - blue-violet
 ──────────────────────────────────────────────── */
 [data-color-theme="dusk"] {
   --background: oklch(0.96 0.007 285);
@@ -198,8 +198,8 @@
 }
 
 /* ─────────────────────────────────────────────
-   MOSS — Forest / nature
-   Hue 150 — deep green
+   MOSS - Forest / nature
+   Hue 150 - deep green
 ──────────────────────────────────────────────── */
 [data-color-theme="moss"] {
   --background: oklch(0.96 0.008 150);
@@ -262,8 +262,8 @@
 }
 
 /* ─────────────────────────────────────────────
-   ROSE — Warm rose-pink
-   Hue 350 — dusty rose
+   ROSE - Warm rose-pink
+   Hue 350 - dusty rose
 ──────────────────────────────────────────────── */
 [data-color-theme="rose"] {
   --background: oklch(0.96 0.008 350);

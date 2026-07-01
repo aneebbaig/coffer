@@ -26,7 +26,7 @@ class ProjectEntity {
   bool get isActive => status == 'ACTIVE';
   double get progress => taskCount == 0 ? 0 : doneCount / taskCount;
 
-  /// List payload — task counts come from the API summary; [tasks] stays empty.
+  /// List payload - task counts come from the API summary; [tasks] stays empty.
   factory ProjectEntity.fromSummaryJson(Map<String, dynamic> m) => ProjectEntity(
         id: m['id'] as String,
         name: m['name'] as String,
@@ -39,7 +39,7 @@ class ProjectEntity {
         doneCount: m['doneCount'] as int? ?? 0,
       );
 
-  /// Detail payload — includes the full task list.
+  /// Detail payload - includes the full task list.
   factory ProjectEntity.fromDetailJson(Map<String, dynamic> m) {
     final tasks = (m['tasks'] as List<dynamic>? ?? [])
         .map((t) => ProjectTaskEntity.fromJson(t as Map<String, dynamic>))

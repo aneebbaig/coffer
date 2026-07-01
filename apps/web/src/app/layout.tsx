@@ -11,6 +11,7 @@ import { ThemeProvider } from "@/components/shared/theme-provider";
 import { ColorThemeProvider } from "@/components/shared/color-theme-provider";
 import { FontThemeProvider } from "@/components/shared/font-theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { APP_NAME } from "@/lib/brand";
 import "./globals.css";
 
 const outfit            = Outfit({           variable: "--font-outfit",      subsets: ["latin"], display: "swap" });
@@ -28,10 +29,10 @@ const workSans          = Work_Sans({        variable: "--font-worksans",    sub
 const jetbrainsMono     = JetBrains_Mono({   variable: "--font-jetbrains",   subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Coffer — Personal Finance",
+  title: { default: `${APP_NAME} - Personal Finance`, template: `%s - ${APP_NAME}` },
   description: "Your private personal finance manager",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Coffer" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: APP_NAME },
   icons: { apple: "/apple-touch-icon.png" },
 };
 

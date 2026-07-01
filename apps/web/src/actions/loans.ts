@@ -183,7 +183,7 @@ export async function recordPayment(loanId: string, data: {
             amount: paymentAmount,
             type: "EXPENSE",
             categoryId,
-            description: `Loan repayment — ${loan.personName}`,
+            description: `Loan repayment - ${loan.personName}`,
             notes: data.notes ?? null,
             date: toLocalDate(data.date),
             budgetMonth: period.month,
@@ -215,16 +215,16 @@ export async function recordPayment(loanId: string, data: {
               },
             });
             if (src.source === "SAVINGS_POT" && src.potId && potUnits) {
-              await debitPot(tx, src.potId, potUnits, currency, `Expense: Loan repayment — ${loan.personName}`, "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
+              await debitPot(tx, src.potId, potUnits, currency, `Expense: Loan repayment - ${loan.personName}`, "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
             }
           }
         } else if (fundingSource === "SAVINGS_POT" && fundingPotId) {
-          await debitPot(tx, fundingPotId, paymentAmount, "PKR", `Expense: Loan repayment — ${loan.personName}`, "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
+          await debitPot(tx, fundingPotId, paymentAmount, "PKR", `Expense: Loan repayment - ${loan.personName}`, "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
         }
       }
 
       if (creditPotId) {
-        await creditPot(tx, creditPotId, paymentAmount, "PKR", `Loan repaid — ${loan.personName}`);
+        await creditPot(tx, creditPotId, paymentAmount, "PKR", `Loan repaid - ${loan.personName}`);
       }
     });
 
@@ -275,7 +275,7 @@ export async function deleteLoan(id: string): Promise<ActionResult> {
     if (loan.sourcePotId && loan.remainingAmount > 0) {
       await prisma.$transaction(async (tx) => {
         await tx.loan.delete({ where: { id } });
-        await creditPot(tx, loan.sourcePotId!, loan.remainingAmount, "PKR", `Loan deleted — returned from ${loan.personName}`);
+        await creditPot(tx, loan.sourcePotId!, loan.remainingAmount, "PKR", `Loan deleted - returned from ${loan.personName}`);
       });
     } else {
       await prisma.loan.delete({ where: { id } });

@@ -1,4 +1,4 @@
-# Deployment Guide — Vercel + Neon
+# Deployment Guide - Vercel + Neon
 
 Deploy Coffer to **Vercel** (hosting) + **Neon** (database). Both free. No servers, no Docker, no SSH. Total cost: **$0**.
 
@@ -14,7 +14,7 @@ Deploy Coffer to **Vercel** (hosting) + **Neon** (database). Both free. No serve
 
 ---
 
-## Step 1 — Set up Neon
+## Step 1 - Set up Neon
 
 1. Sign up at [neon.tech](https://neon.tech) (free)
 2. Click **New Project** → name it `coffer`, pick a region close to you
@@ -24,11 +24,11 @@ Deploy Coffer to **Vercel** (hosting) + **Neon** (database). Both free. No serve
 
 In your project sidebar, click **Branches → Create branch** → name it `dev`.
 
-This gives you an isolated database for local development — like a git branch for your data. Changes you make locally don't affect production.
+This gives you an isolated database for local development - like a git branch for your data. Changes you make locally don't affect production.
 
 ### Get your connection strings
 
-You need two `DATABASE_URL` values — one for local dev (dev branch), one for production (main branch).
+You need two `DATABASE_URL` values - one for local dev (dev branch), one for production (main branch).
 
 For each branch:
 1. Click the branch name in the sidebar
@@ -41,18 +41,18 @@ They look like:
 postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
 ```
 
-**Save both — you'll use them in the next steps.**
+**Save both - you'll use them in the next steps.**
 
 ---
 
-## Step 2 — Local dev setup
+## Step 2 - Local dev setup
 
 ```bash
 # Copy the env template
 cp .env.example .env.local
 ```
 
-Edit `.env.local` — replace the placeholder with your **dev branch** URL:
+Edit `.env.local` - replace the placeholder with your **dev branch** URL:
 
 ```env
 DATABASE_URL="postgresql://...dev-branch-url..."
@@ -81,11 +81,11 @@ npm run seed
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — done.
+Open [http://localhost:3000](http://localhost:3000) - done.
 
 ---
 
-## Step 3 — Deploy to Vercel
+## Step 3 - Deploy to Vercel
 
 ### Push to GitHub
 
@@ -99,7 +99,7 @@ git push origin main
 2. Click **Add New → Project**
 3. Find `coffer-management` → click **Import**
 4. Leave all settings as default
-5. **Stop before clicking Deploy** — add environment variables first
+5. **Stop before clicking Deploy** - add environment variables first
 
 ### Add environment variables
 
@@ -117,13 +117,13 @@ In your Vercel project → **Settings → Environment Variables**, add:
 | `USER2_EMAIL` | `member@example.com` | All |
 | `USER2_PASSWORD` | the second user.s password | All |
 | `USER2_NAME` | `Member` | All |
-| `GMAIL_USER` | Your Gmail (optional — enables all email alerts) | All |
+| `GMAIL_USER` | Your Gmail (optional - enables all email alerts) | All |
 | `GMAIL_APP_PASSWORD` | 16-char Google App Password (optional) | All |
-| `CRON_SECRET` | Random secret for the daily digest cron — generate same as AUTH_SECRET | All |
+| `CRON_SECRET` | Random secret for the daily digest cron - generate same as AUTH_SECRET | All |
 
 Click **Deploy**. Vercel will:
 1. Pull your code
-2. Run `prisma migrate deploy` — creates all tables in Neon
+2. Run `prisma migrate deploy` - creates all tables in Neon
 3. Build and deploy
 
 Takes 2-3 minutes. Check the build logs if anything fails.
@@ -138,7 +138,7 @@ $env:DATABASE_URL="postgresql://...your-main-branch-url..."; npm run seed
 
 ---
 
-## Step 4 — Connect your domain
+## Step 4 - Connect your domain
 
 1. Vercel project → **Settings → Domains** → Add `your-domain.com`
 2. Vercel shows you DNS records (an A record and/or CNAME)
@@ -146,7 +146,7 @@ $env:DATABASE_URL="postgresql://...your-main-branch-url..."; npm run seed
 4. Wait 5-30 minutes for DNS to propagate
 5. Vercel auto-provisions HTTPS
 
-Done — your app is live at `https://your-domain.com`.
+Done - your app is live at `https://your-domain.com`.
 
 ---
 
@@ -182,7 +182,7 @@ If you change a password or add Gmail:
 
 If a deployment fails with `P3009` (failed migration in target database), it means a migration was partially applied or the schema already had some of its columns. Fix it in two steps:
 
-**Step 1 — mark the migration as rolled back in the production DB:**
+**Step 1 - mark the migration as rolled back in the production DB:**
 
 ```powershell
 $env:DATABASE_URL="postgresql://...your-production-url..."
@@ -192,9 +192,9 @@ npx prisma migrate resolve --rolled-back <migration-name>
 
 Get the production `DATABASE_URL` from Vercel → Settings → Environment Variables. The migration name is shown in the Vercel build log error.
 
-**Step 2 — make the migration idempotent, then redeploy:**
+**Step 2 - make the migration idempotent, then redeploy:**
 
-Edit the failing `migration.sql` — change any `ADD COLUMN "columnName"` that already exists in production to `ADD COLUMN IF NOT EXISTS "columnName"`. Commit and push to main to trigger a new deployment.
+Edit the failing `migration.sql` - change any `ADD COLUMN "columnName"` that already exists in production to `ADD COLUMN IF NOT EXISTS "columnName"`. Commit and push to main to trigger a new deployment.
 
 ---
 
@@ -208,7 +208,7 @@ Edit the failing `migration.sql` — change any `ADD COLUMN "columnName"` that a
 ## Database browser
 
 ```bash
-# Visual database browser — runs locally, connects to your Neon dev branch
+# Visual database browser - runs locally, connects to your Neon dev branch
 npx prisma studio
 ```
 

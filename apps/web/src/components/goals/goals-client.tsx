@@ -155,7 +155,7 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
       <PageHeader
         section="Planning"
         title="Savings Goals"
-        description={active.length > 0 ? `${active.length} active goal${active.length !== 1 ? "s" : ""} — save toward a target, track progress, link to a Savings Pot` : "Set a savings target with a deadline. Track progress and link to a Savings Pot."}
+        description={active.length > 0 ? `${active.length} active goal${active.length !== 1 ? "s" : ""} - save toward a target, track progress, link to a Savings Pot` : "Set a savings target with a deadline. Track progress and link to a Savings Pot."}
         action={
           <Button onClick={() => setOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -176,12 +176,12 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
             <EmptyState
               icon={Target}
               title="No active goals"
-              description="Set goals for things you're saving toward — a new phone, gaming PC, vacation, anything!"
+              description="Set goals for things you're saving toward - a new phone, gaming PC, vacation, anything!"
               action={{ label: "Create your first goal", onClick: () => setOpen(true) }}
             />
           ) : (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground px-1">Drag cards to set priority — first card is highest priority</p>
+              <p className="text-xs text-muted-foreground px-1">Drag cards to set priority - first card is highest priority</p>
               <SortableGoalGrid goals={active} onReorder={handleReorder} onEdit={handleEditGoal} />
             </div>
           )}
@@ -189,7 +189,7 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
 
         <TabsContent value="completed" className="mt-4">
           {completed.length === 0 ? (
-            <EmptyState icon={Target} title="No completed goals yet" description="Keep going — you'll get there!" />
+            <EmptyState icon={Target} title="No completed goals yet" description="Keep going - you'll get there!" />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 stagger">
               {completed.map((goal) => (

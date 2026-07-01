@@ -140,7 +140,7 @@ export function TasksClient({ tasks: initialTasks }: { tasks: Task[] }) {
           {pending.length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
-                Pending — drag to set priority order
+                Pending - drag to set priority order
               </h3>
               <SortableList tasks={pending} onReorder={setPending} />
             </div>
@@ -157,7 +157,7 @@ export function TasksClient({ tasks: initialTasks }: { tasks: Task[] }) {
             <EmptyState
               icon={ListTodo}
               title="No tasks yet"
-              description="Add things you need to get done — fix the shower, call the electrician, renew documents."
+              description="Add things you need to get done - fix the shower, call the electrician, renew documents."
               action={{ label: "Add task", onClick: () => { setDefaultType("ONE_TIME"); setOpen(true); } }}
             />
           )}

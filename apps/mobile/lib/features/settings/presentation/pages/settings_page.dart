@@ -79,7 +79,7 @@ class SettingsPage extends ConsumerWidget {
                     builder: (_, snap) {
                       final version = snap.hasData
                           ? '${snap.data!.version}+${snap.data!.buildNumber}'
-                          : '—';
+                          : '-';
                       return AppListRow(
                         leading: const Icon(Icons.info_outline,
                             color: AppColors.mutedForeground, size: 20),

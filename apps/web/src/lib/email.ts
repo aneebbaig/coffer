@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { APP_NAME } from "@/lib/brand";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -12,7 +13,7 @@ export async function sendEmail(to: string | string[], subject: string, html: st
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return;
   try {
     await transporter.sendMail({
-      from: `"Coffer" <${process.env.GMAIL_USER}>`,
+      from: `"${APP_NAME}" <${process.env.GMAIL_USER}>`,
       to: Array.isArray(to) ? to.join(", ") : to,
       subject,
       html,
@@ -39,7 +40,7 @@ function shell(previewText: string, bodyHtml: string): string {
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <meta name="x-apple-disable-message-reformatting"/>
   <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
-  <title>Coffer</title>
+  <title>${APP_NAME}</title>
 </head>
 <body style="margin:0;padding:0;background-color:${BG};-webkit-text-size-adjust:100%;mso-line-height-rule:exactly">
   <div style="display:none;max-height:0;overflow:hidden;color:${BG}">${previewText}&nbsp;&#8199;&#65279;&#847;&nbsp;</div>
@@ -52,7 +53,7 @@ function shell(previewText: string, bodyHtml: string): string {
           <table width="100%" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td>
-                <span style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:18px;font-weight:700;letter-spacing:-0.5px;color:${TEXT}">coffer</span>
+                <span style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:18px;font-weight:700;letter-spacing:-0.5px;color:${TEXT}">${APP_NAME.toLowerCase()}</span>
               </td>
               <td align="right">
                 <span style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:12px;color:${FAINT};letter-spacing:0.02em">Personal Finance</span>
@@ -69,7 +70,7 @@ function shell(previewText: string, bodyHtml: string): string {
         <tr><td style="padding-top:32px">
           <div style="height:1px;background-color:${BORDER};margin-bottom:20px"></div>
           <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:11px;color:${FAINT};margin:0;line-height:1.6">
-            Coffer &middot; Personal Finance Manager<br/>
+            ${APP_NAME} &middot; Personal Finance Manager<br/>
             You can manage your notification preferences in <span style="color:${MUTED}">Settings → Notifications</span>.
           </p>
         </td></tr>
@@ -176,7 +177,7 @@ export function doomSpendingEmail(count: number, total: number) {
         This pattern often signals stress or boredom spending. Take a breath before the next purchase.
       </p>
     `)}`;
-  return shell(`${count} expenses in 2 hours — Rs ${(total / 100).toLocaleString()} total.`, body);
+  return shell(`${count} expenses in 2 hours - Rs ${(total / 100).toLocaleString()} total.`, body);
 }
 
 export function loanDueEmail(personName: string, amount: number, dueDate: Date) {
@@ -194,7 +195,7 @@ export function loanDueEmail(personName: string, amount: number, dueDate: Date) 
         Follow up soon to keep things on track.
       </p>
     `)}`;
-  return shell(`${personName} owes you Rs ${(amount / 100).toLocaleString()} — due ${dueDateStr}.`, body);
+  return shell(`${personName} owes you Rs ${(amount / 100).toLocaleString()} - due ${dueDateStr}.`, body);
 }
 
 // ─── Daily digest ─────────────────────────────────────────────────────────────
@@ -323,7 +324,7 @@ export function dailyDigestEmail(data: {
     sections.push(card(RED, `
       ${sectionLabel("Emergency fund")}
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:${TEXT};margin:0;line-height:1.6">
-        Only <strong>${data.emergencyMonthsCovered.toFixed(1)} months</strong> covered — target is 9 months.
+        Only <strong>${data.emergencyMonthsCovered.toFixed(1)} months</strong> covered - target is 9 months.
         Top up your emergency fund when possible.
       </p>
     `));
@@ -334,7 +335,7 @@ export function dailyDigestEmail(data: {
     sections.push(card(BLUE, `
       ${sectionLabel("Income")}
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:${TEXT};margin:0;line-height:1.6">
-        No income recorded this month yet. It's past the 5th — did you forget to log your salary?
+        No income recorded this month yet. It's past the 5th - did you forget to log your salary?
       </p>
     `));
   }
@@ -357,7 +358,7 @@ export function dailyDigestEmail(data: {
   const hasContent = sections.length > 0;
   const bodyContent = hasContent
     ? sections.join("")
-    : plainCard(`<p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:${MUTED};margin:0;text-align:center;padding:8px 0">Nothing urgent today — you're all clear.</p>`);
+    : plainCard(`<p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:${MUTED};margin:0;text-align:center;padding:8px 0">Nothing urgent today - you're all clear.</p>`);
 
   const body = `
     <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.5px;color:${TEXT};margin:0 0 2px">Good morning, ${data.name}.</p>
@@ -365,5 +366,5 @@ export function dailyDigestEmail(data: {
     ${bodyContent}
   `;
 
-  return shell(`Your daily briefing — ${dateLabel}.`, body);
+  return shell(`Your daily briefing - ${dateLabel}.`, body);
 }

@@ -74,20 +74,20 @@ export function GoalForm({ goal, onSuccess }: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Goal type — first since it changes form structure */}
+      {/* Goal type - first since it changes form structure */}
       {!goal && (
         <div className="space-y-1">
           <Label>Goal Type</Label>
           <Select onValueChange={setGoalType} defaultValue="FIXED">
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="FIXED">Fixed Amount — enter a target amount upfront</SelectItem>
-              <SelectItem value="ITEMS">Milestone List — build a list of items, total auto-calculated</SelectItem>
+              <SelectItem value="FIXED">Fixed Amount - enter a target amount upfront</SelectItem>
+              <SelectItem value="ITEMS">Milestone List - build a list of items, total auto-calculated</SelectItem>
             </SelectContent>
           </Select>
           {goalType === "ITEMS" && (
             <p className="text-xs text-muted-foreground px-1">
-              Add items with costs after creating — the target amount updates automatically.
+              Add items with costs after creating - the target amount updates automatically.
             </p>
           )}
         </div>

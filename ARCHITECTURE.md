@@ -1,72 +1,60 @@
 # Architecture
 
-Coffer is a monorepo: a Next.js web app that owns the data and exposes a REST API, plus a Flutter Android client that consumes it.
+Two apps, one backend. The Next.js web app owns the database and serves a REST API; the Flutter Android app is just a client that calls it.
 
 ```
-┌─────────────┐      REST /api/v1 (Bearer)      ┌──────────────┐
-│  Flutter    │ ──────────────────────────────▶ │  Next.js     │
-│  Android    │                                  │  web + API   │
-└─────────────┘                                  └──────┬───────┘
-                                                         │ Prisma
-                                                  ┌──────▼───────┐
-                                                  │  PostgreSQL  │
-                                                  │   (Neon)     │
-                                                  └──────────────┘
+  Flutter Android  ── REST /api/v1 (bearer token) ──▶  Next.js (web + API)
+                                                              │ Prisma
+                                                              ▼
+                                                         PostgreSQL (Neon)
 ```
 
-The web app renders the UI **and** serves the API. The mobile app is a pure client — it has no database and stores only an auth token (in the Android keystore).
+The phone app has no database of its own. It stores one thing locally: the auth token, in the Android keystore.
 
-## Web (`apps/web`)
+## The web app
 
-Next.js App Router. Key directories:
+Standard Next.js App Router. The parts worth knowing:
 
-- `src/app/(app)/` — authenticated pages (server components fetch via server actions, render client components)
-- `src/app/api/v1/` — REST API for the mobile client (Bearer auth via `requireBearerAuth`)
-- `src/app/api/auth/`, `src/app/api/cron/` — session auth and the daily email-digest cron
-- `src/actions/` — server actions (the web UI's data layer); each scopes queries by the session `userId`
-- `src/components/` — UI, grouped by feature; shared primitives in `components/ui` and `components/shared`
-- `src/lib/` — `prisma`, `session`/`tokens` (auth), `v1-auth`, `utils`, `constants`
-- `prisma/` — schema + migrations + seed
+- `src/app/(app)/` is the signed-in UI. Server components fetch through server actions and hand data to client components.
+- `src/app/api/v1/` is the REST API the phone uses. Every route checks a bearer token through `requireBearerAuth`.
+- `src/actions/` is the web UI's data layer. Every query is scoped by the session's `userId`.
+- `src/lib/` holds the shared bits: `prisma`, the token/session helpers, `utils`, `constants`.
+- `prisma/` is the schema, migrations, and seed script.
 
-**Auth.** Web pages use cookie-based session tokens (`getUserId()` / `requireUser()`); the v1 API uses `Authorization: Bearer <token>` (`requireBearerAuth`). Both verify the same signed access token.
+Auth works two ways for the two clients. The web pages use a cookie session (`getUserId`, `requireUser`). The API uses an `Authorization: Bearer` header. Both verify the same signed token.
 
-> **Not the Next.js you may remember.** Route handler `params` are async — `{ params }: { params: Promise<{ id: string }> }` — and you must `await params`. Mirror the existing handlers in `src/app/api/v1/`. Bundled docs live under `node_modules/next/dist/docs/`.
+Worth repeating from the contributing guide: route `params` are async here, so `await params` in every handler. When in doubt, mirror an existing route in `src/app/api/v1/`.
 
-### Money-flow invariants (read before touching financial logic)
+## The money rules
 
-Coffer enforces a strict zero-based model — money cannot enter or leave a bucket without a declared source.
+This is the part to understand before changing anything financial. The whole app runs on a zero-based model: money can't appear or move without a declared source.
 
-- **Income** enters only through the Income page and increases that month's "Ready to Assign".
-- **Every expense** is funded from a real source: monthly income or a savings pot. Pot-funded expenses atomically deduct from the pot and write a pot ledger entry. Editing/deleting a pot-funded expense reverses the prior movement first.
-- **Savings pots** hold PKR and USD independently. Deposits require a declared source (income or a transfer from another pot) and are validated against available income. Transfers are atomic (deduct + credit in one transaction). There is no standalone "withdraw" — you spend from a pot by creating an expense funded by it.
-- **Income deletion is blocked** if that month's income-funded expenses + income-funded pot deposits would exceed the remaining income (PKR and USD checked separately).
-- **Amounts are integers in the smallest unit** ("paisas" = currency × 100). Never store floating-point money.
-- USD↔PKR rate is auto-synced daily from a free public endpoint, and can be set manually.
+- Income only enters through the income page, and it raises that month's "ready to assign".
+- Every expense is funded from something real: monthly income or a savings pot. A pot-funded expense deducts from the pot and writes a ledger row in the same transaction. Editing or deleting one reverses the old movement first.
+- Pots hold PKR and USD separately. Putting money in requires a source (income, or a transfer from another pot), and it's checked against what income is actually left. Transfers move both sides in one transaction. There's no standalone withdraw; you spend from a pot by making an expense funded by it.
+- You can't delete income if doing so would leave that month's income-funded expenses and deposits underwater. PKR and USD are checked on their own.
+- All money is stored as integers in the smallest unit (paisas, the currency times 100). No floats.
+- The USD/PKR rate updates itself once a day from a free public endpoint, and you can set it by hand.
 
-### Database
+Migrations are plain SQL under `prisma/migrations/`, reviewed by hand. Run `prisma migrate dev` locally; production runs `prisma migrate deploy` on deploy. The models are commented inline in `schema.prisma`.
 
-Prisma + PostgreSQL. Migrations are hand-reviewed SQL in `prisma/migrations/`. Run `prisma migrate dev` locally; production uses `prisma migrate deploy` (see `apps/web/DEPLOYMENT.md`). Models are documented inline in `prisma/schema.prisma`.
+## The mobile app
 
-## Mobile (`apps/mobile`)
-
-Flutter with clean-architecture vertical slices. Each feature under `lib/features/<name>/`:
+Flutter, organised as clean-architecture slices. Each feature under `lib/features/<name>/` has its own data, domain, and presentation layers:
 
 ```
-data/datasources/    Dio calls, return models/entities
-data/models/         @freezed + fromJson
-data/repositories/   implement domain interfaces
-domain/entities/     pure Dart
-domain/repositories/ abstract interfaces
+data/datasources/    Dio calls
+data/models/         freezed models with fromJson
+data/repositories/   implementations of the domain interfaces
+domain/entities/     plain Dart
+domain/repositories/ interfaces
 presentation/pages/
-presentation/providers/   @riverpod codegen
+presentation/providers/   Riverpod codegen
 presentation/widgets/
 ```
 
-- **State:** Riverpod 3 codegen. Read providers (`FutureProvider`) for lists/detail; mutations call the datasource directly from page code (see the auto-dispose note in [CONTRIBUTING.md](CONTRIBUTING.md)).
-- **Networking:** Dio `ApiClient` with an `AuthInterceptor` (injects Bearer token; 401 → logout) and debug logging.
-- **Navigation:** GoRouter with a `/splash` auth gate and `pendingLink` deep-link handling.
-- **Core:** shared widgets (`App*`), theme tokens (`AppColors`, `AppTextStyles`), extensions (currency, dates, Lucide-name → icon), and services (toast, storage, connectivity).
+State is Riverpod 3 with codegen. Reads use `FutureProvider`; mutations call the datasource straight from the page (see the note in CONTRIBUTING about why). Networking is a Dio client with an interceptor that attaches the token and logs out on a 401. Routing is GoRouter with a splash-screen auth gate. The shared widgets, theme tokens, and extensions live under `core/`.
 
-## API contract
+## The API contract
 
-The mobile client depends on `/api/v1`. When you change an endpoint's shape, update both the route handler in `apps/web/src/app/api/v1/` and the corresponding `*_datasource.dart` in `apps/mobile/lib/features/`. Responses are envelopes: `{ "data": ... }` on success, `{ "error": "..." }` with an HTTP status on failure.
+The phone depends on `/api/v1`. If you change an endpoint's shape, update both the route handler in `apps/web` and the matching `*_datasource.dart` in `apps/mobile`. Responses are wrapped: `{ "data": ... }` when it works, `{ "error": "..." }` with a status code when it doesn't.

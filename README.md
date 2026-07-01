@@ -2,9 +2,7 @@
 
 # Coffer
 
-**A self-hosted personal finance manager for individuals and couples.**
-
-Zero-based budgeting, savings pots, goals, investments, loans, and more — on a stack you own. Web app + Android client, one database.
+Personal finance app I built to run our household money. Self-hosted, so the data lives in a database you own. Comes with a web app and an Android app that share one backend.
 
 [![Web CI](https://github.com/aneebbaig/coffer/actions/workflows/web-ci.yml/badge.svg)](../../actions/workflows/web-ci.yml)
 [![Mobile CI](https://github.com/aneebbaig/coffer/actions/workflows/mobile-ci.yml/badge.svg)](../../actions/workflows/mobile-ci.yml)
@@ -12,87 +10,72 @@ Zero-based budgeting, savings pots, goals, investments, loans, and more — on a
 
 </div>
 
----
+Runs on the free tiers of Vercel and Neon, so hosting it costs nothing. Nobody sees your numbers but you.
 
-Coffer is a private finance app you host yourself. It runs free on Vercel + Neon (Postgres), with an optional Android companion app that talks to the same backend over a REST API. Your data lives in **your** database — no third party, no subscription.
+## What it does
 
-> Built originally as a household finance tracker for two people. Open-sourced so anyone can self-host the same thing.
+The core is a zero-based budget: income comes in, you assign all of it, and money can't leave a bucket without saying where it came from. Around that there's:
 
-## Features
+- Expenses and income with categories, tags, and recurring entries
+- Savings pots in PKR and USD (emergency, liquid, general), with deposits that have to declare a source
+- Goals, investments, and loans (settling a loan logs the expense for you)
+- Tasks (daily habits, one-offs, and checklists) and a Projects board for freelance/client work
+- A planner for big life events, a calendar, and want/need lists
+- A private gift planner that only the super admin can see
 
-| Area | What it does |
-|---|---|
-| **Dashboard** | Monthly summary, spending charts, budget progress, goals, today's tasks |
-| **Expenses & Income** | Full transaction management with categories, tags, recurring; every expense declares a funding source |
-| **Budget** | Zero-based monthly budget with category allocations, savings plan, email alerts |
-| **Savings pots** | PKR/USD pots (Emergency, Liquid, General); deposits require a declared source; spending from a pot creates an expense |
-| **Goals** | Savings goals with progress tracking and item checklists |
-| **Investments** | Portfolio tracker (funds, stocks, gold, crypto, fixed deposits) |
-| **Loans** | Track money lent/borrowed; settling a loan auto-creates a funded expense |
-| **Tasks** | Daily habits + one-time tasks with drag-to-reorder priority and milestone checklists |
-| **Projects** | Freelance/client project management — projects → tasks with statuses, priorities, due dates |
-| **Planner** | Life-event planning (weddings, trips, renovations) |
-| **Calendar** | Events, reminders, deadlines |
-| **Lists** | Want List (48-hour impulse cooling-off) and Need List (prioritised purchases) |
-| **Vault** | Private surprise/gift planner (admin only) |
+The exchange rate between PKR and USD syncs once a day. There are two roles: super admin (everything) and admin (everything except the vault and user management).
 
-Multi-currency (PKR/USD) with a daily auto-synced exchange rate. Two roles: **Super Admin** (full access) and **Admin**.
-
-## Monorepo layout
+## How it's laid out
 
 ```
 coffer/
-├── apps/
-│   ├── web/      # Next.js + Prisma + Postgres — the app and the REST API
-│   └── mobile/   # Flutter Android client (consumes /api/v1)
-├── docs/
-├── .github/workflows/   # path-filtered CI (web vs mobile)
-├── ARCHITECTURE.md
-├── CONTRIBUTING.md
-├── SECURITY.md
-└── LICENSE
+  apps/
+    web/      Next.js + Prisma + Postgres. The app, plus the REST API.
+    mobile/   Flutter Android client. Talks to /api/v1.
+  docs/
+  .github/    CI, split so web changes don't run the Flutter build.
 ```
 
-The **web app is the source of truth** — it owns the database and exposes the REST API under `/api/v1` that the mobile client consumes. You can run web-only and never touch the mobile app.
+The web app owns the database and exposes the API the phone app uses. If you only want the web app, you never have to touch the mobile side.
 
-## Quick start
+## Running the web app
 
-**Web** (the app + API):
+You need a free Postgres database. A [Neon](https://neon.tech) branch is the easiest.
 
 ```bash
 cd apps/web
-cp .env.example .env.local      # fill in your Neon database URL + secrets
+cp .env.example .env.local     # fill in your database URL and secrets
 npm install
-npx prisma migrate dev          # create tables
-npm run seed                    # create your user(s)
-npm run dev                     # → http://localhost:3000
+npx prisma migrate dev         # creates the tables
+npm run seed                   # creates your login(s)
+npm run dev                    # http://localhost:3000
 ```
 
-You need a free [Neon](https://neon.tech) Postgres database. Full walkthrough: [`apps/web/README.md`](apps/web/README.md) · Deployment: [`apps/web/DEPLOYMENT.md`](apps/web/DEPLOYMENT.md).
+Longer version in [apps/web/README.md](apps/web/README.md). Deploying to Vercel is in [apps/web/DEPLOYMENT.md](apps/web/DEPLOYMENT.md).
 
-**Mobile** (optional Android client):
+Want to call it something other than "Coffer"? Set `NEXT_PUBLIC_APP_NAME` and it changes everywhere in the UI.
+
+## Running the mobile app
 
 ```bash
 cd apps/mobile
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
-flutter run --dart-define=API_BASE_URL=https://your-coffer-instance.com/api/v1
+flutter run --dart-define=API_BASE_URL=https://your-server.example.com/api/v1
 ```
 
-Details: [`apps/mobile/README.md`](apps/mobile/README.md).
+More in [apps/mobile/README.md](apps/mobile/README.md). Pass `--dart-define=APP_NAME=YourName` to rename it there too.
 
-## Tech stack
+## Stack
 
-- **Web:** Next.js 16, React 19, Prisma 7, PostgreSQL (Neon), NextAuth v5, Tailwind CSS v4
-- **Mobile:** Flutter, Riverpod, GoRouter, Dio — clean-architecture vertical slices
-- **Hosting:** Vercel + Neon (both have free tiers)
+Web is Next.js 16, React 19, Prisma 7, Postgres, NextAuth v5, and Tailwind v4. Mobile is Flutter with Riverpod, GoRouter, and Dio, laid out in clean-architecture slices. Both host on free tiers.
 
-## Documentation
+## More docs
 
-- [Architecture & money-flow rules](ARCHITECTURE.md) — read this before changing financial logic
-- [Contributing guide](CONTRIBUTING.md) — dev setup, conventions, PR process
-- [Security policy](SECURITY.md) — how to report a vulnerability
+- [ARCHITECTURE.md](ARCHITECTURE.md) covers how the money rules work. Read it before you touch anything financial.
+- [CONTRIBUTING.md](CONTRIBUTING.md) has the dev setup and the house rules.
+- [SECURITY.md](SECURITY.md) is how to report something sensitive.
 
 ## License
 
-[MIT](LICENSE) — do what you like, no warranty.
+MIT. See [LICENSE](LICENSE).

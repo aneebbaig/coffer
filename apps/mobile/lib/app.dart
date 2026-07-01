@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:toastification/toastification.dart';
 
+import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/auth/presentation/pages/splash_page.dart';
@@ -96,7 +97,7 @@ GoRouter goRouter(Ref ref) {
             path: '/more',
             builder: (_, __) => const MorePage(),
           ),
-          // Pushable from More page — keep bottom nav visible
+          // Pushable from More page - keep bottom nav visible
           GoRoute(
             path: '/budget',
             builder: (_, __) => const BudgetPage(),
@@ -122,7 +123,7 @@ GoRouter goRouter(Ref ref) {
           ),
         ],
       ),
-      // Modal routes — slide up, no bottom nav
+      // Modal routes - slide up, no bottom nav
       GoRoute(
         path: '/quick-add',
         pageBuilder: (_, state) => _slideUp(state, const QuickAddExpensePage()),
@@ -224,7 +225,7 @@ class CofferApp extends ConsumerWidget {
     final router = ref.watch(goRouterProvider);
     return ToastificationWrapper(
       child: MaterialApp.router(
-        title: 'Coffer Management',
+        title: AppConstants.appName,
         theme: AppTheme.dark,
         darkTheme: AppTheme.dark,
         themeMode: ThemeMode.dark,

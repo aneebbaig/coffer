@@ -9,7 +9,7 @@ const _kSkipAuth = 'skip_auth';
 /// Injects Bearer token on every request.
 /// On 401: refreshes token once, retries original request.
 /// On refresh failure: clears tokens (RouterNotifier auto-redirects to login).
-/// Uses [QueuedInterceptorsWrapper] to serialise concurrent 401s —
+/// Uses [QueuedInterceptorsWrapper] to serialise concurrent 401s -
 /// prevents multiple parallel refresh calls on concurrent expired requests.
 class AuthInterceptor extends QueuedInterceptorsWrapper {
   AuthInterceptor({required StorageService storage, required Dio dio})

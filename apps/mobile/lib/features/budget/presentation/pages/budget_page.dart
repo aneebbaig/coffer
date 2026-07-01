@@ -119,7 +119,7 @@ class _OverviewCard extends StatelessWidget {
               children: [
                 _Stat(
                   label: 'Budget',
-                  amount: data.totalBudgetPaisas?.formatPKR() ?? '—',
+                  amount: data.totalBudgetPaisas?.formatPKR() ?? '-',
                   color: AppColors.mutedForeground,
                 ),
                 _Stat(
@@ -129,7 +129,7 @@ class _OverviewCard extends StatelessWidget {
                 ),
                 _Stat(
                   label: 'Left',
-                  amount: data.remainingPaisas?.formatPKR() ?? '—',
+                  amount: data.remainingPaisas?.formatPKR() ?? '-',
                   color: _color,
                 ),
               ],

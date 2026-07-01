@@ -120,7 +120,7 @@ function EventForm({
         <Input placeholder="e.g. Pearl Continental Hotel" value={form.venue} onChange={(e) => setForm((p) => ({ ...p, venue: e.target.value }))} />
       </div>
       <div>
-        <Label>Budget Allocated — Rs (optional)</Label>
+        <Label>Budget Allocated - Rs (optional)</Label>
         <Input type="number" placeholder="e.g. 500000" value={form.budgetAllocated} onChange={(e) => setForm((p) => ({ ...p, budgetAllocated: e.target.value }))} />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -185,7 +185,7 @@ export function WeddingEventsTab({ plan }: { plan: WeddingPlan }) {
         <EmptyState
           icon={CalendarDays}
           title="No events yet"
-          description="Add your wedding events — Dholki, Mehndi, Nikkah, Barat, Valima and more."
+          description="Add your wedding events - Dholki, Mehndi, Nikkah, Barat, Valima and more."
           action={{ label: "Add Event", onClick: () => setAddOpen(true) }}
         />
       ) : (

@@ -13,7 +13,7 @@ class AuthNotifier extends _$AuthNotifier {
     try {
       return await repo.getMe();
     } catch (_) {
-      // No valid session — return null, router redirects to login
+      // No valid session - return null, router redirects to login
       return null;
     }
   }

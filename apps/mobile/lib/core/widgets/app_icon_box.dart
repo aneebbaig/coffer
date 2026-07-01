@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-/// Rounded container for emoji icons or IconData — used in transaction rows, category chips, etc.
+/// Rounded container for emoji icons or IconData - used in transaction rows, category chips, etc.
 class AppIconBox extends StatelessWidget {
   const AppIconBox({
     this.emoji,

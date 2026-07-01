@@ -155,7 +155,7 @@ export function PlannerClient({ planners }: { planners: Planner[] }) {
             <EmptyState
               icon={CalendarDays}
               title="No active plans"
-              description="Plan big events — weddings, house moves, renovations, trips. Add all expenses and track them."
+              description="Plan big events - weddings, house moves, renovations, trips. Add all expenses and track them."
               action={{ label: "Create first plan", onClick: () => setOpen(true) }}
             />
           ) : (

@@ -6,7 +6,7 @@ import { getUserSettings } from "@/actions/settings";
 import { getReadyToAssign } from "@/actions/budget";
 import { SavingsClient } from "@/components/savings/savings-client";
 
-export const metadata: Metadata = { title: "Savings — Coffer" };
+export const metadata: Metadata = { title: "Savings" };
 
 export default async function SavingsPage() {
   const settings = await getUserSettings();

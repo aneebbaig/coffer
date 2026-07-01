@@ -115,7 +115,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
         : undefined,
     );
     if (result.success) {
-      toast.success(doneForm.logExpense ? "Done — expense logged!" : "Done!");
+      toast.success(doneForm.logExpense ? "Done - expense logged!" : "Done!");
       setDoneItem(null);
     } else toast.error(result.error ?? "Failed");
     setLoading(false);
@@ -222,7 +222,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
             <DialogTitle>Add a Need</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Something you actually have to take care of — not a want.
+            Something you actually have to take care of - not a want.
           </p>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -286,7 +286,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
       <Dialog open={!!doneItem} onOpenChange={(o) => !o && setDoneItem(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mark as Done — {doneItem?.name}</DialogTitle>
+            <DialogTitle>Mark as Done - {doneItem?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30">
@@ -350,7 +350,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
               className="w-full"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
-              {doneForm.logExpense ? "Done — Log Expense" : "Mark as Done"}
+              {doneForm.logExpense ? "Done - Log Expense" : "Mark as Done"}
             </Button>
           </div>
         </DialogContent>

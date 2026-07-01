@@ -4,7 +4,7 @@ import { getBudgetWithSpending } from "@/actions/budget";
 import { getCategories, getUserSettings } from "@/actions/settings";
 import { BudgetClient } from "@/components/budget/budget-client";
 
-export const metadata: Metadata = { title: "Budget — Coffer" };
+export const metadata: Metadata = { title: "Budget" };
 
 export default async function BudgetPage({
   searchParams,

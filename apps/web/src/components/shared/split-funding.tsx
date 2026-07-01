@@ -48,7 +48,7 @@ export function SplitFunding({
 
   return (
     <div className="space-y-1.5">
-      {/* Primary source — you choose how much comes from here */}
+      {/* Primary source - you choose how much comes from here */}
       <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2.5">
         <Select value={primary.value} onValueChange={(v) => setPrimary({ value: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -72,7 +72,7 @@ export function SplitFunding({
       <p className={cn("flex items-center gap-1.5 pl-3 text-xs", over ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground")}>
         <CornerDownRight className="h-3.5 w-3.5 shrink-0" />
         {over
-          ? `Over by Rs ${fmt(Math.abs(remainderPaisas))} — lower the amount above`
+          ? `Over by Rs ${fmt(Math.abs(remainderPaisas))} - lower the amount above`
           : <>remaining <span className="font-semibold text-foreground">Rs {fmt(remainderPaisas)}</span> from</>}
       </p>
       <div className="rounded-xl border border-border bg-muted/20 p-3">

@@ -87,7 +87,7 @@ function parseFundingValue(value: string): { source: "INCOME" | "SAVINGS_POT"; p
 /** Build initial funding picker value from a saved transaction. */
 function fundingValueFromTransaction(t?: Props["transaction"]): string {
   if (t?.fundingSource === "SPLIT" && t.fundingSources?.length) {
-    // Split transactions are shown in locked summary — return INCOME as default for new
+    // Split transactions are shown in locked summary - return INCOME as default for new
     return "INCOME";
   }
   if (t?.fundingSource === "SAVINGS_POT" && t.fundingPotId) {
@@ -272,7 +272,7 @@ export function TransactionForm({
       coolingHours: 48,
     });
     if (result.success) {
-      toast.success("Parked in Want List — sleep on it first!");
+      toast.success("Parked in Want List - sleep on it first!");
       setImpulseCheck(null);
       onSuccess();
     } else {
@@ -289,7 +289,7 @@ export function TransactionForm({
       <div className="space-y-5">
         <div className="rounded-xl border-2 border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 p-5 text-center space-y-2">
           <div className="text-3xl">⏸️</div>
-          <div className="font-bold text-lg text-foreground">Hold on — big spend!</div>
+          <div className="font-bold text-lg text-foreground">Hold on - big spend!</div>
           <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">Rs {amount.toLocaleString()}</div>
           <p className="text-sm text-muted-foreground">
             Was <span className="font-medium">"{impulseCheck.data.description}"</span> planned, or did it just pop into your head?
@@ -297,10 +297,10 @@ export function TransactionForm({
         </div>
         <div className="space-y-3">
           <Button type="button" className="w-full" onClick={() => { setImpulseCheck(null); submitTransaction(impulseCheck.data); }} disabled={loading}>
-            <CheckCircle className="h-4 w-4 mr-2" />Yes, it was planned — record it
+            <CheckCircle className="h-4 w-4 mr-2" />Yes, it was planned - record it
           </Button>
           <Button type="button" variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50" onClick={handleParkInWantList} disabled={loading}>
-            <ShoppingCart className="h-4 w-4 mr-2" />Not sure — park it in Want List first
+            <ShoppingCart className="h-4 w-4 mr-2" />Not sure - park it in Want List first
           </Button>
           <Button type="button" variant="ghost" className="w-full text-muted-foreground" onClick={() => setImpulseCheck(null)}>
             Go back and edit
@@ -316,7 +316,7 @@ export function TransactionForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
-      {/* Edit mode — locked summary */}
+      {/* Edit mode - locked summary */}
       {isEditingExpense && (
         <div className="rounded-lg bg-muted/50 border border-border px-4 py-3 space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Locked</p>
@@ -347,7 +347,7 @@ export function TransactionForm({
               )}
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">To change amount, date, or funding — delete and re-add.</p>
+          <p className="text-xs text-muted-foreground">To change amount, date, or funding - delete and re-add.</p>
         </div>
       )}
 
@@ -412,7 +412,7 @@ export function TransactionForm({
         )}
       </div>
 
-      {/* Funding — only for new expenses with funding context */}
+      {/* Funding - only for new expenses with funding context */}
       {defaultType === "EXPENSE" && fundingContext && !isEditingExpense && (
         <div className="space-y-2">
           {!useSplit ? (

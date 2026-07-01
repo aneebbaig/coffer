@@ -18,7 +18,7 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Dummy values — the build compiles and collects routes; it does not connect to a DB.
+    # Dummy values - the build compiles and collects routes; it does not connect to a DB.
     env:
       DATABASE_URL: "postgresql://user:pass@localhost:5432/db"
       DATABASE_URL_UNPOOLED: "postgresql://user:pass@localhost:5432/db"

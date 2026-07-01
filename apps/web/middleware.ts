@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Access token missing or expired — try to silently refresh
+  // Access token missing or expired - try to silently refresh
   if (refreshToken) {
     const payload = await verifyRefreshToken(refreshToken);
     if (payload) {
@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // No valid tokens at all — send to login (API routes get 401)
+  // No valid tokens at all - send to login (API routes get 401)
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

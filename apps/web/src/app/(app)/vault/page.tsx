@@ -4,7 +4,7 @@ import { getServerUser } from "@/lib/session";
 import { getSurprises } from "@/actions/vault";
 import { VaultClient } from "@/components/vault/vault-client";
 
-export const metadata: Metadata = { title: "Vault — Coffer" };
+export const metadata: Metadata = { title: "Vault" };
 
 export default async function VaultPage() {
   const session = await getServerUser();
@@ -18,7 +18,7 @@ export default async function VaultPage() {
           🎁 Secret Vault
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Your private surprise planner — only visible to you
+          Your private surprise planner - only visible to you
         </p>
       </div>
       <VaultClient surprises={surprises} />

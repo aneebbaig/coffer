@@ -33,6 +33,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // app label shown under the launcher icon; override with -PappName=YourName
+        manifestPlaceholders["appName"] = (project.findProperty("appName") as String?) ?: "Coffer"
     }
 
     signingConfigs {

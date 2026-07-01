@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../widgets/login_form.dart';
@@ -17,7 +18,7 @@ class LoginPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 48),
-                const Text('Coffer', style: AppTextStyles.displayLarge),
+                const Text(AppConstants.appName, style: AppTextStyles.displayLarge),
                 const SizedBox(height: 4),
                 Text(
                   'Personal Finance',

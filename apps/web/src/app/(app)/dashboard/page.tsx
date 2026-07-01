@@ -17,7 +17,7 @@ import { TodayTasks } from "@/components/dashboard/today-tasks";
 import { TodaySchedule } from "@/components/dashboard/today-schedule";
 import { TrendChart } from "@/components/dashboard/trend-chart";
 
-export const metadata: Metadata = { title: "Dashboard — Coffer" };
+export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const session = await getServerUser();

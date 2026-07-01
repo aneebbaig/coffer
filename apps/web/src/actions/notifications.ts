@@ -37,7 +37,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
 
   const notifications: AppNotification[] = [];
 
-  // Doom spending — 3+ expenses in last 2 hours
+  // Doom spending - 3+ expenses in last 2 hours
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
   const recentExpenses = recentTransactions.filter(
     (t) => t.type === "EXPENSE" && new Date(t.date) >= twoHoursAgo
@@ -47,7 +47,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
     notifications.push({
       id: "doom-spending",
       type: "error",
-      message: `Doom spending alert — ${recentExpenses.length} expenses in the last 2 hours (Rs ${(total / 100).toLocaleString()})`,
+      message: `Doom spending alert - ${recentExpenses.length} expenses in the last 2 hours (Rs ${(total / 100).toLocaleString()})`,
     });
   }
 
@@ -61,7 +61,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
     notifications.push({
       id: "emergency-fund-critical",
       type: "warning",
-      message: `Emergency fund critically low — ${emergencyMonthsCovered.toFixed(1)} months covered (target: 9)`,
+      message: `Emergency fund critically low - ${emergencyMonthsCovered.toFixed(1)} months covered (target: 9)`,
     });
   }
 
@@ -84,19 +84,19 @@ export async function getNotifications(): Promise<AppNotification[]> {
       notifications.push({
         id: `budget-warning-${cat.id}`,
         type: "warning",
-        message: `${cat.category.name} at ${cat.percentage}% — approaching limit`,
+        message: `${cat.category.name} at ${cat.percentage}% - approaching limit`,
       });
     }
   }
 
-  // Goal progress (80–99%)
+  // Goal progress (80-99%)
   for (const goal of goals.filter((g) => g.status === "ACTIVE")) {
     const pct = goal.targetAmount > 0 ? Math.round((goal.savedAmount / goal.targetAmount) * 100) : 0;
     if (pct >= 80 && pct < 100) {
       notifications.push({
         id: `goal-${goal.id}`,
         type: "success",
-        message: `${pct}% towards "${goal.name}" — almost there!`,
+        message: `${pct}% towards "${goal.name}" - almost there!`,
       });
     }
   }

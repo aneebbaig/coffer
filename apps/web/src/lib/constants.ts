@@ -95,7 +95,7 @@ export const PROJECT_TASK_STATUS_LABELS: Record<string, string> = {
   DONE: "Done",
 };
 
-// Dot color per priority — used on compact task rows.
+// Dot color per priority - used on compact task rows.
 export const PROJECT_TASK_PRIORITY_DOT: Record<string, string> = {
   LOW: "bg-slate-400",
   MEDIUM: "bg-blue-500",

@@ -412,7 +412,7 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
       <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Update — {editItem?.name}</DialogTitle>
+            <DialogTitle>Update - {editItem?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
