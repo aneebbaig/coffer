@@ -20,10 +20,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { tasks, ...rest } = project;
+    const { tasks, links, ...rest } = project;
     return NextResponse.json({
       data: {
         ...rest,
+        links: (() => { try { return JSON.parse(links); } catch { return []; } })(),
         dueDate: rest.dueDate ? rest.dueDate.toISOString() : null,
         createdAt: rest.createdAt.toISOString(),
         updatedAt: rest.updatedAt.toISOString(),
@@ -49,6 +50,8 @@ const patchSchema = z.object({
   color: z.string().max(20).optional(),
   status: z.enum(["ACTIVE", "ON_HOLD", "COMPLETED", "CANCELLED"]).optional(),
   dueDate: z.string().nullable().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+  links: z.array(z.object({ id: z.string(), label: z.string().max(120), url: z.string().max(2000) })).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -68,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { name, description, client, color, status, dueDate } = parsed.data;
+    const { name, description, client, color, status, dueDate, notes, links } = parsed.data;
 
     await prisma.project.update({
       where: { id },
@@ -79,6 +82,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(color !== undefined && { color }),
         ...(status !== undefined && { status }),
         ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+        ...(notes !== undefined && { notes }),
+        ...(links !== undefined && { links: JSON.stringify(links) }),
       },
     });
 

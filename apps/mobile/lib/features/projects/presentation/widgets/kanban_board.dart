@@ -12,8 +12,7 @@ class KanbanBoard extends StatelessWidget {
     required this.columns,
     required this.statusOrder,
     required this.statusLabels,
-    required this.onCycle,
-    required this.onDelete,
+    required this.onTapTask,
     required this.onReorderWithinColumn,
     required this.onMoveAcrossColumn,
     this.firstColumnHeader,
@@ -22,8 +21,7 @@ class KanbanBoard extends StatelessWidget {
   final Map<String, List<ProjectTaskEntity>> columns;
   final List<String> statusOrder;
   final Map<String, String> statusLabels;
-  final void Function(ProjectTaskEntity task) onCycle;
-  final void Function(ProjectTaskEntity task) onDelete;
+  final void Function(ProjectTaskEntity task) onTapTask;
   final void Function(ProjectTaskEntity dragged, int newIndex) onReorderWithinColumn;
   final void Function(ProjectTaskEntity dragged, String destStatus, int destIndex) onMoveAcrossColumn;
   final Widget? firstColumnHeader;
@@ -38,16 +36,15 @@ class KanbanBoard extends StatelessWidget {
         children: [
           for (final status in statusOrder)
             Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(right: 10),
               child: SizedBox(
-                width: 260,
+                width: 258,
                 child: _KanbanColumn(
                   status: status,
                   label: statusLabels[status] ?? status,
                   tasks: columns[status] ?? const [],
                   header: status == statusOrder.first ? firstColumnHeader : null,
-                  onCycle: onCycle,
-                  onDelete: onDelete,
+                  onTapTask: onTapTask,
                   onReorderWithinColumn: onReorderWithinColumn,
                   onMoveAcrossColumn: onMoveAcrossColumn,
                 ),
@@ -64,8 +61,7 @@ class _KanbanColumn extends StatelessWidget {
     required this.status,
     required this.label,
     required this.tasks,
-    required this.onCycle,
-    required this.onDelete,
+    required this.onTapTask,
     required this.onReorderWithinColumn,
     required this.onMoveAcrossColumn,
     this.header,
@@ -75,8 +71,7 @@ class _KanbanColumn extends StatelessWidget {
   final String label;
   final List<ProjectTaskEntity> tasks;
   final Widget? header;
-  final void Function(ProjectTaskEntity task) onCycle;
-  final void Function(ProjectTaskEntity task) onDelete;
+  final void Function(ProjectTaskEntity task) onTapTask;
   final void Function(ProjectTaskEntity dragged, int newIndex) onReorderWithinColumn;
   final void Function(ProjectTaskEntity dragged, String destStatus, int destIndex) onMoveAcrossColumn;
 
@@ -90,63 +85,77 @@ class _KanbanColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DragTarget<ProjectTaskEntity>(
-      onAcceptWithDetails: (details) => _handleDrop(details.data, tasks.length),
-      builder: (context, candidateData, rejectedData) => Container(
-        constraints: const BoxConstraints(minHeight: 140),
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: candidateData.isNotEmpty
-              ? AppColors.primary.withValues(alpha: 0.06)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Row(
+            children: [
+              Text(
+                label.toUpperCase(),
+                style: AppTextStyles.labelSmall
+                    .copyWith(color: AppColors.mutedForeground, letterSpacing: 0.8, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: AppColors.mutedForeground.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${tasks.length}',
+                  style: AppTextStyles.labelSmall.copyWith(color: AppColors.mutedForeground),
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              child: Row(
-                children: [
-                  Text(
-                    label.toUpperCase(),
-                    style: AppTextStyles.labelSmall
-                        .copyWith(color: AppColors.mutedForeground, letterSpacing: 0.8),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${tasks.length}',
-                    style: AppTextStyles.labelSmall
-                        .copyWith(color: AppColors.mutedForeground.withValues(alpha: 0.6)),
-                  ),
-                ],
+        DragTarget<ProjectTaskEntity>(
+          onAcceptWithDetails: (details) => _handleDrop(details.data, tasks.length),
+          builder: (context, candidateData, rejectedData) => Container(
+            constraints: const BoxConstraints(minHeight: 120),
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: candidateData.isNotEmpty
+                  ? AppColors.primary.withValues(alpha: 0.07)
+                  : AppColors.mutedForeground.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: candidateData.isNotEmpty
+                    ? AppColors.primary.withValues(alpha: 0.4)
+                    : Colors.transparent,
               ),
             ),
-            if (header != null) ...[header!, const SizedBox(height: 8)],
-            for (var i = 0; i < tasks.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _DraggableCardSlot(
-                  task: tasks[i],
-                  index: i,
-                  columnStatus: status,
-                  onCycle: () => onCycle(tasks[i]),
-                  onDelete: () => onDelete(tasks[i]),
-                  onDrop: _handleDrop,
-                ),
-              ),
-            if (tasks.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                child: Text(
-                  'Nothing here.',
-                  style: AppTextStyles.labelSmall
-                      .copyWith(color: AppColors.mutedForeground.withValues(alpha: 0.6)),
-                ),
-              ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (header != null) ...[header!, const SizedBox(height: 8)],
+                for (var i = 0; i < tasks.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _DraggableCardSlot(
+                      task: tasks[i],
+                      index: i,
+                      onTap: () => onTapTask(tasks[i]),
+                      onDrop: _handleDrop,
+                    ),
+                  ),
+                if (tasks.isEmpty && header == null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                    child: Text(
+                      'Drop tasks here',
+                      style: AppTextStyles.labelSmall
+                          .copyWith(color: AppColors.mutedForeground.withValues(alpha: 0.5)),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -155,17 +164,13 @@ class _DraggableCardSlot extends StatelessWidget {
   const _DraggableCardSlot({
     required this.task,
     required this.index,
-    required this.columnStatus,
-    required this.onCycle,
-    required this.onDelete,
+    required this.onTap,
     required this.onDrop,
   });
 
   final ProjectTaskEntity task;
   final int index;
-  final String columnStatus;
-  final VoidCallback onCycle;
-  final VoidCallback onDelete;
+  final VoidCallback onTap;
   final void Function(ProjectTaskEntity dragged, int destIndex) onDrop;
 
   @override
@@ -178,7 +183,7 @@ class _DraggableCardSlot extends StatelessWidget {
           if (candidateData.isNotEmpty)
             Container(
               height: 3,
-              margin: const EdgeInsets.only(bottom: 4),
+              margin: const EdgeInsets.only(bottom: 6),
               decoration: BoxDecoration(
                 color: AppColors.primary,
                 borderRadius: BorderRadius.circular(2),
@@ -186,14 +191,14 @@ class _DraggableCardSlot extends StatelessWidget {
             ),
           LongPressDraggable<ProjectTaskEntity>(
             data: task,
-            delay: const Duration(milliseconds: 250),
+            delay: const Duration(milliseconds: 220),
             feedback: Material(
               color: Colors.transparent,
-              child: SizedBox(width: 236, child: KanbanCard(task: task, dragging: true)),
+              child: SizedBox(width: 234, child: KanbanCard(task: task, dragging: true)),
             ),
             childWhenDragging: Opacity(opacity: 0.3, child: KanbanCard(task: task)),
             onDragStarted: () => HapticFeedback.mediumImpact(),
-            child: KanbanCard(task: task, onCycle: onCycle, onDelete: onDelete),
+            child: KanbanCard(task: task, onTap: onTap),
           ),
         ],
       ),

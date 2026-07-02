@@ -5,20 +5,22 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Trash2, CalendarClock, User, Loader2 } from "lucide-react";
+import {
+  ArrowLeft, Plus, Pencil, Trash2, CalendarClock, User, PanelRight,
+} from "lucide-react";
 import {
   DndContext, DragOverlay, closestCorners, DragEndEvent, DragOverEvent,
   PointerSensor, useSensor, useSensors, useDroppable,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProjectForm } from "@/components/projects/project-form";
 import { ProjectTaskCard, ProjectTaskData } from "@/components/projects/project-task-card";
+import { ProjectNotesDrawer, ProjectLink } from "@/components/projects/project-notes-drawer";
 import {
   createProjectTask, updateProject, deleteProject, reorderProjectTasks,
 } from "@/actions/projects";
@@ -36,6 +38,8 @@ export interface ProjectDetailData {
   color: string;
   status: string;
   dueDate: Date | null;
+  notes: string;
+  links: ProjectLink[];
   tasks: ProjectTaskData[];
 }
 
@@ -51,15 +55,86 @@ function findColumn(columns: Columns, id: string): string | undefined {
   return Object.keys(columns).find((s) => columns[s].some((t) => t.id === id));
 }
 
-function KanbanColumn({
-  status, tasks, children,
-}: { status: string; tasks: ProjectTaskData[]; children: React.ReactNode }) {
-  const { setNodeRef } = useDroppable({ id: status });
+// A quiet inline "add card" that expands into a title input at the bottom of a column.
+function AddCard({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    const title = value.trim();
+    if (!title) { setOpen(false); return; }
+    setBusy(true);
+    await onAdd(title);
+    setBusy(false);
+    setValue("");
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted-foreground/80 hover:bg-card hover:text-foreground transition-colors"
+      >
+        <Plus className="h-3.5 w-3.5" /> Add task
+      </button>
+    );
+  }
+
   return (
-    <div ref={setNodeRef} className="min-h-[120px]">
-      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2">{children}</div>
-      </SortableContext>
+    <div className="rounded-lg border border-border bg-card p-2">
+      <textarea
+        autoFocus
+        rows={2}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); submit(); }
+          if (e.key === "Escape") { setOpen(false); setValue(""); }
+        }}
+        placeholder="What needs doing?"
+        className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+      />
+      <div className="mt-1.5 flex items-center gap-2">
+        <Button size="sm" className="h-7" onClick={submit} disabled={busy || !value.trim()}>Add</Button>
+        <button onClick={() => { setOpen(false); setValue(""); }} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function KanbanColumn({
+  status, count, tasks, onAdd, children,
+}: {
+  status: string;
+  count: number;
+  tasks: ProjectTaskData[];
+  onAdd: (title: string) => Promise<void>;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+  return (
+    <div className="flex w-72 shrink-0 flex-col">
+      <div className="mb-2 flex items-center gap-2 px-1">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {PROJECT_TASK_STATUS_LABELS[status]}
+        </h2>
+        <span className="rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">{count}</span>
+      </div>
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex-1 rounded-xl border p-1.5 transition-colors",
+          isOver ? "border-primary/40 bg-primary/5" : "border-transparent bg-muted/40",
+        )}
+      >
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">{children}</div>
+        </SortableContext>
+        <div className="pt-1">
+          <AddCard onAdd={onAdd} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -70,11 +145,10 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
   const [activeTask, setActiveTask] = useState<ProjectTaskData | null>(null);
   const dragSnapshot = useRef<{ status: string; columns: Columns } | null>(null);
   const [status, setStatus] = useState(project.status);
-  const [newTitle, setNewTitle] = useState("");
-  const [adding, setAdding] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const overdue = isOverdue(project.dueDate) && status === "ACTIVE";
@@ -93,14 +167,10 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
     else toast.error("Failed to update status");
   }
 
-  async function addTask() {
-    const title = newTitle.trim();
-    if (!title) return;
-    setAdding(true);
-    const result = await createProjectTask(project.id, { title });
-    if (result.success) { setNewTitle(""); refresh(); }
+  async function addTask(columnStatus: string, title: string) {
+    const result = await createProjectTask(project.id, { title, status: columnStatus });
+    if (result.success) refresh();
     else toast.error(result.error ?? "Failed to add task");
-    setAdding(false);
   }
 
   async function handleDelete() {
@@ -187,17 +257,17 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Link href="/projects" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
+      <Link href="/projects" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
         <ArrowLeft className="h-4 w-4" />
         Projects
       </Link>
 
       {/* Header */}
-      <div className="bg-card border border-border rounded-xl p-5 mb-6 relative overflow-hidden">
+      <div className="bg-card border border-border rounded-xl p-5 mb-5 relative overflow-hidden">
         <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: project.color }} aria-hidden />
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-foreground font-display">{project.name}</h1>
+            <h1 className="text-2xl font-bold text-foreground font-display truncate">{project.name}</h1>
             {project.client && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                 <User className="h-3.5 w-3.5" />{project.client}
@@ -205,6 +275,13 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setDetailsOpen(true)}>
+              <PanelRight className="h-3.5 w-3.5" />
+              Details
+              {project.links.length > 0 && (
+                <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground">{project.links.length}</span>
+              )}
+            </Button>
             <button onClick={() => setEditOpen(true)} className="text-muted-foreground hover:text-foreground p-2 transition-colors" aria-label="Edit project">
               <Pencil className="h-4 w-4" />
             </button>
@@ -246,38 +323,19 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-3 overflow-x-auto pb-4 items-start">
           {PROJECT_TASK_STATUSES.map((columnStatus) => {
             const tasks = columns[columnStatus];
             return (
-              <div key={columnStatus} className="w-72 shrink-0">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-2 flex items-center gap-2">
-                  {PROJECT_TASK_STATUS_LABELS[columnStatus]}
-                  <span className="text-muted-foreground/60">{tasks.length}</span>
-                </h2>
-
-                {columnStatus === "TODO" && (
-                  <div className="flex gap-2 mb-2">
-                    <Input
-                      placeholder="Add a task..."
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTask())}
-                      className="h-9 text-sm"
-                    />
-                    <Button onClick={addTask} size="icon" className="h-9 w-9 shrink-0" disabled={adding}>
-                      {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                )}
-
-                <KanbanColumn status={columnStatus} tasks={tasks}>
-                  {tasks.map((t) => <ProjectTaskCard key={t.id} task={t} onChange={refresh} />)}
-                  {tasks.length === 0 && (
-                    <p className="text-xs text-muted-foreground/60 px-1 py-1">Nothing here.</p>
-                  )}
-                </KanbanColumn>
-              </div>
+              <KanbanColumn
+                key={columnStatus}
+                status={columnStatus}
+                count={tasks.length}
+                tasks={tasks}
+                onAdd={(title) => addTask(columnStatus, title)}
+              >
+                {tasks.map((t) => <ProjectTaskCard key={t.id} task={t} onChange={refresh} />)}
+              </KanbanColumn>
             );
           })}
         </div>
@@ -286,6 +344,14 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
           {activeTask ? <ProjectTaskCard task={activeTask} onChange={refresh} dragging /> : null}
         </DragOverlay>
       </DndContext>
+
+      <ProjectNotesDrawer
+        projectId={project.id}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        initialNotes={project.notes}
+        initialLinks={project.links}
+      />
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>

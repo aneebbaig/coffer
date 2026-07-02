@@ -1,15 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { format } from "date-fns";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Trash2, Loader2, CalendarClock, GripVertical } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, CalendarClock } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { TaskStatusIcon } from "@/components/projects/task-status-icon";
-import { useProjectTaskActions } from "@/components/projects/use-project-task-actions";
+import { ProjectTaskDialog } from "@/components/projects/project-task-dialog";
+import { deleteProjectTask } from "@/actions/projects";
+import { toast } from "sonner";
 import { cn, isOverdue } from "@/lib/utils";
-import { PROJECT_TASK_PRIORITIES, PROJECT_TASK_PRIORITY_DOT } from "@/lib/constants";
 
 export interface ProjectTaskData {
   id: string;
@@ -21,14 +24,20 @@ export interface ProjectTaskData {
   order: number;
 }
 
+// Hex accents so the left priority bar can be a real gradient-free solid color.
+const PRIORITY_ACCENT: Record<string, string> = {
+  LOW: "#94a3b8",
+  MEDIUM: "#3b82f6",
+  HIGH: "#f59e0b",
+  URGENT: "#ef4444",
+};
+
 export function ProjectTaskCard({
   task, onChange, dragging = false,
 }: { task: ProjectTaskData; onChange: () => void; dragging?: boolean }) {
-  const {
-    cycling, cycleStatus, changePriority,
-    editing, titleValue, setTitleValue, startEditing, commitTitle, cancelEditing,
-    deleteOpen, setDeleteOpen, deleting, handleDelete,
-  } = useProjectTaskActions(task, onChange);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
@@ -36,102 +45,99 @@ export function ProjectTaskCard({
   const done = task.status === "DONE";
   const overdue = isOverdue(task.dueDate) && !done;
 
+  async function handleDelete() {
+    setDeleting(true);
+    const result = await deleteProjectTask(task.id);
+    if (result.success) { toast.success("Task deleted"); onChange(); }
+    else toast.error("Failed to delete");
+    setDeleting(false);
+    setDeleteOpen(false);
+  }
+
   return (
     <>
       <div
         ref={dragging ? undefined : setNodeRef}
         style={dragging ? undefined : style}
+        {...(dragging ? {} : attributes)}
+        {...(dragging ? {} : listeners)}
+        onClick={() => !dragging && setEditOpen(true)}
         className={cn(
-          "bg-card border border-border rounded-lg p-3 group/card",
-          dragging && "shadow-lg rotate-1",
+          "group relative bg-card border border-border rounded-lg overflow-hidden transition-colors",
+          !dragging && "cursor-grab active:cursor-grabbing hover:border-foreground/25",
+          dragging && "shadow-xl ring-1 ring-border rotate-[1.5deg] cursor-grabbing",
         )}
       >
-        <div className="flex items-start gap-2">
-          {!dragging && (
-            <button
-              {...attributes}
-              {...listeners}
-              className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none mt-0.5"
-              aria-label="Drag to move"
-            >
-              <GripVertical className="h-4 w-4" />
-            </button>
-          )}
-
-          <button onClick={cycleStatus} disabled={cycling} className="shrink-0" aria-label="Cycle status">
-            {cycling ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <TaskStatusIcon status={task.status} />}
-          </button>
-
-          <div className="flex-1 min-w-0">
-            {editing ? (
-              <input
-                autoFocus
-                value={titleValue}
-                onChange={(e) => setTitleValue(e.target.value)}
-                onBlur={commitTitle}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); commitTitle(); }
-                  if (e.key === "Escape") cancelEditing();
-                }}
-                className="w-full text-sm bg-transparent border-b border-primary outline-none py-0.5"
-              />
-            ) : (
-              <span
-                onClick={startEditing}
-                className={cn("text-sm cursor-pointer select-none block", done && "line-through text-muted-foreground")}
-                title="Click to edit"
-              >
-                {task.title}
-              </span>
+        <span
+          className="absolute inset-y-0 left-0 w-[3px]"
+          style={{ backgroundColor: PRIORITY_ACCENT[task.priority] ?? PRIORITY_ACCENT.MEDIUM }}
+          aria-hidden
+        />
+        <div className="pl-3.5 pr-1.5 py-2.5">
+          <div className="flex items-start gap-1.5">
+            <p className={cn(
+              "flex-1 text-sm leading-snug line-clamp-3",
+              done ? "text-muted-foreground line-through" : "text-foreground",
+            )}>
+              {task.title}
+            </p>
+            {!dragging && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="shrink-0 -mr-0.5 mt-[-2px] rounded p-1 text-muted-foreground/50 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 hover:text-foreground hover:bg-muted transition-all"
+                    aria-label="Task actions"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => setDeleteOpen(true)}
+                    className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
-
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span
-                className={cn("h-2 w-2 rounded-full shrink-0", PROJECT_TASK_PRIORITY_DOT[task.priority])}
-                title={`${task.priority} priority`}
-              />
-              {task.dueDate && (
-                <span className={cn("text-xs flex items-center gap-1", overdue ? "text-red-500 font-medium" : "text-muted-foreground")}>
-                  <CalendarClock className="h-3 w-3" />
-                  {overdue ? "Overdue · " : ""}{format(new Date(task.dueDate), "d MMM")}
-                </span>
-              )}
-            </div>
           </div>
 
-          {!dragging && (
-            <div className="flex flex-col items-end gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
-              <Select value={task.priority} onValueChange={changePriority}>
-                <SelectTrigger className="h-6 w-[80px] text-xs">
-                  <span className="capitalize">{task.priority.toLowerCase()}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  {PROJECT_TASK_PRIORITIES.map((p) => (
-                    <SelectItem key={p} value={p} className="text-xs capitalize">{p.toLowerCase()}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <button
-                onClick={() => setDeleteOpen(true)}
-                className="text-muted-foreground hover:text-red-500 transition-colors p-1"
-                aria-label="Delete task"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+          {task.dueDate && (
+            <div className={cn(
+              "mt-2 inline-flex items-center gap-1 text-[11px] rounded px-1.5 py-0.5",
+              overdue
+                ? "text-red-600 bg-red-500/10 dark:text-red-400 font-medium"
+                : "text-muted-foreground bg-muted",
+            )}>
+              <CalendarClock className="h-3 w-3" />
+              {format(new Date(task.dueDate), "d MMM")}
             </div>
           )}
         </div>
       </div>
 
       {!dragging && (
-        <ConfirmDialog
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          title="Delete task?"
-          description="This cannot be undone."
-          onConfirm={handleDelete}
-          loading={deleting}
-        />
+        <>
+          <ProjectTaskDialog
+            task={task}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            onSaved={onChange}
+          />
+          <ConfirmDialog
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            title="Delete task?"
+            description="This cannot be undone."
+            onConfirm={handleDelete}
+            loading={deleting}
+          />
+        </>
       )}
     </>
   );

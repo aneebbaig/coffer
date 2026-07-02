@@ -14,6 +14,8 @@ import '../../domain/entities/project_entity.dart';
 import '../providers/projects_provider.dart';
 import '../widgets/kanban_board.dart';
 import '../widgets/project_card.dart';
+import '../widgets/project_details_sheet.dart';
+import '../widgets/task_edit_sheet.dart';
 
 const _statusOrder = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
 const _statusLabels = {
@@ -110,10 +112,41 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     _persistColumn(destStatus);
   }
 
-  Future<void> _cycleStatus(ProjectTaskEntity task) async {
-    final currentIndex = _statusOrder.indexOf(task.status);
-    final next = _statusOrder[(currentIndex + 1) % _statusOrder.length];
-    _moveAcrossColumn(task, next, (_columns[next] ?? const []).length);
+  Future<void> _openTaskEdit(ProjectTaskEntity task) async {
+    await showTaskEditSheet(
+      context,
+      task: task,
+      onSave: (changes) async {
+        try {
+          await ref.read(projectsDatasourceProvider).updateTask(widget.projectId, task.id, changes);
+          if (!mounted) return;
+          _refresh();
+        } catch (e) {
+          if (!mounted) return;
+          ref.read(toastServiceProvider).error(
+              context, e is AppException ? e.message : 'Failed to save task');
+        }
+      },
+      onDelete: () => _deleteTask(task),
+    );
+  }
+
+  Future<void> _openDetails(ProjectEntity project) async {
+    await showProjectDetailsSheet(
+      context,
+      notes: project.notes,
+      links: project.links,
+      onSaveNotes: (notes) async {
+        await ref.read(projectsDatasourceProvider).updateProject(widget.projectId, {'notes': notes});
+        if (mounted) _refresh();
+      },
+      onSaveLinks: (links) async {
+        await ref.read(projectsDatasourceProvider).updateProject(
+            widget.projectId, {'links': links.map((l) => l.toJson()).toList()});
+        if (mounted) _refresh();
+      },
+      showError: (ctx, msg) => ref.read(toastServiceProvider).error(ctx, msg),
+    );
   }
 
   Future<void> _deleteTask(ProjectTaskEntity task) async {
@@ -233,6 +266,13 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
         title: const Text('Project', style: AppTextStyles.headlineSmall),
         actions: [
           IconButton(
+            icon: const Icon(Icons.notes_outlined, color: AppColors.mutedForeground),
+            tooltip: 'Details',
+            onPressed: projectAsync.hasValue
+                ? () => _openDetails(projectAsync.value!)
+                : null,
+          ),
+          IconButton(
             icon: const Icon(Icons.delete_outline, color: AppColors.mutedForeground),
             onPressed: projectAsync.hasValue ? _deleteProject : null,
           ),
@@ -331,8 +371,7 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
                   columns: _columns,
                   statusOrder: _statusOrder,
                   statusLabels: _statusLabels,
-                  onCycle: _cycleStatus,
-                  onDelete: _deleteTask,
+                  onTapTask: _openTaskEdit,
                   onReorderWithinColumn: _reorderWithinColumn,
                   onMoveAcrossColumn: _moveAcrossColumn,
                   firstColumnHeader: Padding(

@@ -32,11 +32,12 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({
-      data: projects.map(({ tasks, ...p }) => ({
+      data: projects.map(({ tasks, notes, links, ...p }) => ({
         ...p,
         dueDate: p.dueDate ? p.dueDate.toISOString() : null,
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt.toISOString(),
+        linkCount: (() => { try { return (JSON.parse(links) as unknown[]).length; } catch { return 0; } })(),
         taskCount: tasks.length,
         doneCount: tasks.filter((t) => t.status === "DONE").length,
         recentTasks: [...tasks]

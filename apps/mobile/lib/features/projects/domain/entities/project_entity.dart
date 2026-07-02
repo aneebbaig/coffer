@@ -11,6 +11,8 @@ class ProjectEntity {
     this.description,
     this.client,
     this.dueDate,
+    this.notes,
+    this.links = const [],
     this.tasks = const [],
     this.recentTasks = const [],
   });
@@ -24,6 +26,8 @@ class ProjectEntity {
   final DateTime? dueDate;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? notes;
+  final List<ProjectLinkEntity> links;
   final int taskCount;
   final int doneCount;
   final List<ProjectTaskEntity> tasks;
@@ -65,11 +69,31 @@ class ProjectEntity {
       dueDate: m['dueDate'] != null ? DateTime.parse(m['dueDate'] as String) : null,
       createdAt: DateTime.parse(m['createdAt'] as String),
       updatedAt: DateTime.parse(m['updatedAt'] as String),
+      notes: m['notes'] as String?,
+      links: (m['links'] as List<dynamic>? ?? [])
+          .map((l) => ProjectLinkEntity.fromJson(l as Map<String, dynamic>))
+          .toList(),
       taskCount: tasks.length,
       doneCount: tasks.where((t) => t.isDone).length,
       tasks: tasks,
     );
   }
+}
+
+class ProjectLinkEntity {
+  const ProjectLinkEntity({required this.id, required this.label, required this.url});
+
+  final String id;
+  final String label;
+  final String url;
+
+  Map<String, dynamic> toJson() => {'id': id, 'label': label, 'url': url};
+
+  factory ProjectLinkEntity.fromJson(Map<String, dynamic> m) => ProjectLinkEntity(
+        id: m['id'] as String? ?? '',
+        label: m['label'] as String? ?? '',
+        url: m['url'] as String? ?? '',
+      );
 }
 
 class ProjectTaskEntity {

@@ -3,92 +3,115 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_card.dart';
 import '../../domain/entities/project_entity.dart';
-import 'project_card.dart';
 
 Color kanbanPriorityColor(String p) => switch (p) {
-      'URGENT' => AppColors.destructive,
-      'HIGH' => AppColors.warning,
-      'MEDIUM' => AppColors.primary,
-      _ => AppColors.mutedForeground,
+      'URGENT' => const Color(0xFFEF4444),
+      'HIGH' => const Color(0xFFF59E0B),
+      'MEDIUM' => const Color(0xFF3B82F6),
+      _ => const Color(0xFF94A3B8),
     };
 
 class KanbanCard extends StatelessWidget {
   const KanbanCard({
     super.key,
     required this.task,
-    this.onCycle,
-    this.onDelete,
+    this.onTap,
     this.dragging = false,
   });
 
   final ProjectTaskEntity task;
-  final VoidCallback? onCycle;
-  final VoidCallback? onDelete;
+  final VoidCallback? onTap;
   final bool dragging;
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(10),
-      child: Opacity(
-        opacity: dragging ? 0.85 : 1,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: onCycle,
-              child: Icon(
-                projectTaskStatusIcon(task.status),
-                size: 18,
-                color: projectTaskStatusColor(task.status),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    style: AppTextStyles.bodySmall.copyWith(
-                      decoration: task.isDone ? TextDecoration.lineThrough : null,
-                      color: task.isDone ? AppColors.mutedForeground : AppColors.foreground,
+    final overdue = task.dueDate != null &&
+        !task.isDone &&
+        task.dueDate!.isBefore(DateTime(
+          DateTime.now().year,
+          DateTime.now().month,
+          DateTime.now().day,
+        ));
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+            boxShadow: dragging
+                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))]
+                : null,
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 3,
+                  decoration: BoxDecoration(
+                    color: kanbanPriorityColor(task.priority),
+                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(10)),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            height: 1.3,
+                            decoration: task.isDone ? TextDecoration.lineThrough : null,
+                            color: task.isDone ? AppColors.mutedForeground : AppColors.foreground,
+                          ),
+                        ),
+                        if (task.dueDate != null) ...[
+                          const SizedBox(height: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: overdue
+                                  ? AppColors.destructive.withValues(alpha: 0.12)
+                                  : AppColors.mutedForeground.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.event_outlined,
+                                  size: 11,
+                                  color: overdue ? AppColors.destructive : AppColors.mutedForeground,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  DateFormat('d MMM').format(task.dueDate!),
+                                  style: AppTextStyles.labelSmall.copyWith(
+                                    color: overdue ? AppColors.destructive : AppColors.mutedForeground,
+                                    fontWeight: overdue ? FontWeight.w600 : FontWeight.w400,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: kanbanPriorityColor(task.priority),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      if (task.dueDate != null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          DateFormat('d MMM').format(task.dueDate!),
-                          style: AppTextStyles.labelSmall.copyWith(color: AppColors.mutedForeground),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (!dragging && onDelete != null)
-              GestureDetector(
-                onTap: onDelete,
-                child: const Padding(
-                  padding: EdgeInsets.all(2),
-                  child: Icon(Icons.close, size: 15, color: AppColors.mutedForeground),
                 ),
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -69,6 +69,8 @@ export async function updateProject(id: string, data: {
   color?: string;
   status?: string;
   dueDate?: string | null;
+  notes?: string | null;
+  links?: { id: string; label: string; url: string }[];
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
@@ -84,6 +86,8 @@ export async function updateProject(id: string, data: {
         ...(data.color !== undefined && { color: data.color }),
         ...(data.status !== undefined && { status: data.status }),
         ...(data.dueDate !== undefined && { dueDate: data.dueDate ? new Date(data.dueDate) : null }),
+        ...(data.notes !== undefined && { notes: data.notes || null }),
+        ...(data.links !== undefined && { links: JSON.stringify(data.links) }),
       },
     });
     revalidatePath("/projects");
@@ -120,6 +124,7 @@ export async function createProjectTask(projectId: string, data: {
   description?: string;
   priority?: string;
   dueDate?: string;
+  status?: string;
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
@@ -133,6 +138,7 @@ export async function createProjectTask(projectId: string, data: {
         title: data.title,
         description: data.description || null,
         priority: data.priority || "MEDIUM",
+        status: data.status || "TODO",
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         order,
         projectId,

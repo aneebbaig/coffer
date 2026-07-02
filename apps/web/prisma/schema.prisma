@@ -638,6 +638,8 @@ model Project {
   color       String        @default("#6366F1")
   status      String        @default("ACTIVE") // ACTIVE | ON_HOLD | COMPLETED | CANCELLED
   dueDate     DateTime?
+  notes       String?       // freeform project notes
+  links       String        @default("[]") // JSON array of {id, label, url}
   userId      String
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
