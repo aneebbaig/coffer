@@ -46,13 +46,15 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarBrightness: Brightness.dark,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: Color(0xFF040201),
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarBrightness: Brightness.dark,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Color(0xFF040201),
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
 
   // Bring the overlay bubble back if it was on before this launch
   final prefs = await SharedPreferences.getInstance();
@@ -61,9 +63,18 @@ void main() async {
     if (granted) {
       final isActive = await FlutterOverlayWindow.isActive();
       if (!isActive) {
+        // showOverlay's height/width are raw device pixels, not logical px -
+        // must scale by devicePixelRatio or the bubble's content clips.
+        final dpr = WidgetsBinding
+            .instance
+            .platformDispatcher
+            .views
+            .first
+            .devicePixelRatio;
+        final size = (90 * dpr).round();
         await FlutterOverlayWindow.showOverlay(
-          height: 90,
-          width: 90,
+          height: size,
+          width: size,
           alignment: OverlayAlignment.centerRight,
           flag: OverlayFlag.defaultFlag,
           enableDrag: true,
