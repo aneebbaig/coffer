@@ -50,6 +50,7 @@ export async function PATCH(
         ...(order !== undefined && { order }),
       },
     });
+    await prisma.project.update({ where: { id }, data: { updatedAt: new Date() } });
 
     return NextResponse.json({ data: { id: taskId } });
   } catch {
@@ -73,6 +74,7 @@ export async function DELETE(
       where: { id: taskId, projectId: id, project: { userId: auth.id } },
     });
     if (deleted.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await prisma.project.update({ where: { id }, data: { updatedAt: new Date() } });
     return NextResponse.json({ data: { id: taskId } });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

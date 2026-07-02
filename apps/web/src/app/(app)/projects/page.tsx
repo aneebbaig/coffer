@@ -15,8 +15,14 @@ export default async function ProjectsPage() {
     color: p.color,
     status: p.status,
     dueDate: p.dueDate,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
     taskCount: p.tasks.length,
     doneCount: p.tasks.filter((t) => t.status === "DONE").length,
+    recentTasks: [...p.tasks]
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, 3)
+      .map((t) => ({ id: t.id, title: t.title, status: t.status })),
   }));
 
   return (

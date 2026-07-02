@@ -115,4 +115,18 @@ class ProjectsDatasource {
       throw ErrorHandler.handle(e);
     }
   }
+
+  Future<void> reorderTasks(String projectId, List<Map<String, dynamic>> updates) async {
+    try {
+      await Future.wait(updates.map((u) => _dio.patch(
+            ApiConstants.projectTaskById(projectId, u['id'] as String),
+            data: {
+              'order': u['order'],
+              if (u['status'] != null) 'status': u['status'],
+            },
+          )));
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
 }

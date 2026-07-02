@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { CalendarClock, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn, isOverdue } from "@/lib/utils";
-import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS } from "@/lib/constants";
+import { PROJECT_STATUS_COLORS, PROJECT_STATUS_LABELS, PROJECT_TASK_STATUS_DOT_COLOR } from "@/lib/constants";
 
 export interface ProjectCardData {
   id: string;
@@ -14,8 +14,11 @@ export interface ProjectCardData {
   color: string;
   status: string;
   dueDate: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
   taskCount: number;
   doneCount: number;
+  recentTasks: { id: string; title: string; status: string }[];
 }
 
 export function ProjectCard({ project }: { project: ProjectCardData }) {
@@ -63,6 +66,17 @@ export function ProjectCard({ project }: { project: ProjectCardData }) {
           />
         </div>
       </div>
+
+      {project.recentTasks.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {project.recentTasks.map((t) => (
+            <li key={t.id} className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", PROJECT_TASK_STATUS_DOT_COLOR[t.status])} />
+              <span className={cn("truncate", t.status === "DONE" && "line-through")}>{t.title}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {project.dueDate && (
         <div className={cn(

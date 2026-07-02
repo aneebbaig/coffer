@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
 
     const projects = await prisma.project.findMany({
       where,
-      orderBy: [{ createdAt: "desc" }],
+      orderBy: [{ updatedAt: "desc" }],
       include: {
-        tasks: { select: { status: true } },
+        tasks: { select: { id: true, title: true, status: true, updatedAt: true } },
       },
     });
 
@@ -39,6 +39,10 @@ export async function GET(req: NextRequest) {
         updatedAt: p.updatedAt.toISOString(),
         taskCount: tasks.length,
         doneCount: tasks.filter((t) => t.status === "DONE").length,
+        recentTasks: [...tasks]
+          .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+          .slice(0, 3)
+          .map((t) => ({ id: t.id, title: t.title, status: t.status })),
       })),
     });
   } catch {

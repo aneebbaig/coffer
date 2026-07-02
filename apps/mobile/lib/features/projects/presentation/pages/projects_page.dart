@@ -21,6 +21,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   late final TabController _tabs;
   static const _filters = ['ALL', 'ACTIVE', 'ON_HOLD', 'COMPLETED'];
   static const _labels = ['All', 'Active', 'On Hold', 'Completed'];
+  String _sort = 'updated';
 
   @override
   void initState() {
@@ -46,6 +47,17 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
         backgroundColor: AppColors.background,
         elevation: 0,
         title: const Text('Projects', style: AppTextStyles.headlineSmall),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort, color: AppColors.foreground),
+            initialValue: _sort,
+            onSelected: (v) => setState(() => _sort = v),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'updated', child: Text('Recently updated')),
+              PopupMenuItem(value: 'created', child: Text('Newest first')),
+            ],
+          ),
+        ],
         bottom: TabBar(
           controller: _tabs,
           isScrollable: true,
@@ -77,8 +89,14 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
         ),
         data: (all) {
           final visible = filter == 'ALL'
-              ? all
+              ? [...all]
               : all.where((p) => p.status == filter).toList();
+
+          visible.sort((a, b) {
+            final av = _sort == 'updated' ? a.updatedAt : a.createdAt;
+            final bv = _sort == 'updated' ? b.updatedAt : b.createdAt;
+            return bv.compareTo(av);
+          });
 
           if (visible.isEmpty) {
             return Center(

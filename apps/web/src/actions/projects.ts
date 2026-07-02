@@ -14,10 +14,10 @@ export async function getProjects(filter?: { status?: string }) {
 
   return prisma.project.findMany({
     where,
-    orderBy: [{ createdAt: "desc" }],
+    orderBy: [{ updatedAt: "desc" }],
     include: {
       _count: { select: { tasks: true } },
-      tasks: { select: { status: true } },
+      tasks: { select: { id: true, title: true, status: true, updatedAt: true } },
     },
   });
 }
@@ -138,6 +138,7 @@ export async function createProjectTask(projectId: string, data: {
         projectId,
       },
     });
+    await prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
     revalidatePath(`/projects/${projectId}`);
     return { success: true };
   } catch (e) {
@@ -173,6 +174,7 @@ export async function updateProjectTask(id: string, data: {
         ...(data.order !== undefined && { order: data.order }),
       },
     });
+    await prisma.project.update({ where: { id: existing.projectId }, data: { updatedAt: new Date() } });
     revalidatePath(`/projects/${existing.projectId}`);
     return { success: true };
   } catch (e) {
@@ -184,8 +186,13 @@ export async function updateProjectTask(id: string, data: {
 export async function deleteProjectTask(id: string): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    const deleted = await prisma.projectTask.deleteMany({ where: { id, project: { userId } } });
-    if (deleted.count === 0) return { success: false, error: "Not found" };
+    const existing = await prisma.projectTask.findFirst({
+      where: { id, project: { userId } },
+      select: { projectId: true },
+    });
+    if (!existing) return { success: false, error: "Not found" };
+    await prisma.projectTask.delete({ where: { id } });
+    await prisma.project.update({ where: { id: existing.projectId }, data: { updatedAt: new Date() } });
     return { success: true };
   } catch (e) {
     console.error("[deleteProjectTask]", e);
@@ -193,14 +200,28 @@ export async function deleteProjectTask(id: string): Promise<ActionResult> {
   }
 }
 
-export async function reorderProjectTasks(updates: { id: string; order: number }[]): Promise<ActionResult> {
+export async function reorderProjectTasks(
+  updates: { id: string; order: number; status?: string }[]
+): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    await prisma.$transaction(
-      updates.map(({ id, order }) =>
-        prisma.projectTask.updateMany({ where: { id, project: { userId } }, data: { order } })
-      )
-    );
+    const projectIds = await prisma.projectTask.findMany({
+      where: { id: { in: updates.map((u) => u.id) }, project: { userId } },
+      select: { projectId: true },
+      distinct: ["projectId"],
+    });
+
+    await prisma.$transaction([
+      ...updates.map(({ id, order, status }) =>
+        prisma.projectTask.updateMany({
+          where: { id, project: { userId } },
+          data: { order, ...(status !== undefined && { status }) },
+        })
+      ),
+      ...projectIds.map(({ projectId }) =>
+        prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } })
+      ),
+    ]);
     return { success: true };
   } catch (e) {
     console.error("[reorderProjectTasks]", e);

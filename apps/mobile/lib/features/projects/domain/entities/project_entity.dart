@@ -6,10 +6,13 @@ class ProjectEntity {
     required this.status,
     required this.taskCount,
     required this.doneCount,
+    required this.createdAt,
+    required this.updatedAt,
     this.description,
     this.client,
     this.dueDate,
     this.tasks = const [],
+    this.recentTasks = const [],
   });
 
   final String id;
@@ -19,9 +22,12 @@ class ProjectEntity {
   final String color; // hex string e.g. "#6366F1"
   final String status; // ACTIVE | ON_HOLD | COMPLETED | CANCELLED
   final DateTime? dueDate;
+  final DateTime createdAt;
+  final DateTime updatedAt;
   final int taskCount;
   final int doneCount;
   final List<ProjectTaskEntity> tasks;
+  final List<ProjectTaskEntity> recentTasks;
 
   bool get isActive => status == 'ACTIVE';
   double get progress => taskCount == 0 ? 0 : doneCount / taskCount;
@@ -35,8 +41,13 @@ class ProjectEntity {
         color: m['color'] as String? ?? '#6366F1',
         status: m['status'] as String,
         dueDate: m['dueDate'] != null ? DateTime.parse(m['dueDate'] as String) : null,
+        createdAt: DateTime.parse(m['createdAt'] as String),
+        updatedAt: DateTime.parse(m['updatedAt'] as String),
         taskCount: m['taskCount'] as int? ?? 0,
         doneCount: m['doneCount'] as int? ?? 0,
+        recentTasks: (m['recentTasks'] as List<dynamic>? ?? [])
+            .map((t) => ProjectTaskEntity.fromJson(t as Map<String, dynamic>))
+            .toList(),
       );
 
   /// Detail payload - includes the full task list.
@@ -52,6 +63,8 @@ class ProjectEntity {
       color: m['color'] as String? ?? '#6366F1',
       status: m['status'] as String,
       dueDate: m['dueDate'] != null ? DateTime.parse(m['dueDate'] as String) : null,
+      createdAt: DateTime.parse(m['createdAt'] as String),
+      updatedAt: DateTime.parse(m['updatedAt'] as String),
       taskCount: tasks.length,
       doneCount: tasks.where((t) => t.isDone).length,
       tasks: tasks,
@@ -80,12 +93,22 @@ class ProjectTaskEntity {
 
   bool get isDone => status == 'DONE';
 
+  ProjectTaskEntity copyWith({String? status, int? order}) => ProjectTaskEntity(
+        id: id,
+        title: title,
+        description: description,
+        status: status ?? this.status,
+        priority: priority,
+        dueDate: dueDate,
+        order: order ?? this.order,
+      );
+
   factory ProjectTaskEntity.fromJson(Map<String, dynamic> m) => ProjectTaskEntity(
         id: m['id'] as String,
         title: m['title'] as String,
         description: m['description'] as String?,
         status: m['status'] as String,
-        priority: m['priority'] as String,
+        priority: m['priority'] as String? ?? 'MEDIUM',
         dueDate: m['dueDate'] != null ? DateTime.parse(m['dueDate'] as String) : null,
         order: m['order'] as int? ?? 0,
       );

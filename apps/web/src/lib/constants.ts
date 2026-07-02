@@ -103,6 +103,14 @@ export const PROJECT_TASK_PRIORITY_DOT: Record<string, string> = {
   URGENT: "bg-red-500",
 };
 
+// Dot color per project task status - used on tile previews and kanban cards.
+export const PROJECT_TASK_STATUS_DOT_COLOR: Record<string, string> = {
+  TODO: "bg-muted-foreground/40",
+  IN_PROGRESS: "bg-blue-500",
+  REVIEW: "bg-amber-500",
+  DONE: "bg-emerald-500",
+};
+
 // Preset accent colors offered in the project create/edit form.
 export const PROJECT_COLORS = [
   "#6366F1", "#8B5CF6", "#EC4899", "#EF4444",

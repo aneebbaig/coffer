@@ -1,20 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { ArrowLeft, Plus, Pencil, Trash2, CalendarClock, User, Loader2 } from "lucide-react";
 import {
-  ArrowLeft, Plus, Pencil, Trash2, CalendarClock, User, Loader2, GripVertical,
-} from "lucide-react";
-import {
-  DndContext, closestCenter, DragEndEvent, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, closestCorners, DragEndEvent, DragOverEvent,
+  PointerSensor, useSensor, useSensors, useDroppable,
 } from "@dnd-kit/core";
-import {
-  SortableContext, useSortable, arrayMove, verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProjectForm } from "@/components/projects/project-form";
-import { ProjectTaskRow, ProjectTaskData } from "@/components/projects/project-task-row";
+import { ProjectTaskCard, ProjectTaskData } from "@/components/projects/project-task-card";
 import {
   createProjectTask, updateProject, deleteProject, reorderProjectTasks,
 } from "@/actions/projects";
@@ -43,30 +39,36 @@ export interface ProjectDetailData {
   tasks: ProjectTaskData[];
 }
 
-function SortableTaskRow({ task, onChange }: { task: ProjectTaskData; onChange: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+type Columns = Record<string, ProjectTaskData[]>;
 
+function bucket(tasks: ProjectTaskData[]): Columns {
+  const cols: Columns = Object.fromEntries(PROJECT_TASK_STATUSES.map((s) => [s, []]));
+  for (const t of tasks) (cols[t.status] ?? cols.TODO).push(t);
+  return cols;
+}
+
+function findColumn(columns: Columns, id: string): string | undefined {
+  return Object.keys(columns).find((s) => columns[s].some((t) => t.id === id));
+}
+
+function KanbanColumn({
+  status, tasks, children,
+}: { status: string; tasks: ProjectTaskData[]; children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id: status });
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-1">
-      <button
-        {...attributes}
-        {...listeners}
-        className="shrink-0 text-muted-foreground/30 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
-        aria-label="Drag to reorder"
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <div className="flex-1 min-w-0">
-        <ProjectTaskRow task={task} onChange={onChange} />
-      </div>
+    <div ref={setNodeRef} className="min-h-[120px]">
+      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2">{children}</div>
+      </SortableContext>
     </div>
   );
 }
 
 export function ProjectDetailClient({ project }: { project: ProjectDetailData }) {
   const router = useRouter();
-  const [tasks, setTasks] = useState<ProjectTaskData[]>(project.tasks);
+  const [columns, setColumns] = useState<Columns>(() => bucket(project.tasks));
+  const [activeTask, setActiveTask] = useState<ProjectTaskData | null>(null);
+  const dragSnapshot = useRef<{ status: string; columns: Columns } | null>(null);
   const [status, setStatus] = useState(project.status);
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
@@ -77,7 +79,10 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const overdue = isOverdue(project.dueDate) && status === "ACTIVE";
 
-  useEffect(() => { setTasks(project.tasks); setStatus(project.status); }, [project]);
+  useEffect(() => {
+    setColumns(bucket(project.tasks));
+    setStatus(project.status);
+  }, [project]);
 
   function refresh() { router.refresh(); }
 
@@ -105,24 +110,83 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
     else { toast.error("Failed to delete"); setDeleting(false); setDeleteOpen(false); }
   }
 
-  function handleDragEnd(groupStatus: string) {
-    return (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-      const group = tasks.filter((t) => t.status === groupStatus);
-      const oldIndex = group.findIndex((t) => t.id === active.id);
-      const newIndex = group.findIndex((t) => t.id === over.id);
-      const reordered = arrayMove(group, oldIndex, newIndex);
+  function handleDragStart(id: string) {
+    const columnStatus = findColumn(columns, id);
+    if (!columnStatus) return;
+    setActiveTask(columns[columnStatus].find((t) => t.id === id) ?? null);
+    dragSnapshot.current = { status: columnStatus, columns };
+  }
 
-      // Merge the reordered group back into the full list, then persist new orders.
-      const others = tasks.filter((t) => t.status !== groupStatus);
-      setTasks([...others, ...reordered]);
-      reorderProjectTasks(reordered.map((t, i) => ({ id: t.id, order: i + 1 })));
-    };
+  function handleDragOver({ active, over }: DragOverEvent) {
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    setColumns((prev) => {
+      const activeStatus = findColumn(prev, activeId);
+      const overStatus = (PROJECT_TASK_STATUSES as readonly string[]).includes(overId)
+        ? overId
+        : findColumn(prev, overId);
+      if (!activeStatus || !overStatus) return prev;
+
+      const activeItems = prev[activeStatus];
+      const activeIndex = activeItems.findIndex((t) => t.id === activeId);
+
+      if (activeStatus === overStatus) {
+        const overIndex = activeItems.findIndex((t) => t.id === overId);
+        if (overIndex === -1 || activeIndex === overIndex) return prev;
+        const reordered = [...activeItems];
+        const [moved] = reordered.splice(activeIndex, 1);
+        reordered.splice(overIndex, 0, moved);
+        return { ...prev, [activeStatus]: reordered };
+      }
+
+      const destItems = prev[overStatus];
+      const overIndex = destItems.findIndex((t) => t.id === overId);
+      const insertAt = overIndex >= 0 ? overIndex : destItems.length;
+      const moved = { ...activeItems[activeIndex], status: overStatus };
+      return {
+        ...prev,
+        [activeStatus]: activeItems.filter((t) => t.id !== activeId),
+        [overStatus]: [...destItems.slice(0, insertAt), moved, ...destItems.slice(insertAt)],
+      };
+    });
+  }
+
+  function handleDragEnd({ active }: DragEndEvent) {
+    setActiveTask(null);
+    if (!active || !dragSnapshot.current) return;
+
+    const activeId = String(active.id);
+    const originalStatus = dragSnapshot.current.status;
+    const finalStatus = findColumn(columns, activeId);
+    if (!finalStatus) return;
+
+    const updates: { id: string; order: number; status?: string }[] =
+      columns[originalStatus].map((t, i) => ({ id: t.id, order: i + 1 }));
+
+    if (finalStatus !== originalStatus) {
+      updates.push(
+        ...columns[finalStatus].map((t, i) => ({
+          id: t.id,
+          order: i + 1,
+          ...(t.id === activeId && { status: finalStatus }),
+        }))
+      );
+    }
+
+    const snapshot = dragSnapshot.current.columns;
+    reorderProjectTasks(updates).then((result) => {
+      if (!result.success) {
+        toast.error("Failed to move task");
+        setColumns(snapshot);
+      }
+    });
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <Link href="/projects" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
         <ArrowLeft className="h-4 w-4" />
         Projects
@@ -174,49 +238,54 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
         )}
       </div>
 
-      {/* Task groups */}
-      <div className="space-y-6">
-        {PROJECT_TASK_STATUSES.map((groupStatus) => {
-          const group = tasks.filter((t) => t.status === groupStatus);
-          return (
-            <section key={groupStatus}>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-1 flex items-center gap-2">
-                {PROJECT_TASK_STATUS_LABELS[groupStatus]}
-                <span className="text-muted-foreground/60">{group.length}</span>
-              </h2>
+      {/* Kanban board */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={(e) => handleDragStart(String(e.active.id))}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {PROJECT_TASK_STATUSES.map((columnStatus) => {
+            const tasks = columns[columnStatus];
+            return (
+              <div key={columnStatus} className="w-72 shrink-0">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-2 flex items-center gap-2">
+                  {PROJECT_TASK_STATUS_LABELS[columnStatus]}
+                  <span className="text-muted-foreground/60">{tasks.length}</span>
+                </h2>
 
-              {group.length > 0 && (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd(groupStatus)}>
-                  <SortableContext items={group.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                    <div className="divide-y divide-border/40">
-                      {group.map((t) => <SortableTaskRow key={t.id} task={t} onChange={refresh} />)}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              )}
+                {columnStatus === "TODO" && (
+                  <div className="flex gap-2 mb-2">
+                    <Input
+                      placeholder="Add a task..."
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTask())}
+                      className="h-9 text-sm"
+                    />
+                    <Button onClick={addTask} size="icon" className="h-9 w-9 shrink-0" disabled={adding}>
+                      {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                )}
 
-              {groupStatus === "TODO" && (
-                <div className="flex gap-2 mt-2 pl-1">
-                  <Input
-                    placeholder="Add a task..."
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTask())}
-                    className="h-9 text-sm"
-                  />
-                  <Button onClick={addTask} size="icon" className="h-9 w-9 shrink-0" disabled={adding}>
-                    {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  </Button>
-                </div>
-              )}
+                <KanbanColumn status={columnStatus} tasks={tasks}>
+                  {tasks.map((t) => <ProjectTaskCard key={t.id} task={t} onChange={refresh} />)}
+                  {tasks.length === 0 && (
+                    <p className="text-xs text-muted-foreground/60 px-1 py-1">Nothing here.</p>
+                  )}
+                </KanbanColumn>
+              </div>
+            );
+          })}
+        </div>
 
-              {groupStatus !== "TODO" && group.length === 0 && (
-                <p className="text-xs text-muted-foreground/60 px-1 py-1">Nothing here.</p>
-              )}
-            </section>
-          );
-        })}
-      </div>
+        <DragOverlay>
+          {activeTask ? <ProjectTaskCard task={activeTask} onChange={refresh} dragging /> : null}
+        </DragOverlay>
+      </DndContext>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>

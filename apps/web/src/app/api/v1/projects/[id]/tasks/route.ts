@@ -77,6 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       select: { id: true },
     });
+    await prisma.project.update({ where: { id }, data: { updatedAt: new Date() } });
 
     return NextResponse.json({ data: { id: created.id } }, { status: 201 });
   } catch {
