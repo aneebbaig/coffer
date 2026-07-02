@@ -7,7 +7,6 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_list_row.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../overlay_bubble/providers/overlay_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -16,7 +15,6 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(authProvider);
     final user = userAsync.asData?.value;
-    final overlayAsync = ref.watch(overlayBubbleProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -70,51 +68,6 @@ class SettingsPage extends ConsumerWidget {
                       ],
                     ),
                   ),
-
-                // Quick access section
-                const _SectionLabel('Quick Access'),
-                AppCard(
-                  margin: const EdgeInsets.only(bottom: 20),
-                  padding: EdgeInsets.zero,
-                  child: AppListRow(
-                    leading: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.add_rounded,
-                          color: AppColors.primary, size: 18),
-                    ),
-                    title: 'Floating bubble',
-                    subtitle: 'Add expense from any app',
-                    showBorder: false,
-                    trailing: overlayAsync.when(
-                      data: (enabled) => Switch(
-                        value: enabled,
-                        activeThumbColor: Colors.black,
-                        activeTrackColor: AppColors.primary,
-                        onChanged: (val) async {
-                          if (val) {
-                            await ref.read(overlayBubbleProvider.notifier).enable();
-                          } else {
-                            await ref.read(overlayBubbleProvider.notifier).disable();
-                          }
-                        },
-                      ),
-                      loading: () => const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.mutedForeground,
-                        ),
-                      ),
-                      error: (_, __) => const SizedBox.shrink(),
-                    ),
-                  ),
-                ),
 
                 // About section
                 const _SectionLabel('About'),

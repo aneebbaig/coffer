@@ -1,39 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
-import 'core/constants/app_constants.dart';
-import 'core/constants/storage_keys.dart';
-import 'features/overlay_bubble/overlay_bubble_widget.dart';
 
 @pragma('vm:entry-point')
 void backgroundCallback(Uri? uri) {
   // Widget tap deeplink handled by GoRouter via URI scheme
-}
-
-// Entry point for the floating overlay bubble. It runs in its own Flutter engine.
-@pragma('vm:entry-point')
-void overlayMain() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      // Transparent theme so nothing opaque shows behind the bubble
-      theme: ThemeData(
-        scaffoldBackgroundColor: Colors.transparent,
-        canvasColor: Colors.transparent,
-        colorScheme: const ColorScheme.dark(),
-      ),
-      home: const Material(
-        color: Colors.transparent,
-        child: OverlayBubbleWidget(),
-      ),
-    ),
-  );
 }
 
 void main() async {
@@ -46,48 +20,13 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarBrightness: Brightness.dark,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF040201),
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
-
-  // Bring the overlay bubble back if it was on before this launch
-  final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool(StorageKeys.overlayEnabled) == true) {
-    final granted = await FlutterOverlayWindow.isPermissionGranted();
-    if (granted) {
-      final isActive = await FlutterOverlayWindow.isActive();
-      if (!isActive) {
-        // showOverlay's height/width are raw device pixels, not logical px -
-        // must scale by devicePixelRatio or the bubble's content clips.
-        final dpr = WidgetsBinding
-            .instance
-            .platformDispatcher
-            .views
-            .first
-            .devicePixelRatio;
-        final size = (90 * dpr).round();
-        await FlutterOverlayWindow.showOverlay(
-          height: size,
-          width: size,
-          alignment: OverlayAlignment.centerRight,
-          flag: OverlayFlag.defaultFlag,
-          enableDrag: true,
-          positionGravity: PositionGravity.auto,
-          overlayTitle: AppConstants.appName,
-          overlayContent: 'Tap to add expense',
-        );
-      }
-    } else {
-      // permission was revoked while we were away
-      await prefs.setBool(StorageKeys.overlayEnabled, false);
-    }
-  }
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarBrightness: Brightness.dark,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Color(0xFF040201),
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
 
   runApp(const ProviderScope(child: CofferApp()));
 }

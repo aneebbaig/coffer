@@ -1,9 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <application
         android:label="${appName}"
         android:name="${applicationName}"
@@ -48,16 +45,6 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quick_expense_widget_info" />
         </receiver>
-
-        <!-- Floating overlay bubble foreground service -->
-        <service
-            android:name="flutter.overlay.window.flutter_overlay_window.OverlayService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Displays a floating quick-add button over other apps"/>
-        </service>
 
         <meta-data
             android:name="flutterEmbedding"
