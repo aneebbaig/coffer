@@ -13,7 +13,6 @@ const patchSchema = z.object({
   dueDate: z.string().nullable().optional(),
   dueTime: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
-  items: z.array(z.object({ text: z.string(), done: z.boolean() })).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -33,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { status, title, description, priority, dueDate, dueTime, category, items } = parsed.data;
+    const { status, title, description, priority, dueDate, dueTime, category } = parsed.data;
 
     await prisma.task.update({
       where: { id },
@@ -48,7 +47,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
         ...(dueTime !== undefined && { dueTime }),
         ...(category !== undefined && { category }),
-        ...(items !== undefined && { items: JSON.stringify(items) }),
       },
     });
 

@@ -28,7 +28,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this, initialIndex: 1);
+    _tabs = TabController(length: 2, vsync: this, initialIndex: 1);
   }
 
   @override
@@ -72,88 +72,6 @@ class _TasksPageState extends ConsumerState<TasksPage>
     }
   }
 
-  Future<void> _toggleItem(TaskEntity task, int index) async {
-    HapticFeedback.lightImpact();
-    final resolved = _resolve(task);
-    final updated = resolved.items.asMap().entries.map((e) {
-      if (e.key == index) {
-        return TaskMilestoneItem(text: e.value.text, done: !e.value.done);
-      }
-      return e.value;
-    }).toList();
-    final optimistic = resolved.copyWith(items: updated);
-    setState(() => _optimistic[task.id] = optimistic);
-    try {
-      await ref.read(tasksDatasourceProvider).updateTaskItems(task.id, updated);
-      if (!mounted) return;
-      ref.invalidate(tasksProvider);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _optimistic.remove(task.id));
-      final msg = e is AppException ? e.message : 'Failed to update';
-      ref.read(toastServiceProvider).error(context, msg);
-    }
-  }
-
-  Future<void> _addItem(TaskEntity task) async {
-    final ctrl = TextEditingController();
-    final text = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.card,
-        title: Text('Add step', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          style: AppTextStyles.bodyMedium,
-          decoration: InputDecoration(
-            hintText: 'Step description',
-            hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.mutedForeground),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.primary),
-            ),
-            filled: true,
-            fillColor: AppColors.background,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: AppTextStyles.bodySmall.copyWith(color: AppColors.mutedForeground)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: Text('Add', style: AppTextStyles.bodySmall.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    if (text == null || text.isEmpty) return;
-    final updated = [...task.items, TaskMilestoneItem(text: text, done: false)];
-    try {
-      await ref.read(tasksDatasourceProvider).updateTaskItems(task.id, updated);
-      if (!mounted) return;
-      ref.invalidate(tasksProvider);
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e is AppException ? e.message : 'Failed to add step';
-      ref.read(toastServiceProvider).error(context, msg);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final tasksAsync = ref.watch(tasksProvider);
@@ -175,7 +93,6 @@ class _TasksPageState extends ConsumerState<TasksPage>
           tabs: const [
             Tab(text: 'Daily'),
             Tab(text: 'One-Time'),
-            Tab(text: 'Milestones'),
           ],
         ),
       ),
@@ -202,7 +119,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
             var dirty = false;
             for (final t in all) {
               final opt = _optimistic[t.id];
-              if (opt != null && opt.status == t.status && opt.items.length == t.items.length) {
+              if (opt != null && opt.status == t.status) {
                 _optimistic.remove(t.id);
                 dirty = true;
               }
@@ -212,7 +129,6 @@ class _TasksPageState extends ConsumerState<TasksPage>
           final resolved = all.map(_resolve).toList();
           final daily = resolved.where((t) => t.isDaily).toList();
           final oneTime = resolved.where((t) => t.isOneTime).toList();
-          final milestones = resolved.where((t) => t.isMilestone).toList();
 
           return TabBarView(
             controller: _tabs,
@@ -232,15 +148,6 @@ class _TasksPageState extends ConsumerState<TasksPage>
                 onDelete: _delete,
                 groupDone: true,
               ),
-              _TaskTab(
-                tasks: milestones,
-                emptyTitle: 'No milestones',
-                emptySubtitle: 'Milestones are multi-step goals with sub-tasks.',
-                onToggle: _toggleDone,
-                onDelete: _delete,
-                onToggleItem: _toggleItem,
-                onAddItem: _addItem,
-              ),
             ],
           );
         },
@@ -257,8 +164,6 @@ class _TaskTab extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     this.groupDone = false,
-    this.onToggleItem,
-    this.onAddItem,
   });
 
   final List<TaskEntity> tasks;
@@ -267,8 +172,6 @@ class _TaskTab extends StatelessWidget {
   final Future<void> Function(TaskEntity) onToggle;
   final Future<void> Function(TaskEntity) onDelete;
   final bool groupDone;
-  final Future<void> Function(TaskEntity, int)? onToggleItem;
-  final Future<void> Function(TaskEntity)? onAddItem;
 
   @override
   Widget build(BuildContext context) {
@@ -295,8 +198,6 @@ class _TaskTab extends StatelessWidget {
             task: tasks[i],
             onToggle: () => onToggle(tasks[i]),
             onDelete: () => onDelete(tasks[i]),
-            onToggleItem: onToggleItem != null ? (idx) => onToggleItem!(tasks[i], idx) : null,
-            onAddItem: onAddItem != null ? () => onAddItem!(tasks[i]) : null,
           ),
         ),
       );

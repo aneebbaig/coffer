@@ -6,7 +6,7 @@ import { requireBearerAuth } from "@/lib/v1-auth";
 // ── GET /api/v1/tasks ─────────────────────────────────────────────────────────
 
 const querySchema = z.object({
-  type: z.enum(["DAILY", "ONE_TIME", "MILESTONE"]).optional(),
+  type: z.enum(["DAILY", "ONE_TIME"]).optional(),
   status: z.enum(["PENDING", "IN_PROGRESS", "DONE", "SKIPPED"]).optional(),
 });
 
@@ -39,7 +39,6 @@ export async function GET(req: NextRequest) {
         dueTime: true,
         category: true,
         order: true,
-        items: true,
       },
     });
 
@@ -47,9 +46,6 @@ export async function GET(req: NextRequest) {
       data: tasks.map((t) => ({
         ...t,
         dueDate: t.dueDate ? t.dueDate.toISOString() : null,
-        items: (() => {
-          try { return JSON.parse(t.items); } catch { return []; }
-        })(),
       })),
     });
   } catch {
@@ -62,7 +58,7 @@ export async function GET(req: NextRequest) {
 const createSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(1000).optional(),
-  type: z.enum(["DAILY", "ONE_TIME", "MILESTONE"]).default("ONE_TIME"),
+  type: z.enum(["DAILY", "ONE_TIME"]).default("ONE_TIME"),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
   dueDate: z.string().optional(),
   dueTime: z.string().optional(),

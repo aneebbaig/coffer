@@ -11,16 +11,12 @@ class TaskListItem extends StatefulWidget {
     required this.task,
     required this.onToggle,
     required this.onDelete,
-    this.onToggleItem,
-    this.onAddItem,
     super.key,
   });
 
   final TaskEntity task;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
-  final void Function(int index)? onToggleItem;
-  final VoidCallback? onAddItem;
 
   @override
   State<TaskListItem> createState() => _TaskListItemState();
@@ -158,96 +154,6 @@ class _TaskListItemState extends State<TaskListItem>
                         ),
                       ],
                     ),
-                  ],
-                  if (task.isMilestone) ...[
-                    const SizedBox(height: 8),
-                    if (task.items.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          Text(
-                            '${task.milestoneProgress}/${task.items.length}',
-                            style: AppTextStyles.labelSmall.copyWith(
-                              color: AppColors.mutedForeground,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                value: task.milestoneProgress / task.items.length,
-                                backgroundColor: AppColors.border,
-                                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                                minHeight: 3,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ...task.items.asMap().entries.map(
-                        (e) => GestureDetector(
-                          onTap: widget.onToggleItem != null ? () => widget.onToggleItem!(e.key) : null,
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: e.value.done ? AppColors.primary : AppColors.border,
-                                      width: 1.5,
-                                    ),
-                                    color: e.value.done
-                                        ? AppColors.primary.withValues(alpha: 0.15)
-                                        : Colors.transparent,
-                                  ),
-                                  child: e.value.done
-                                      ? const Icon(Icons.check, size: 9, color: AppColors.primary)
-                                      : null,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    e.value.text,
-                                    style: AppTextStyles.bodySmall.copyWith(
-                                      color: e.value.done
-                                          ? AppColors.mutedForeground
-                                          : AppColors.foreground,
-                                      decoration: e.value.done ? TextDecoration.lineThrough : null,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (widget.onAddItem != null)
-                      GestureDetector(
-                        onTap: widget.onAddItem,
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.add, size: 14, color: AppColors.primary),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Add step',
-                                style: AppTextStyles.labelSmall.copyWith(
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                   ],
                   if (task.category != null) ...[
                     const SizedBox(height: 4),

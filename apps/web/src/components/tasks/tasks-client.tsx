@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ListTodo, GripVertical, Milestone } from "lucide-react";
+import { Plus, ListTodo, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -26,7 +26,6 @@ interface Task {
   dueTime: string | null;
   category: string | null;
   order: number;
-  items?: string;
 }
 
 function SortableTask({ task }: { task: Task }) {
@@ -84,18 +83,16 @@ function SortableList({ tasks, onReorder }: { tasks: Task[]; onReorder: (tasks: 
 export function TasksClient({ tasks: initialTasks }: { tasks: Task[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [defaultType, setDefaultType] = useState<"DAILY" | "ONE_TIME" | "MILESTONE">("ONE_TIME");
+  const [defaultType, setDefaultType] = useState<"DAILY" | "ONE_TIME">("ONE_TIME");
 
   const [daily, setDaily] = useState(() => initialTasks.filter((t) => t.type === "DAILY"));
   const [pending, setPending] = useState(() => initialTasks.filter((t) => t.type === "ONE_TIME" && t.status !== "DONE"));
   const [done, setDone] = useState(() => initialTasks.filter((t) => t.type === "ONE_TIME" && t.status === "DONE"));
-  const [milestones, setMilestones] = useState(() => initialTasks.filter((t) => t.type === "MILESTONE"));
 
   useEffect(() => {
     setDaily(initialTasks.filter((t) => t.type === "DAILY"));
     setPending(initialTasks.filter((t) => t.type === "ONE_TIME" && t.status !== "DONE"));
     setDone(initialTasks.filter((t) => t.type === "ONE_TIME" && t.status === "DONE"));
-    setMilestones(initialTasks.filter((t) => t.type === "MILESTONE"));
   }, [initialTasks]);
 
   function handleSuccess() {
@@ -117,10 +114,9 @@ export function TasksClient({ tasks: initialTasks }: { tasks: Task[] }) {
       />
 
       <Tabs defaultValue="one-time">
-        <TabsList className="w-full grid grid-cols-3">
+        <TabsList className="w-full grid grid-cols-2">
           <TabsTrigger value="daily">Daily ({daily.length})</TabsTrigger>
           <TabsTrigger value="one-time">One-Time ({pending.length + done.length})</TabsTrigger>
-          <TabsTrigger value="milestones">Milestones ({milestones.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="daily" className="mt-4">
@@ -160,22 +156,6 @@ export function TasksClient({ tasks: initialTasks }: { tasks: Task[] }) {
               description="Add things you need to get done - fix the shower, call the electrician, renew documents."
               action={{ label: "Add task", onClick: () => { setDefaultType("ONE_TIME"); setOpen(true); } }}
             />
-          )}
-        </TabsContent>
-
-        <TabsContent value="milestones" className="mt-4">
-          {milestones.length === 0 ? (
-            <EmptyState
-              icon={Milestone}
-              title="No milestone tasks"
-              description="Create milestone tasks to track multi-step goals with checkable sub-items."
-              action={{ label: "Add milestone task", onClick: () => { setDefaultType("MILESTONE"); setOpen(true); } }}
-            />
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground px-1">Click a task to expand and manage its milestones</p>
-              <SortableList tasks={milestones} onReorder={setMilestones} />
-            </div>
           )}
         </TabsContent>
       </Tabs>

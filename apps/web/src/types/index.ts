@@ -8,13 +8,8 @@ export type PlannerStatus = "PLANNING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLE
 export type PlannerItemStatus = "PENDING" | "BOOKED" | "PAID" | "SKIPPED";
 export type SavingsPotType = "EMERGENCY" | "GENERAL" | "GOAL_LINKED" | "CUSTOM";
 export type InvestmentType = "MUTUAL_FUND" | "STOCKS" | "GOLD" | "CRYPTO" | "FIXED_DEPOSIT" | "OTHER";
-export type TaskType = "DAILY" | "ONE_TIME" | "MILESTONE";
+export type TaskType = "DAILY" | "ONE_TIME";
 
-export interface TaskMilestone {
-  id: string;
-  name: string;
-  completed: boolean;
-}
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type TaskStatus = "PENDING" | "IN_PROGRESS" | "DONE" | "SKIPPED";
 export type ProjectStatus = "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";

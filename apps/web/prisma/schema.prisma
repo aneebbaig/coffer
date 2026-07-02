@@ -378,13 +378,12 @@ model Task {
   id             String    @id @default(cuid())
   title          String
   description    String?
-  type           String    // "DAILY" | "ONE_TIME" | "MILESTONE"
+  type           String    // "DAILY" | "ONE_TIME"
   priority       String    @default("MEDIUM") // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   status         String    @default("PENDING") // "PENDING" | "IN_PROGRESS" | "DONE" | "SKIPPED"
   dueDate        DateTime?
   dueTime        String?
   recurrenceRule String?
-  items          String    @default("[]")  // JSON array of {id, name, completed} for MILESTONE tasks
   category       String?
   completedAt    DateTime?
   order          Int       @default(0)

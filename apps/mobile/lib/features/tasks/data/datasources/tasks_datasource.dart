@@ -65,16 +65,6 @@ class TasksDatasource {
     }
   }
 
-  Future<void> updateTaskItems(String id, List<TaskMilestoneItem> items) async {
-    try {
-      await _dio.patch(ApiConstants.taskById(id), data: {
-        'items': items.map((i) => {'text': i.text, 'done': i.done}).toList(),
-      });
-    } catch (e) {
-      throw ErrorHandler.handle(e);
-    }
-  }
-
   Future<void> deleteTask(String id) async {
     try {
       await _dio.delete(ApiConstants.taskById(id));
@@ -94,11 +84,5 @@ class TasksDatasource {
         dueTime: m['dueTime'] as String?,
         category: m['category'] as String?,
         order: m['order'] as int,
-        items: (m['items'] as List<dynamic>)
-            .map((i) => TaskMilestoneItem(
-                  text: i['text'] as String? ?? i['name'] as String? ?? '',
-                  done: i['done'] as bool? ?? i['completed'] as bool? ?? false,
-                ))
-            .toList(),
       );
 }

@@ -33,7 +33,7 @@ interface ExistingTask {
 }
 
 interface Props {
-  defaultType?: "DAILY" | "ONE_TIME" | "MILESTONE";
+  defaultType?: "DAILY" | "ONE_TIME";
   task?: ExistingTask;
   onSuccess: () => void;
 }
@@ -92,15 +92,9 @@ export function TaskForm({ defaultType = "ONE_TIME", task, onSuccess }: Props) {
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="ONE_TIME">One-Time - single task to complete</SelectItem>
-            <SelectItem value="MILESTONE">Milestone - list of sub-tasks to tick off</SelectItem>
             <SelectItem value="DAILY">Daily - repeats every day</SelectItem>
           </SelectContent>
         </Select>
-        {taskType === "MILESTONE" && (
-          <p className="text-xs text-muted-foreground px-1">
-            Add milestone items after creating the task. For client or freelance work, use Projects instead.
-          </p>
-        )}
       </div>
 
       <div className="space-y-1">
@@ -137,7 +131,7 @@ export function TaskForm({ defaultType = "ONE_TIME", task, onSuccess }: Props) {
         </div>
       </div>
 
-      {taskType !== "DAILY" && taskType !== "MILESTONE" && (
+      {taskType !== "DAILY" && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label>Due Date</Label>

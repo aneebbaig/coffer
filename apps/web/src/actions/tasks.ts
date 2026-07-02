@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getUserId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { ActionResult, TaskMilestone } from "@/types";
+import { ActionResult } from "@/types";
 
 export async function getTasks(filters?: { type?: string; status?: string; category?: string }) {
   const userId = await getUserId();
@@ -63,7 +63,6 @@ export async function createTask(data: {
   dueTime?: string;
   recurrenceRule?: string;
   category?: string;
-  items?: string;
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
@@ -115,7 +114,6 @@ export async function updateTask(id: string, data: {
   dueDate?: string;
   dueTime?: string;
   category?: string;
-  items?: string;
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
@@ -134,20 +132,6 @@ export async function updateTask(id: string, data: {
   } catch (e) {
     console.error("[updateTask]", e);
     return { success: false, error: "Failed to update task" };
-  }
-}
-
-export async function updateTaskItems(id: string, items: TaskMilestone[]): Promise<ActionResult> {
-  try {
-    const userId = await getUserId();
-    const existing = await prisma.task.findFirst({ where: { id, userId } });
-    if (!existing) return { success: false, error: "Not found" };
-    await prisma.task.update({ where: { id }, data: { items: JSON.stringify(items) } });
-    revalidatePath("/tasks");
-    return { success: true };
-  } catch (e) {
-    console.error("[updateTaskItems]", e);
-    return { success: false, error: "Failed to update items" };
   }
 }
 
