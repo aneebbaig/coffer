@@ -14,3 +14,10 @@ npm-debug.log*
 !.env.example
 
 # Per-app build artifacts are ignored by each app's own .gitignore
+
+# Vercel project link — personal, never shared
+.vercel
+
+# Local-only notes and AI-tool config — never committed
+CLAUDE.md
+docs/PRIVATE-SETUP.md
