@@ -12,6 +12,10 @@ class TaskListItem extends StatefulWidget {
     required this.onToggle,
     required this.onDelete,
     required this.onEdit,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onToggleSelect,
+    this.onLongPress,
     super.key,
   });
 
@@ -19,6 +23,10 @@ class TaskListItem extends StatefulWidget {
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback? onToggleSelect;
+  final VoidCallback? onLongPress;
 
   @override
   State<TaskListItem> createState() => _TaskListItemState();
@@ -64,131 +72,145 @@ class _TaskListItemState extends State<TaskListItem>
   TaskEntity get task => widget.task;
 
   Color get _priorityColor => switch (task.priority) {
-        'URGENT' => const Color(0xFFEF4444),
-        'HIGH' => const Color(0xFFF97316),
-        'MEDIUM' => AppColors.primary,
-        _ => AppColors.mutedForeground,
-      };
+    'URGENT' => const Color(0xFFEF4444),
+    'HIGH' => const Color(0xFFF97316),
+    'MEDIUM' => AppColors.primary,
+    _ => AppColors.mutedForeground,
+  };
 
   @override
   Widget build(BuildContext context) => AppCard(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: widget.onToggle,
-              child: ScaleTransition(
-                scale: _checkScale,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  margin: const EdgeInsets.only(top: 1),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: task.isDone ? AppColors.primary : AppColors.border,
-                      width: 1.5,
-                    ),
-                    color: task.isDone
-                        ? AppColors.primary.withValues(alpha: 0.15)
-                        : Colors.transparent,
-                  ),
-                  child: task.isDone
-                      ? const Icon(Icons.check, size: 13, color: AppColors.primary)
-                      : null,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: widget.selectionMode ? widget.onToggleSelect : widget.onToggle,
+          onLongPress: widget.selectionMode ? null : widget.onLongPress,
+          child: ScaleTransition(
+            scale: _checkScale,
+            child: Container(
+              width: 22,
+              height: 22,
+              margin: const EdgeInsets.only(top: 1),
+              decoration: BoxDecoration(
+                shape: widget.selectionMode
+                    ? BoxShape.rectangle
+                    : BoxShape.circle,
+                borderRadius: widget.selectionMode
+                    ? BorderRadius.circular(6)
+                    : null,
+                border: Border.all(
+                  color: (widget.selectionMode ? widget.selected : task.isDone)
+                      ? AppColors.primary
+                      : AppColors.border,
+                  width: 1.5,
                 ),
+                color: (widget.selectionMode ? widget.selected : task.isDone)
+                    ? AppColors.primary.withValues(alpha: 0.15)
+                    : Colors.transparent,
               ),
+              child: (widget.selectionMode ? widget.selected : task.isDone)
+                  ? const Icon(Icons.check, size: 13, color: AppColors.primary)
+                  : null,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: GestureDetector(
-                onTap: widget.onEdit,
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          task.title,
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            decoration: task.isDone ? TextDecoration.lineThrough : null,
-                            color: task.isDone ? AppColors.mutedForeground : AppColors.foreground,
-                          ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: GestureDetector(
+            onTap: widget.selectionMode ? widget.onToggleSelect : widget.onEdit,
+            onLongPress: widget.selectionMode ? null : widget.onLongPress,
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          decoration: task.isDone
+                              ? TextDecoration.lineThrough
+                              : null,
+                          color: task.isDone
+                              ? AppColors.mutedForeground
+                              : AppColors.foreground,
                         ),
                       ),
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.only(left: 8, top: 6),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _priorityColor,
+                    ),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(left: 8, top: 6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _priorityColor,
+                      ),
+                    ),
+                  ],
+                ),
+                if (task.description != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    task.description!,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.mutedForeground,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (task.dueDate != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule,
+                        size: 11,
+                        color: _dueDateColor(task.dueDate!),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        _formatDue(task.dueDate!, task.dueTime),
+                        style: AppTextStyles.labelSmall.copyWith(
+                          color: _dueDateColor(task.dueDate!),
                         ),
                       ),
                     ],
                   ),
-                  if (task.description != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      task.description!,
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.mutedForeground,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  if (task.dueDate != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          size: 11,
-                          color: _dueDateColor(task.dueDate!),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          _formatDue(task.dueDate!, task.dueTime),
-                          style: AppTextStyles.labelSmall.copyWith(
-                            color: _dueDateColor(task.dueDate!),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (task.category != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      task.category!,
-                      style: AppTextStyles.labelSmall.copyWith(
-                        color: AppColors.mutedForeground,
-                      ),
-                    ),
-                  ],
                 ],
-                ),
-              ),
+                if (task.category != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    task.category!,
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.mutedForeground,
+                    ),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: widget.onDelete,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  Icons.delete_outline,
-                  size: 16,
-                  color: AppColors.destructive.withValues(alpha: 0.7),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
+        const SizedBox(width: 8),
+        if (!widget.selectionMode)
+          GestureDetector(
+            onTap: widget.onDelete,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Icons.delete_outline,
+                size: 16,
+                color: AppColors.destructive.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 
   Color _dueDateColor(DateTime due) {
     final now = DateTime.now();

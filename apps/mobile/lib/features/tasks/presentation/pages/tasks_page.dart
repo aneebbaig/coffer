@@ -23,8 +23,13 @@ class TasksPage extends ConsumerStatefulWidget {
 
 class _TasksPageState extends ConsumerState<TasksPage>
     with SingleTickerProviderStateMixin {
+  static const _statuses = ['PENDING', 'IN_PROGRESS', 'DONE', 'SKIPPED'];
+
   late final TabController _tabs;
   final Map<String, TaskEntity> _optimistic = {};
+  final Set<String> _selectedIds = {};
+
+  bool get _selectionMode => _selectedIds.isNotEmpty;
 
   @override
   void initState() {
@@ -40,6 +45,39 @@ class _TasksPageState extends ConsumerState<TasksPage>
 
   TaskEntity _resolve(TaskEntity task) => _optimistic[task.id] ?? task;
 
+  void _startSelection(TaskEntity task) {
+    HapticFeedback.mediumImpact();
+    setState(() => _selectedIds.add(task.id));
+  }
+
+  void _toggleSelect(TaskEntity task) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!_selectedIds.remove(task.id)) _selectedIds.add(task.id);
+    });
+  }
+
+  void _clearSelection() => setState(_selectedIds.clear);
+
+  Future<void> _bulkSetStatus(String status) async {
+    final ids = _selectedIds.toList();
+    _clearSelection();
+    try {
+      await Future.wait(
+        ids.map(
+          (id) =>
+              ref.read(tasksDatasourceProvider).updateTaskStatus(id, status),
+        ),
+      );
+      if (!mounted) return;
+      ref.invalidate(tasksProvider);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e is AppException ? e.message : 'Failed to update tasks';
+      ref.read(toastServiceProvider).error(context, msg);
+    }
+  }
+
   Future<void> _toggleDone(TaskEntity task) async {
     HapticFeedback.lightImpact();
     final resolved = _resolve(task);
@@ -47,7 +85,9 @@ class _TasksPageState extends ConsumerState<TasksPage>
     final optimistic = resolved.copyWith(status: newStatus);
     setState(() => _optimistic[task.id] = optimistic);
     try {
-      await ref.read(tasksDatasourceProvider).updateTaskStatus(task.id, newStatus);
+      await ref
+          .read(tasksDatasourceProvider)
+          .updateTaskStatus(task.id, newStatus);
       if (!mounted) return;
       ref.invalidate(tasksProvider);
       // optimistic entry cleaned up in data() when real status matches
@@ -100,14 +140,25 @@ class _TasksPageState extends ConsumerState<TasksPage>
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text('Tasks', style: AppTextStyles.headlineSmall),
+        leading: _selectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _clearSelection,
+              )
+            : null,
+        title: Text(
+          _selectionMode ? '${_selectedIds.length} selected' : 'Tasks',
+          style: AppTextStyles.headlineSmall,
+        ),
         bottom: TabBar(
           controller: _tabs,
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.mutedForeground,
           indicatorColor: AppColors.primary,
           indicatorSize: TabBarIndicatorSize.label,
-          labelStyle: AppTextStyles.labelMedium.copyWith(fontWeight: FontWeight.w600),
+          labelStyle: AppTextStyles.labelMedium.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
           unselectedLabelStyle: AppTextStyles.labelMedium,
           tabs: const [
             Tab(text: 'Daily'),
@@ -115,20 +166,28 @@ class _TasksPageState extends ConsumerState<TasksPage>
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.black,
-        onPressed: () => context.push('/quick-add-task'),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _selectionMode
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.black,
+              onPressed: () => context.push('/quick-add-task'),
+              child: const Icon(Icons.add),
+            ),
+      bottomNavigationBar: _selectionMode ? _buildBulkBar() : null,
       body: tasksAsync.when(
         loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 2,
+          ),
         ),
         error: (e, _) => Center(
           child: Text(
             e is AppException ? e.message : 'Failed to load tasks',
-            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.mutedForeground),
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.mutedForeground,
+            ),
           ),
         ),
         data: (all) {
@@ -155,10 +214,14 @@ class _TasksPageState extends ConsumerState<TasksPage>
               _TaskTab(
                 tasks: daily,
                 emptyTitle: 'No daily tasks',
-                emptySubtitle: 'Daily tasks repeat every day - habits, reviews, routines.',
+                emptySubtitle:
+                    'Daily tasks repeat every day - habits, reviews, routines.',
                 onToggle: _toggleDone,
                 onDelete: _delete,
                 onEdit: _edit,
+                selectedIds: _selectedIds,
+                onLongPress: _startSelection,
+                onToggleSelect: _toggleSelect,
               ),
               _TaskTab(
                 tasks: oneTime,
@@ -168,10 +231,44 @@ class _TasksPageState extends ConsumerState<TasksPage>
                 onDelete: _delete,
                 onEdit: _edit,
                 groupDone: true,
+                selectedIds: _selectedIds,
+                onLongPress: _startSelection,
+                onToggleSelect: _toggleSelect,
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildBulkBar() {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: const BoxDecoration(
+          color: AppColors.card,
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final status in _statuses)
+              OutlinedButton(
+                onPressed: () => _bulkSetStatus(status),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.foreground,
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                child: Text(
+                  status[0] +
+                      status.substring(1).toLowerCase().replaceAll('_', ' '),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -185,6 +282,9 @@ class _TaskTab extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     required this.onEdit,
+    required this.selectedIds,
+    required this.onLongPress,
+    required this.onToggleSelect,
     this.groupDone = false,
   });
 
@@ -194,6 +294,9 @@ class _TaskTab extends StatelessWidget {
   final Future<void> Function(TaskEntity) onToggle;
   final Future<void> Function(TaskEntity) onDelete;
   final Future<void> Function(TaskEntity) onEdit;
+  final Set<String> selectedIds;
+  final void Function(TaskEntity) onLongPress;
+  final void Function(TaskEntity) onToggleSelect;
   final bool groupDone;
 
   @override
@@ -222,6 +325,10 @@ class _TaskTab extends StatelessWidget {
             onToggle: () => onToggle(tasks[i]),
             onDelete: () => onDelete(tasks[i]),
             onEdit: () => onEdit(tasks[i]),
+            selectionMode: selectedIds.isNotEmpty,
+            selected: selectedIds.contains(tasks[i].id),
+            onToggleSelect: () => onToggleSelect(tasks[i]),
+            onLongPress: () => onLongPress(tasks[i]),
           ),
         ),
       );
@@ -238,15 +345,21 @@ class _TaskTab extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
         children: [
           if (pending.isNotEmpty) ...[
-            ...pending.map((t) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: TaskListItem(
-                    task: t,
-                    onToggle: () => onToggle(t),
-                    onDelete: () => onDelete(t),
-                    onEdit: () => onEdit(t),
-                  ),
-                )),
+            ...pending.map(
+              (t) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TaskListItem(
+                  task: t,
+                  onToggle: () => onToggle(t),
+                  onDelete: () => onDelete(t),
+                  onEdit: () => onEdit(t),
+                  selectionMode: selectedIds.isNotEmpty,
+                  selected: selectedIds.contains(t.id),
+                  onToggleSelect: () => onToggleSelect(t),
+                  onLongPress: () => onLongPress(t),
+                ),
+              ),
+            ),
           ],
           if (done.isNotEmpty) ...[
             if (pending.isNotEmpty) const SizedBox(height: 8),
@@ -260,18 +373,24 @@ class _TaskTab extends StatelessWidget {
                 ),
               ),
             ),
-            ...done.map((t) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Opacity(
-                    opacity: 0.5,
-                    child: TaskListItem(
-                      task: t,
-                      onToggle: () => onToggle(t),
-                      onDelete: () => onDelete(t),
-                      onEdit: () => onEdit(t),
-                    ),
+            ...done.map(
+              (t) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Opacity(
+                  opacity: 0.5,
+                  child: TaskListItem(
+                    task: t,
+                    onToggle: () => onToggle(t),
+                    onDelete: () => onDelete(t),
+                    onEdit: () => onEdit(t),
+                    selectionMode: selectedIds.isNotEmpty,
+                    selected: selectedIds.contains(t.id),
+                    onToggleSelect: () => onToggleSelect(t),
+                    onLongPress: () => onLongPress(t),
                   ),
-                )),
+                ),
+              ),
+            ),
           ],
         ],
       ),

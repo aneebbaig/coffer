@@ -15,6 +15,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -105,18 +106,27 @@ function AddCard({ onAdd }: { onAdd: (title: string) => Promise<void> }) {
 }
 
 function KanbanColumn({
-  status, count, tasks, onAdd, children,
+  status, count, tasks, onAdd, allSelected, onToggleSelectAll, children,
 }: {
   status: string;
   count: number;
   tasks: ProjectTaskData[];
   onAdd: (title: string) => Promise<void>;
+  allSelected: boolean;
+  onToggleSelectAll: () => void;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
     <div className="flex w-72 shrink-0 flex-col">
       <div className="mb-2 flex items-center gap-2 px-1">
+        {tasks.length > 0 && (
+          <Checkbox
+            checked={allSelected}
+            onCheckedChange={onToggleSelectAll}
+            aria-label={`Select all in ${PROJECT_TASK_STATUS_LABELS[status]}`}
+          />
+        )}
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {PROJECT_TASK_STATUS_LABELS[status]}
         </h2>
@@ -164,6 +174,18 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
     });
   }
   function clearSelection() { setSelectedIds(new Set()); }
+
+  function toggleSelectAllInColumn(columnStatus: string) {
+    const ids = columns[columnStatus].map((t) => t.id);
+    setSelectedIds((prev) => {
+      const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (allSelected) next.delete(id); else next.add(id);
+      }
+      return next;
+    });
+  }
 
   async function bulkMove(nextStatus: string) {
     const ids = [...selectedIds];
@@ -357,6 +379,7 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
         <div className="flex gap-3 overflow-x-auto pb-4 items-start">
           {PROJECT_TASK_STATUSES.map((columnStatus) => {
             const tasks = columns[columnStatus];
+            const allSelected = tasks.length > 0 && tasks.every((t) => selectedIds.has(t.id));
             return (
               <KanbanColumn
                 key={columnStatus}
@@ -364,6 +387,8 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
                 count={tasks.length}
                 tasks={tasks}
                 onAdd={(title) => addTask(columnStatus, title)}
+                allSelected={allSelected}
+                onToggleSelectAll={() => toggleSelectAllInColumn(columnStatus)}
               >
                 {tasks.map((t) => (
                   <ProjectTaskCard
