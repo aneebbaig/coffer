@@ -14,6 +14,8 @@ model User {
   email          String   @unique
   name           String
   hashedPassword String
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   role                String   @default("ADMIN") // "SUPER_ADMIN" | "ADMIN"
   currency            String   @default("PKR")
   dateFormat          String   @default("dd/MM/yyyy")

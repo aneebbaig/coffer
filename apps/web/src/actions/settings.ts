@@ -122,13 +122,14 @@ export async function changePassword(data: {
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
+    if (data.newPassword.length < 8) return { success: false, error: "Password must be at least 8 characters" };
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return { success: false, error: "User not found" };
 
     const valid = await bcrypt.compare(data.currentPassword, user.hashedPassword);
     if (!valid) return { success: false, error: "Current password is incorrect" };
 
-    const hashed = await bcrypt.hash(data.newPassword, 10);
+    const hashed = await bcrypt.hash(data.newPassword, 12);
     await prisma.user.update({ where: { id: userId }, data: { hashedPassword: hashed } });
     return { success: true };
   } catch (e) {

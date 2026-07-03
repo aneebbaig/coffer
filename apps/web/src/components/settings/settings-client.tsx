@@ -12,9 +12,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { updateUserSettings, changePassword, createCategory, deleteCategory, exportUserData } from "@/actions/settings";
 import { adminCreateUser, adminDeleteUser, adminUpdateUserRole, updateNotificationPreferences } from "@/actions/users";
-import { Plus, Trash2, Download, RefreshCw, CheckCircle, XCircle, ShieldCheck, Shield, X } from "lucide-react";
+import { resetAppData } from "@/actions/reset";
+import { RESET_GROUPS } from "@/lib/reset-groups";
+import { Plus, Trash2, Download, RefreshCw, CheckCircle, XCircle, ShieldCheck, Shield, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface UserSettings {
@@ -124,6 +127,14 @@ export function SettingsClient({
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "ADMIN" });
   const [creatingUser, setCreatingUser] = useState(false);
 
+  // Reset data state
+  const [resetKeys, setResetKeys] = useState<Set<string>>(new Set());
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  // Bumped after a successful reset to force a fresh ConfirmDialog instance,
+  // so the typed "DELETE" confirmation can't carry over to the next open.
+  const [resetDialogKey, setResetDialogKey] = useState(0);
+
   function handleSaveProfile() {
     startTransition(async () => {
       const result = await updateUserSettings(profile);
@@ -215,6 +226,31 @@ export function SettingsClient({
     const result = await adminUpdateUserRole(userId, newRole);
     if (result.success) toast.success("Role updated");
     else toast.error(result.error ?? "Failed");
+  }
+
+  function toggleResetKey(key: string) {
+    setResetKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  async function handleResetData() {
+    setResetting(true);
+    const result = await resetAppData([...resetKeys]);
+    setResetting(false);
+    setResetDialogOpen(false);
+    setResetDialogKey((k) => k + 1);
+    if (result.success) {
+      const total = Object.entries(result.data ?? {})
+        .filter(([k]) => k !== "categoriesHidden")
+        .reduce((sum, [, v]) => sum + v, 0);
+      toast.success(`Reset complete - ${total} record${total === 1 ? "" : "s"} deleted`);
+      setResetKeys(new Set());
+    } else {
+      toast.error(result.error ?? "Failed to reset data");
+    }
   }
 
   const customCategories = categories.filter((c) => !c.isDefault);
@@ -690,6 +726,57 @@ export function SettingsClient({
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="border-red-500/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <AlertTriangle className="h-4 w-4" />
+                Reset App Data
+              </CardTitle>
+              <CardDescription>
+                Permanently delete data for everyone using this app. Pick exactly what to wipe -
+                nothing outside your selection is touched.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-2">
+                {RESET_GROUPS.map((g) => (
+                  <label
+                    key={g.key}
+                    className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <Checkbox
+                      checked={resetKeys.has(g.key)}
+                      onCheckedChange={() => toggleResetKey(g.key)}
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{g.label}</div>
+                      <div className="text-xs text-muted-foreground">{g.description}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="destructive"
+                  disabled={resetKeys.size === 0}
+                  onClick={() => setResetDialogOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Reset Selected ({resetKeys.size})
+                </Button>
+                {resetKeys.size > 0 && (
+                  <button
+                    onClick={() => setResetKeys(new Set())}
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                  >
+                    Clear selection
+                  </button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       )}
 
@@ -706,6 +793,17 @@ export function SettingsClient({
         title="Delete user?"
         description="All their data (transactions, budgets, tasks, etc.) will be permanently deleted."
         onConfirm={handleDeleteUser}
+      />
+      <ConfirmDialog
+        key={resetDialogKey}
+        open={resetDialogOpen}
+        onOpenChange={setResetDialogOpen}
+        title={`Reset ${resetKeys.size} data type${resetKeys.size === 1 ? "" : "s"}?`}
+        description={`This permanently deletes: ${[...resetKeys].map((k) => RESET_GROUPS.find((g) => g.key === k)?.label).join(", ")}. This cannot be undone.`}
+        confirmLabel="Reset Data"
+        confirmPhrase="DELETE"
+        loading={resetting}
+        onConfirm={handleResetData}
       />
     </Tabs>
   );

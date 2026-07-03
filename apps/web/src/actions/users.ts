@@ -35,10 +35,11 @@ export async function adminCreateUser(data: {
 }): Promise<ActionResult> {
   try {
     await requireSuperAdmin();
+    if (data.password.length < 8) return { success: false, error: "Password must be at least 8 characters" };
     const existingByEmail = await prisma.user.findUnique({ where: { email: data.email } });
     if (existingByEmail) return { success: false, error: "A user with this email already exists" };
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const hashedPassword = await bcrypt.hash(data.password, 12);
     // Copy shared settings from first existing user so new user starts in sync
     const existing = await prisma.user.findFirst({ select: { currency: true, dateFormat: true, firstDayOfWeek: true, emergencyFundMonths: true } });
     await prisma.user.create({
