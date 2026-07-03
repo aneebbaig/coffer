@@ -20,6 +20,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [totp, setTotp] = useState("");
 
   const {
     register,
@@ -35,11 +37,19 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(needsTotp ? { ...data, totp } : data),
       });
 
+      const body = await res.json().catch(() => ({}));
+
+      if (res.ok && body.totpRequired) {
+        // Password was right; server wants the 2FA code. Reveal the field.
+        setNeedsTotp(true);
+        return;
+      }
+
       if (!res.ok) {
-        toast.error("Invalid email or password");
+        toast.error(needsTotp ? "Invalid authentication code" : "Invalid email or password");
         return;
       }
 
@@ -92,12 +102,37 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         )}
       </div>
 
+      {needsTotp && (
+        <div className="space-y-1.5">
+          <Label
+            htmlFor="totp"
+            className="text-[10px] uppercase tracking-[0.12em] font-semibold text-muted-foreground"
+          >
+            Authentication code
+          </Label>
+          <Input
+            id="totp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456 or backup code"
+            autoFocus
+            value={totp}
+            onChange={(e) => setTotp(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Enter the 6-digit code from your authenticator app.
+          </p>
+        </div>
+      )}
+
       <Button type="submit" className="w-full mt-2" disabled={loading}>
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
             Signing in…
           </>
+        ) : needsTotp ? (
+          "Verify & sign in"
         ) : (
           "Sign in"
         )}

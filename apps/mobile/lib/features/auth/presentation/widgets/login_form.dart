@@ -19,13 +19,16 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _totpCtrl = TextEditingController();
   bool _obscure = true;
   bool _submitting = false;
+  bool _needsTotp = false;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _totpCtrl.dispose();
     super.dispose();
   }
 
@@ -37,8 +40,12 @@ class _LoginFormState extends ConsumerState<LoginForm> {
       await ref.read(authProvider.notifier).login(
             email: _emailCtrl.text.trim(),
             password: _passCtrl.text,
+            totp: _needsTotp ? _totpCtrl.text.trim() : null,
           );
       // RouterNotifier auto-navigates on success
+    } on TotpRequiredException {
+      // Password accepted; reveal the 2FA field and wait for the code.
+      if (mounted) setState(() => _needsTotp = true);
     } on AppException catch (e) {
       if (mounted) ref.read(toastServiceProvider).error(context, e.message);
     } catch (_) {
@@ -99,9 +106,29 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                 return null;
               },
             ),
+            if (_needsTotp) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _totpCtrl,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                autofocus: true,
+                onFieldSubmitted: (_) => _submit(),
+                decoration: const InputDecoration(
+                  labelText: 'Authentication code',
+                  helperText: 'From your authenticator app, or a backup code',
+                ),
+                validator: (v) {
+                  if (_needsTotp && (v == null || v.trim().isEmpty)) {
+                    return 'Enter your code';
+                  }
+                  return null;
+                },
+              ),
+            ],
             const SizedBox(height: 32),
             AppPrimaryButton(
-              label: 'Sign in',
+              label: _needsTotp ? 'Verify & sign in' : 'Sign in',
               onPressed: _submitting ? null : _submit,
               isLoading: _submitting,
             ),

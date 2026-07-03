@@ -16,6 +16,12 @@ model User {
   hashedPassword String
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
+  // TOTP two-factor auth. totpSecret is AES-256-GCM encrypted at rest (see
+  // lib/crypto.ts) so a DB dump does not hand over usable seeds. Backup codes
+  // are bcrypt-hashed, single-use (removed from the array on consumption).
+  totpEnabled     Boolean  @default(false)
+  totpSecret      String?
+  totpBackupCodes String[] @default([])
   role                String   @default("ADMIN") // "SUPER_ADMIN" | "ADMIN"
   currency            String   @default("PKR")
   dateFormat          String   @default("dd/MM/yyyy")

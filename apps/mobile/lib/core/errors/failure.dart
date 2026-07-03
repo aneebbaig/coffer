@@ -13,6 +13,7 @@ sealed class Failure {
         ServerException() => ServerFailure(e.message),
         CacheException() => CacheFailure(e.message),
         NoRefreshTokenException() => AuthFailure(e.message),
+        TotpRequiredException() => AuthFailure(e.message),
       };
 }
 
