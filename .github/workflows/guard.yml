@@ -1,9 +1,11 @@
 name: Leak guard
 
 # Fails if any AI-assistant reference or personal identifier is committed
-# to the public repo. Keeps the portfolio repo clean for good.
+# to the public repo. Only guards the branch that ships publicly (main) and
+# pull requests into it — other branches may legitimately carry private notes.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
