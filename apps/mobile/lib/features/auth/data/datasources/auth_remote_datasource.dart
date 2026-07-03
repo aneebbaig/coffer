@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/errors/error_handler.dart';
 import '../../../../core/network/api_client.dart';
 import '../models/auth_tokens_model.dart';
@@ -20,12 +21,22 @@ class AuthRemoteDatasource {
   Future<({AuthTokensModel tokens, UserModel user})> login({
     required String email,
     required String password,
+    String? totp,
   }) async {
     try {
       final res = await _dio.post(
         ApiConstants.login,
-        data: {'email': email, 'password': password},
+        data: {
+          'email': email,
+          'password': password,
+          if (totp != null && totp.isNotEmpty) 'totp': totp,
+        },
       );
+      // Password ok but 2FA enabled: server returns 200 { totpRequired: true }
+      // and no tokens. Signal the UI to collect the code and resubmit.
+      if (res.data is Map && res.data['totpRequired'] == true) {
+        throw const TotpRequiredException();
+      }
       final data = res.data['data'] as Map<String, dynamic>;
       return (
         tokens: AuthTokensModel.fromJson(data),

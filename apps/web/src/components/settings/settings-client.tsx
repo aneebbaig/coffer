@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { updateUserSettings, changePassword, createCategory, deleteCategory, exportUserData } from "@/actions/settings";
 import { adminCreateUser, adminDeleteUser, adminUpdateUserRole, updateNotificationPreferences } from "@/actions/users";
+import { TotpSettings } from "@/components/settings/totp-settings";
 import { resetAppData } from "@/actions/reset";
 import { RESET_GROUPS } from "@/lib/reset-groups";
 import { Plus, Trash2, Download, RefreshCw, CheckCircle, XCircle, ShieldCheck, Shield, X, AlertTriangle } from "lucide-react";
@@ -363,6 +364,10 @@ export function SettingsClient({
             </Button>
           </CardContent>
         </Card>
+
+        <div className="mt-4">
+          <TotpSettings />
+        </div>
       </TabsContent>
 
       {/* Categories Tab */}

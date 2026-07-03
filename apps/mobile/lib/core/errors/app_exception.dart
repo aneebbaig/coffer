@@ -37,3 +37,10 @@ final class CacheException extends AppException {
 final class NoRefreshTokenException extends AppException {
   const NoRefreshTokenException() : super('No refresh token');
 }
+
+/// Password was accepted but the account has 2FA enabled; the server is
+/// asking for a TOTP / backup code. The login screen shows the code field
+/// and resubmits with `totp` set.
+final class TotpRequiredException extends AppException {
+  const TotpRequiredException() : super('Two-factor code required');
+}

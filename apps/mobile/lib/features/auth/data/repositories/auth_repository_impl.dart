@@ -28,8 +28,9 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<UserEntity> login({
     required String email,
     required String password,
+    String? totp,
   }) async {
-    final result = await _datasource.login(email: email, password: password);
+    final result = await _datasource.login(email: email, password: password, totp: totp);
     await _storage.saveTokens(
       access: result.tokens.accessToken,
       refresh: result.tokens.refreshToken,
