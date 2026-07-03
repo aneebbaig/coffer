@@ -28,7 +28,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.coffer.app"
+        // override per build with -PappId=your.package.name
+        applicationId = (project.findProperty("appId") as String?) ?: "com.coffer.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

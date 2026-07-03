@@ -29,9 +29,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="coffer" />
             </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Home screen widget provider -->
