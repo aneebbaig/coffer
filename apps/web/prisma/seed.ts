@@ -4,6 +4,7 @@ config({ path: ".env.local" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 
 const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -34,13 +35,48 @@ const DEFAULT_CATEGORIES = [
   { name: "Other Income", icon: "DollarSign", color: "#4ade80", type: "INCOME" },
 ];
 
+// Passwords are NEVER hardcoded. If the env var is set we use it (min 8
+// chars); otherwise we generate a strong random one and print it once, so a
+// deploy can never end up with a public, guessable default credential.
+const generatedCreds: string[] = [];
+
+function resolvePassword(env: string | undefined, email: string): string {
+  if (env && env.length > 0) {
+    if (env.length < 8) throw new Error(`Password for ${email} must be at least 8 characters`);
+    return env;
+  }
+  const pw = randomBytes(12).toString("base64url");
+  generatedCreds.push(`  ${email}  ->  ${pw}`);
+  return pw;
+}
+
+// Create the user if absent. If it already exists, only reconcile name/role -
+// never overwrite the password, so a re-seed can't clobber a rotated one.
+async function ensureUser(opts: {
+  email: string;
+  name: string;
+  role: string;
+  envPassword: string | undefined;
+}): Promise<void> {
+  const existing = await prisma.user.findUnique({ where: { email: opts.email } });
+  if (existing) {
+    await prisma.user.update({ where: { email: opts.email }, data: { name: opts.name, role: opts.role } });
+    console.log(`✓ ${opts.role}: ${opts.name} (${opts.email}) — already existed, password unchanged`);
+    return;
+  }
+  const password = resolvePassword(opts.envPassword, opts.email);
+  const hashedPassword = await bcrypt.hash(password, 12);
+  await prisma.user.create({
+    data: { email: opts.email, name: opts.name, hashedPassword, currency: "PKR", role: opts.role },
+  });
+  console.log(`✓ ${opts.role}: ${opts.name} (${opts.email}) — created`);
+}
+
 async function main() {
   const user1Email = process.env.USER1_EMAIL || "admin@example.com";
-  const user1Password = process.env.USER1_PASSWORD || "changeme123";
   const user1Name = process.env.USER1_NAME || "Admin";
 
   const user2Email = process.env.USER2_EMAIL || "member@example.com";
-  const user2Password = process.env.USER2_PASSWORD || "changeme456";
   const user2Name = process.env.USER2_NAME || "Member";
 
   console.log("Seeding default categories...");
@@ -64,33 +100,16 @@ async function main() {
   console.log(`✓ Created ${categories.length} default categories`);
 
   console.log("Seeding users...");
-  const hash1 = await bcrypt.hash(user1Password, 10);
-  const user1 = await prisma.user.upsert({
-    where: { email: user1Email },
-    update: { name: user1Name, hashedPassword: hash1, role: "SUPER_ADMIN" },
-    create: {
-      email: user1Email,
-      name: user1Name,
-      hashedPassword: hash1,
-      currency: "PKR",
-      role: "SUPER_ADMIN",
-    },
-  });
-  console.log(`✓ User 1 (SUPER_ADMIN): ${user1.name} (${user1.email})`);
+  await ensureUser({ email: user1Email, name: user1Name, role: "SUPER_ADMIN", envPassword: process.env.USER1_PASSWORD });
+  await ensureUser({ email: user2Email, name: user2Name, role: "ADMIN", envPassword: process.env.USER2_PASSWORD });
 
-  const hash2 = await bcrypt.hash(user2Password, 10);
-  const user2 = await prisma.user.upsert({
-    where: { email: user2Email },
-    update: { name: user2Name },
-    create: {
-      email: user2Email,
-      name: user2Name,
-      hashedPassword: hash2,
-      currency: "PKR",
-      role: "ADMIN",
-    },
-  });
-  console.log(`✓ User 2: ${user2.name} (${user2.email})`);
+  if (generatedCreds.length > 0) {
+    console.log("\n" + "=".repeat(60));
+    console.log("GENERATED PASSWORDS — save these now, they are not stored:");
+    generatedCreds.forEach((c) => console.log(c));
+    console.log("Set USER1_PASSWORD / USER2_PASSWORD to choose your own.");
+    console.log("=".repeat(60) + "\n");
+  }
 
   console.log("✅ Seed complete!");
 }
