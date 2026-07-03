@@ -65,6 +65,14 @@ class TasksDatasource {
     }
   }
 
+  Future<void> updateTask(String id, Map<String, dynamic> changes) async {
+    try {
+      await _dio.patch(ApiConstants.taskById(id), data: changes);
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
   Future<void> deleteTask(String id) async {
     try {
       await _dio.delete(ApiConstants.taskById(id));

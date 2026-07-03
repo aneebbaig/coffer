@@ -51,7 +51,7 @@ class QuickExpenseWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_cat_1, deepLinkIntent(context, "quick-add", 1))
             views.setOnClickPendingIntent(R.id.widget_cat_2, deepLinkIntent(context, "tasks", 2))
             views.setOnClickPendingIntent(R.id.widget_cat_3, deepLinkIntent(context, "loans", 3))
-            views.setOnClickPendingIntent(R.id.widget_cat_4, deepLinkIntent(context, "quick-add-income", 4))
+            views.setOnClickPendingIntent(R.id.widget_cat_4, deepLinkIntent(context, "projects", 4))
             return views
         }
 

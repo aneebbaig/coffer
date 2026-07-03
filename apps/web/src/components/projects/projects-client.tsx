@@ -25,7 +25,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 export function ProjectsClient({ projects }: { projects: ProjectCardData[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<Filter>("ALL");
+  const [filter, setFilter] = useState<Filter>("ACTIVE");
   const [sort, setSort] = useState<SortMode>("updated");
 
   const visible = useMemo(

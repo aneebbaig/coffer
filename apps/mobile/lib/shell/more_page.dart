@@ -33,10 +33,10 @@ class MorePage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _MoreItem(
-              icon: Icons.folder_outlined,
-              label: 'Projects',
-              subtitle: 'Client & freelance work',
-              onTap: () => context.push('/projects'),
+              icon: Icons.savings_outlined,
+              label: 'Savings',
+              subtitle: 'Pots, goals & wealth',
+              onTap: () => context.push('/savings'),
             ),
             const SizedBox(height: 8),
             _MoreItem(

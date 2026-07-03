@@ -6,6 +6,7 @@ import '../../../../core/errors/app_exception.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_empty_state.dart';
+import '../../domain/entities/project_entity.dart';
 import '../providers/projects_provider.dart';
 import '../widgets/project_card.dart';
 
@@ -26,8 +27,8 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: _filters.length, vsync: this);
-    _tabs.addListener(() => setState(() {}));
+    // Default to the "Active" tab.
+    _tabs = TabController(length: _filters.length, vsync: this, initialIndex: 1);
   }
 
   @override
@@ -36,10 +37,48 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     super.dispose();
   }
 
+  Widget _buildList(List<ProjectEntity> all, String filter) {
+    final visible = filter == 'ALL'
+        ? [...all]
+        : all.where((p) => p.status == filter).toList();
+
+    visible.sort((a, b) {
+      final av = _sort == 'updated' ? a.updatedAt : a.createdAt;
+      final bv = _sort == 'updated' ? b.updatedAt : b.createdAt;
+      return bv.compareTo(av);
+    });
+
+    if (visible.isEmpty) {
+      return Center(
+        child: AppEmptyState(
+          icon: Icons.folder_outlined,
+          title: all.isEmpty ? 'No projects yet' : 'Nothing here',
+          subtitle: all.isEmpty
+              ? 'Tap + to create a project for client or freelance work.'
+              : 'No projects match this filter.',
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: AppColors.card,
+      onRefresh: () async => ref.invalidate(projectsProvider),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+        itemCount: visible.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => ProjectCard(
+          project: visible[i],
+          onTap: () => context.push('/projects/${visible[i].id}'),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final projectsAsync = ref.watch(projectsProvider);
-    final filter = _filters[_tabs.index];
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -87,44 +126,10 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.mutedForeground),
           ),
         ),
-        data: (all) {
-          final visible = filter == 'ALL'
-              ? [...all]
-              : all.where((p) => p.status == filter).toList();
-
-          visible.sort((a, b) {
-            final av = _sort == 'updated' ? a.updatedAt : a.createdAt;
-            final bv = _sort == 'updated' ? b.updatedAt : b.createdAt;
-            return bv.compareTo(av);
-          });
-
-          if (visible.isEmpty) {
-            return Center(
-              child: AppEmptyState(
-                icon: Icons.folder_outlined,
-                title: all.isEmpty ? 'No projects yet' : 'Nothing here',
-                subtitle: all.isEmpty
-                    ? 'Tap + to create a project for client or freelance work.'
-                    : 'No projects match this filter.',
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            color: AppColors.primary,
-            backgroundColor: AppColors.card,
-            onRefresh: () async => ref.invalidate(projectsProvider),
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-              itemCount: visible.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => ProjectCard(
-                project: visible[i],
-                onTap: () => context.push('/projects/${visible[i].id}'),
-              ),
-            ),
-          );
-        },
+        data: (all) => TabBarView(
+          controller: _tabs,
+          children: [for (final f in _filters) _buildList(all, f)],
+        ),
       ),
     );
   }

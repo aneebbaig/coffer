@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_empty_state.dart';
 import '../../data/datasources/tasks_datasource.dart';
 import '../../domain/entities/task_entity.dart';
 import '../providers/tasks_provider.dart';
+import '../widgets/edit_task_sheet.dart';
 import '../widgets/task_list_item.dart';
 
 class TasksPage extends ConsumerStatefulWidget {
@@ -70,6 +71,24 @@ class _TasksPageState extends ConsumerState<TasksPage>
       final msg = e is AppException ? e.message : 'Failed to delete task';
       ref.read(toastServiceProvider).error(context, msg);
     }
+  }
+
+  Future<void> _edit(TaskEntity task) async {
+    await showEditTaskSheet(
+      context,
+      task: task,
+      onSave: (changes) async {
+        try {
+          await ref.read(tasksDatasourceProvider).updateTask(task.id, changes);
+          if (!mounted) return;
+          ref.invalidate(tasksProvider);
+        } catch (e) {
+          if (!mounted) return;
+          final msg = e is AppException ? e.message : 'Failed to save task';
+          ref.read(toastServiceProvider).error(context, msg);
+        }
+      },
+    );
   }
 
   @override
@@ -139,6 +158,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
                 emptySubtitle: 'Daily tasks repeat every day - habits, reviews, routines.',
                 onToggle: _toggleDone,
                 onDelete: _delete,
+                onEdit: _edit,
               ),
               _TaskTab(
                 tasks: oneTime,
@@ -146,6 +166,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
                 emptySubtitle: 'Tap + to add a task.',
                 onToggle: _toggleDone,
                 onDelete: _delete,
+                onEdit: _edit,
                 groupDone: true,
               ),
             ],
@@ -163,6 +184,7 @@ class _TaskTab extends StatelessWidget {
     required this.emptySubtitle,
     required this.onToggle,
     required this.onDelete,
+    required this.onEdit,
     this.groupDone = false,
   });
 
@@ -171,6 +193,7 @@ class _TaskTab extends StatelessWidget {
   final String emptySubtitle;
   final Future<void> Function(TaskEntity) onToggle;
   final Future<void> Function(TaskEntity) onDelete;
+  final Future<void> Function(TaskEntity) onEdit;
   final bool groupDone;
 
   @override
@@ -198,6 +221,7 @@ class _TaskTab extends StatelessWidget {
             task: tasks[i],
             onToggle: () => onToggle(tasks[i]),
             onDelete: () => onDelete(tasks[i]),
+            onEdit: () => onEdit(tasks[i]),
           ),
         ),
       );
@@ -220,6 +244,7 @@ class _TaskTab extends StatelessWidget {
                     task: t,
                     onToggle: () => onToggle(t),
                     onDelete: () => onDelete(t),
+                    onEdit: () => onEdit(t),
                   ),
                 )),
           ],
@@ -243,6 +268,7 @@ class _TaskTab extends StatelessWidget {
                       task: t,
                       onToggle: () => onToggle(t),
                       onDelete: () => onDelete(t),
+                      onEdit: () => onEdit(t),
                     ),
                   ),
                 )),

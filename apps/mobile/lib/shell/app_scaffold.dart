@@ -11,12 +11,12 @@ class AppScaffold extends StatelessWidget {
     (icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Home', path: '/dashboard'),
     (icon: Icons.account_balance_wallet_outlined, activeIcon: Icons.account_balance_wallet, label: 'Money', path: '/money'),
     (icon: Icons.checklist_outlined, activeIcon: Icons.checklist, label: 'Tasks', path: '/tasks'),
-    (icon: Icons.savings_outlined, activeIcon: Icons.savings, label: 'Savings', path: '/savings'),
+    (icon: Icons.folder_outlined, activeIcon: Icons.folder, label: 'Projects', path: '/projects'),
     (icon: Icons.more_horiz, activeIcon: Icons.more_horiz, label: 'More', path: '/more'),
   ];
 
   // Sub-routes that live under "More" tab (keep More highlighted)
-  static const _morePaths = ['/budget', '/loans', '/settings'];
+  static const _morePaths = ['/budget', '/loans', '/savings', '/settings'];
 
   int _currentIndex(String location) {
     final idx = _tabs.indexWhere((t) => location.startsWith(t.path));

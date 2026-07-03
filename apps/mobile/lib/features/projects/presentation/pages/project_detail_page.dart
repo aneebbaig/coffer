@@ -42,16 +42,8 @@ class ProjectDetailPage extends ConsumerStatefulWidget {
 }
 
 class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
-  final _addCtrl = TextEditingController();
-  bool _adding = false;
   Map<String, List<ProjectTaskEntity>> _columns = _bucket(const []);
   String? _syncedSignature;
-
-  @override
-  void dispose() {
-    _addCtrl.dispose();
-    super.dispose();
-  }
 
   void _syncColumns(ProjectEntity project) {
     final signature =
@@ -84,32 +76,32 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     }
   }
 
-  void _reorderWithinColumn(ProjectTaskEntity dragged, int newIndex) {
+  // newIndex here is already adjusted for the removed item (onReorderItem).
+  void _reorder(String status, int oldIndex, int newIndex) {
     HapticFeedback.lightImpact();
-    final list = _columns[dragged.status];
-    if (list == null) return;
-    final oldIndex = list.indexWhere((t) => t.id == dragged.id);
-    if (oldIndex == -1 || oldIndex == newIndex) return;
+    final list = _columns[status];
+    if (list == null || oldIndex < 0 || oldIndex >= list.length) return;
     setState(() {
       final item = list.removeAt(oldIndex);
-      final insertAt = (newIndex > oldIndex ? newIndex - 1 : newIndex).clamp(0, list.length);
-      list.insert(insertAt, item);
+      list.insert(newIndex.clamp(0, list.length), item);
     });
-    _persistColumn(dragged.status);
+    _persistColumn(status);
   }
 
-  void _moveAcrossColumn(ProjectTaskEntity dragged, String destStatus, int destIndex) {
-    HapticFeedback.mediumImpact();
-    final source = _columns[dragged.status];
-    final dest = _columns[destStatus];
-    if (source == null || dest == null) return;
-    setState(() {
-      source.removeWhere((t) => t.id == dragged.id);
-      final moved = dragged.copyWith(status: destStatus);
-      dest.insert(destIndex.clamp(0, dest.length), moved);
-    });
-    _persistColumn(dragged.status);
-    _persistColumn(destStatus);
+  Future<void> _addTask(String status, String title) async {
+    try {
+      await ref.read(projectsDatasourceProvider).createTask(
+            widget.projectId,
+            title: title,
+            status: status,
+          );
+      if (!mounted) return;
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ref.read(toastServiceProvider).error(
+          context, e is AppException ? e.message : 'Failed to add task');
+    }
   }
 
   Future<void> _openTaskEdit(ProjectTaskEntity task) async {
@@ -160,24 +152,6 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
       if (!mounted) return;
       ref.read(toastServiceProvider).error(
           context, e is AppException ? e.message : 'Failed to delete task');
-    }
-  }
-
-  Future<void> _addTask() async {
-    final title = _addCtrl.text.trim();
-    if (title.isEmpty) return;
-    setState(() => _adding = true);
-    try {
-      await ref.read(projectsDatasourceProvider).createTask(widget.projectId, title: title);
-      if (!mounted) return;
-      _addCtrl.clear();
-      _refresh();
-    } catch (e) {
-      if (!mounted) return;
-      ref.read(toastServiceProvider).error(
-          context, e is AppException ? e.message : 'Failed to add task');
-    } finally {
-      if (mounted) setState(() => _adding = false);
     }
   }
 
@@ -372,61 +346,10 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
                   statusOrder: _statusOrder,
                   statusLabels: _statusLabels,
                   onTapTask: _openTaskEdit,
-                  onReorderWithinColumn: _reorderWithinColumn,
-                  onMoveAcrossColumn: _moveAcrossColumn,
-                  firstColumnHeader: Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _addCtrl,
-                            style: AppTextStyles.bodyMedium,
-                            textCapitalization: TextCapitalization.sentences,
-                            onSubmitted: (_) => _addTask(),
-                            decoration: InputDecoration(
-                              hintText: 'Add a task...',
-                              hintStyle: AppTextStyles.bodyMedium
-                                  .copyWith(color: AppColors.mutedForeground),
-                              isDense: true,
-                              filled: true,
-                              fillColor: AppColors.card,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: AppColors.primary),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          onPressed: _adding ? null : _addTask,
-                          icon: _adding
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: AppColors.primary))
-                              : const Icon(Icons.add, color: AppColors.primary),
-                        ),
-                      ],
-                    ),
-                  ),
+                  onReorder: _reorder,
+                  onAddTask: _addTask,
                 ),
               ),
-              const SizedBox(height: 16),
             ],
           );
         },

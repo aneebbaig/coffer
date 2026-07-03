@@ -6,7 +6,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Plus, Pencil, Trash2, CalendarClock, User, PanelRight,
+  ArrowLeft, Plus, Pencil, Trash2, CalendarClock, User, PanelRight, X,
 } from "lucide-react";
 import {
   DndContext, DragOverlay, closestCorners, DragEndEvent, DragOverEvent,
@@ -23,10 +23,11 @@ import { ProjectTaskCard, ProjectTaskData } from "@/components/projects/project-
 import { ProjectNotesDrawer, ProjectLink } from "@/components/projects/project-notes-drawer";
 import {
   createProjectTask, updateProject, deleteProject, reorderProjectTasks,
+  bulkUpdateProjectTasks, bulkDeleteProjectTasks,
 } from "@/actions/projects";
 import {
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS,
-  PROJECT_TASK_STATUSES, PROJECT_TASK_STATUS_LABELS,
+  PROJECT_TASK_STATUSES, PROJECT_TASK_STATUS_LABELS, PROJECT_TASK_PRIORITIES,
 } from "@/lib/constants";
 import { cn, isOverdue } from "@/lib/utils";
 
@@ -149,9 +150,39 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  const selectionMode = selectedIds.size > 0;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const overdue = isOverdue(project.dueDate) && status === "ACTIVE";
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() { setSelectedIds(new Set()); }
+
+  async function bulkMove(nextStatus: string) {
+    const ids = [...selectedIds];
+    const result = await bulkUpdateProjectTasks(ids, { status: nextStatus });
+    if (result.success) { clearSelection(); refresh(); }
+    else toast.error("Failed to move tasks");
+  }
+  async function bulkPriority(priority: string) {
+    const ids = [...selectedIds];
+    const result = await bulkUpdateProjectTasks(ids, { priority });
+    if (result.success) { clearSelection(); refresh(); }
+    else toast.error("Failed to update tasks");
+  }
+  async function bulkDelete() {
+    const ids = [...selectedIds];
+    const result = await bulkDeleteProjectTasks(ids);
+    if (result.success) { toast.success(`Deleted ${ids.length} task${ids.length > 1 ? "s" : ""}`); clearSelection(); refresh(); }
+    else toast.error("Failed to delete tasks");
+  }
 
   useEffect(() => {
     setColumns(bucket(project.tasks));
@@ -334,7 +365,16 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
                 tasks={tasks}
                 onAdd={(title) => addTask(columnStatus, title)}
               >
-                {tasks.map((t) => <ProjectTaskCard key={t.id} task={t} onChange={refresh} />)}
+                {tasks.map((t) => (
+                  <ProjectTaskCard
+                    key={t.id}
+                    task={t}
+                    onChange={refresh}
+                    selected={selectedIds.has(t.id)}
+                    selectionMode={selectionMode}
+                    onToggleSelect={() => toggleSelect(t.id)}
+                  />
+                ))}
               </KanbanColumn>
             );
           })}
@@ -371,6 +411,39 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
         onConfirm={handleDelete}
         loading={deleting}
       />
+
+      {/* Bulk action bar */}
+      {selectionMode && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-border bg-popover px-3 py-2 shadow-xl">
+          <button onClick={clearSelection} className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted" aria-label="Clear selection">
+            <X className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-medium px-1">{selectedIds.size} selected</span>
+          <div className="h-5 w-px bg-border mx-1" />
+
+          <Select onValueChange={bulkMove}>
+            <SelectTrigger className="h-8 w-auto gap-1.5 text-sm">Move to</SelectTrigger>
+            <SelectContent>
+              {PROJECT_TASK_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>{PROJECT_TASK_STATUS_LABELS[s]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select onValueChange={bulkPriority}>
+            <SelectTrigger className="h-8 w-auto gap-1.5 text-sm">Priority</SelectTrigger>
+            <SelectContent>
+              {PROJECT_TASK_PRIORITIES.map((p) => (
+                <SelectItem key={p} value={p} className="capitalize">{p.toLowerCase()}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-red-600 hover:text-red-600 dark:text-red-400" onClick={bulkDelete}>
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

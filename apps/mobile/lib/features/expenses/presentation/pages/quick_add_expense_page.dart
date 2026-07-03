@@ -146,7 +146,7 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
         title: const Text('Add Expense', style: AppTextStyles.headlineSmall),
         leading: IconButton(
           icon: const Icon(Icons.close, color: AppColors.foreground),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _close,
         ),
         actions: [
           Padding(

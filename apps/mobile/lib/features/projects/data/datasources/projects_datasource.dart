@@ -83,12 +83,14 @@ class ProjectsDatasource {
     String projectId, {
     required String title,
     String priority = 'MEDIUM',
+    String status = 'TODO',
     String? dueDate,
   }) async {
     try {
       await _dio.post(ApiConstants.projectTasks(projectId), data: {
         'title': title,
         'priority': priority,
+        'status': status,
         if (dueDate != null) 'dueDate': dueDate,
       });
     } catch (e) {

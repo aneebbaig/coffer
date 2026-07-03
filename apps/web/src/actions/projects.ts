@@ -234,3 +234,59 @@ export async function reorderProjectTasks(
     return { success: false, error: "Failed to reorder tasks" };
   }
 }
+
+/** Apply a status and/or priority change to several tasks at once. */
+export async function bulkUpdateProjectTasks(
+  ids: string[],
+  data: { status?: string; priority?: string }
+): Promise<ActionResult> {
+  try {
+    if (ids.length === 0) return { success: true };
+    const userId = await getUserId();
+    const projectIds = await prisma.projectTask.findMany({
+      where: { id: { in: ids }, project: { userId } },
+      select: { projectId: true },
+      distinct: ["projectId"],
+    });
+
+    await prisma.$transaction([
+      prisma.projectTask.updateMany({
+        where: { id: { in: ids }, project: { userId } },
+        data: {
+          ...(data.status !== undefined && { status: data.status }),
+          ...(data.priority !== undefined && { priority: data.priority }),
+        },
+      }),
+      ...projectIds.map(({ projectId }) =>
+        prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } })
+      ),
+    ]);
+    return { success: true };
+  } catch (e) {
+    console.error("[bulkUpdateProjectTasks]", e);
+    return { success: false, error: "Failed to update tasks" };
+  }
+}
+
+export async function bulkDeleteProjectTasks(ids: string[]): Promise<ActionResult> {
+  try {
+    if (ids.length === 0) return { success: true };
+    const userId = await getUserId();
+    const projectIds = await prisma.projectTask.findMany({
+      where: { id: { in: ids }, project: { userId } },
+      select: { projectId: true },
+      distinct: ["projectId"],
+    });
+
+    await prisma.$transaction([
+      prisma.projectTask.deleteMany({ where: { id: { in: ids }, project: { userId } } }),
+      ...projectIds.map(({ projectId }) =>
+        prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } })
+      ),
+    ]);
+    return { success: true };
+  } catch (e) {
+    console.error("[bulkDeleteProjectTasks]", e);
+    return { success: false, error: "Failed to delete tasks" };
+  }
+}

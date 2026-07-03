@@ -134,7 +134,7 @@ class _QuickAddIncomePageState extends ConsumerState<QuickAddIncomePage> {
         title: const Text('Add Income', style: AppTextStyles.headlineSmall),
         leading: IconButton(
           icon: const Icon(Icons.close, color: AppColors.foreground),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _close,
         ),
         actions: [
           Padding(

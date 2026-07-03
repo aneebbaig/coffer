@@ -11,12 +11,14 @@ class TaskListItem extends StatefulWidget {
     required this.task,
     required this.onToggle,
     required this.onDelete,
+    required this.onEdit,
     super.key,
   });
 
   final TaskEntity task;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   @override
   State<TaskListItem> createState() => _TaskListItemState();
@@ -100,7 +102,10 @@ class _TaskListItemState extends State<TaskListItem>
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
+              child: GestureDetector(
+                onTap: widget.onEdit,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
@@ -165,6 +170,7 @@ class _TaskListItemState extends State<TaskListItem>
                     ),
                   ],
                 ],
+                ),
               ),
             ),
             const SizedBox(width: 8),
