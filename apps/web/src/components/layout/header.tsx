@@ -20,6 +20,7 @@ import { NotificationBell } from "@/components/layout/notification-bell";
 import { useColorTheme, type ColorTheme } from "@/components/shared/color-theme-provider";
 import { useFontTheme, FONT_PAIRS } from "@/components/shared/font-theme-provider";
 import { cn } from "@/lib/utils";
+import { authClient } from "@/lib/auth-client";
 import type { AppNotification } from "@/actions/notifications";
 
 const PAGE_TITLES: Record<string, string> = {
@@ -79,7 +80,7 @@ export function Header({ user, notifications }: HeaderProps) {
 
   async function handleSignOut() {
     setSigningOut(true);
-    await fetch("/api/auth/logout", { method: "POST" });
+    await authClient.signOut();
     router.push("/login");
   }
 
