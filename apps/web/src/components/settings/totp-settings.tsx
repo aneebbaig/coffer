@@ -33,11 +33,12 @@ export function TotpSettings() {
 
   function begin() {
     startTransition(async () => {
-      const res = await startTotpEnroll();
+      const res = await startTotpEnroll(password);
       if ("error" in res) {
         toast.error(res.error);
         return;
       }
+      setPassword("");
       setQr(res.qrDataUrl);
       setSecret(res.secret);
       setCode("");
@@ -83,9 +84,20 @@ export function TotpSettings() {
         {stage === "loading" && <p className="text-sm text-muted-foreground">Loading…</p>}
 
         {stage === "off" && (
-          <Button onClick={begin} disabled={pending}>
-            {pending ? "Starting…" : "Enable 2FA"}
-          </Button>
+          <div className="space-y-3">
+            <div className="max-w-[280px]">
+              <Label>Confirm password to enable</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && password && begin()}
+              />
+            </div>
+            <Button onClick={begin} disabled={pending || !password}>
+              {pending ? "Starting…" : "Enable 2FA"}
+            </Button>
+          </div>
         )}
 
         {stage === "enrolling" && (

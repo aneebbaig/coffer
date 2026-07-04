@@ -24,11 +24,15 @@ export async function getTotpStatus(): Promise<{ enabled: boolean }> {
 
 // Generate a pending secret, store it encrypted (enabled stays false until a
 // code is confirmed), and return the QR + manual key for the authenticator.
-export async function startTotpEnroll(): Promise<{ qrDataUrl: string; secret: string } | { error: string }> {
+// Requires the current password (step-up auth) so a merely-open session can't
+// bind an attacker's authenticator to the account.
+export async function startTotpEnroll(password: string): Promise<{ qrDataUrl: string; secret: string } | { error: string }> {
   try {
     const { id, email } = await requireUser();
-    const existing = await prisma.user.findUnique({ where: { id }, select: { totpEnabled: true } });
-    if (existing?.totpEnabled) return { error: "2FA is already enabled" };
+    const existing = await prisma.user.findUnique({ where: { id }, select: { totpEnabled: true, hashedPassword: true } });
+    if (!existing) return { error: "Unauthorized" };
+    if (existing.totpEnabled) return { error: "2FA is already enabled" };
+    if (!(await bcrypt.compare(password, existing.hashedPassword))) return { error: "Wrong password" };
     const secret = generateTotpSecret();
     await prisma.user.update({ where: { id }, data: { totpSecret: encryptSecret(secret), totpEnabled: false } });
     const qrDataUrl = await QRCode.toDataURL(buildTotpUri(email, secret));
