@@ -1,14 +1,24 @@
 class ApiConstants {
   ApiConstants._();
 
+  /// Base for the app's REST data API (.../api/v1).
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://10.0.2.2:3000/api/v1',
   );
 
-  static const String login = '/auth/login';
-  static const String refresh = '/auth/refresh';
-  static const String me = '/auth/me';
+  /// better-auth lives at {origin}/api/auth. Derive it from [baseUrl] by
+  /// stripping a trailing /api/vN so one API_BASE_URL configures both.
+  static String get authBaseUrl =>
+      '${baseUrl.replaceFirst(RegExp(r'/api/v\d+/?$'), '')}/api/auth';
+
+  // better-auth endpoints (used with authBaseUrl)
+  static const String signIn = '/sign-in/email';
+  static const String signOut = '/sign-out';
+  static const String getSession = '/get-session';
+  static const String verifyTotp = '/two-factor/verify-totp';
+
+  // REST data endpoints (used with baseUrl)
   static const String categories = '/categories';
   static const String expenses = '/expenses';
   static const String income = '/income';

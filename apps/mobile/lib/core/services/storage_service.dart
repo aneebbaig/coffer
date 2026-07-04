@@ -8,6 +8,8 @@ part 'storage_service.g.dart';
 @Riverpod(keepAlive: true)
 StorageService storageService(Ref ref) => StorageService();
 
+/// better-auth uses a single bearer session token (no refresh token). It is
+/// stored under the existing key; the legacy refresh key is cleared on logout.
 class StorageService {
   StorageService()
       : _storage = const FlutterSecureStorage(
@@ -16,31 +18,20 @@ class StorageService {
 
   final FlutterSecureStorage _storage;
 
-  Future<void> saveTokens({
-    required String access,
-    required String refresh,
-  }) async {
-    await Future.wait([
-      _storage.write(key: StorageKeys.accessToken, value: access),
-      _storage.write(key: StorageKeys.refreshToken, value: refresh),
-    ]);
-  }
+  Future<void> saveToken(String token) =>
+      _storage.write(key: StorageKeys.accessToken, value: token);
 
-  Future<String?> getAccessToken() =>
-      _storage.read(key: StorageKeys.accessToken);
+  Future<String?> getToken() => _storage.read(key: StorageKeys.accessToken);
 
-  Future<String?> getRefreshToken() =>
-      _storage.read(key: StorageKeys.refreshToken);
-
-  Future<void> clearTokens() async {
+  Future<void> clearToken() async {
     await Future.wait([
       _storage.delete(key: StorageKeys.accessToken),
       _storage.delete(key: StorageKeys.refreshToken),
     ]);
   }
 
-  Future<bool> hasTokens() async {
-    final token = await getAccessToken();
+  Future<bool> hasToken() async {
+    final token = await getToken();
     return token != null && token.isNotEmpty;
   }
 }
