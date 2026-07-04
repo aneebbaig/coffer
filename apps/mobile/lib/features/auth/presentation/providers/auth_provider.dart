@@ -18,18 +18,26 @@ class AuthNotifier extends _$AuthNotifier {
     }
   }
 
-  Future<void> login({required String email, required String password, String? totp}) async {
+  /// Throws TotpRequiredException when 2FA is on; the form then calls [verifyTotp].
+  Future<void> login({required String email, required String password}) async {
     state = const AsyncLoading();
     try {
-      final user = await ref.read(authRepositoryProvider).login(
-            email: email,
-            password: password,
-            totp: totp,
-          );
+      final user = await ref.read(authRepositoryProvider).login(email: email, password: password);
       state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);
-      rethrow; // let LoginForm's catch handle 2FA prompt / show error toast
+      rethrow; // let LoginForm handle the 2FA prompt / error toast
+    }
+  }
+
+  Future<void> verifyTotp(String code) async {
+    state = const AsyncLoading();
+    try {
+      final user = await ref.read(authRepositoryProvider).verifyTotp(code);
+      state = AsyncData(user);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
     }
   }
 
