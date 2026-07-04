@@ -21,3 +21,4 @@ npm-debug.log*
 # Local-only notes and AI-tool config — never committed
 CLAUDE.md
 docs/PRIVATE-SETUP.md
+.env*
