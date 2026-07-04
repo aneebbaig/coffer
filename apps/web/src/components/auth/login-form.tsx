@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authClient } from "@/lib/auth-client";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -20,8 +21,6 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [needsTotp, setNeedsTotp] = useState(false);
-  const [totp, setTotp] = useState("");
 
   const {
     register,
@@ -34,25 +33,16 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   async function onSubmit(data: LoginFormValues) {
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(needsTotp ? { ...data, totp } : data),
+      const { data: res, error } = await authClient.signIn.email({
+        email: data.email,
+        password: data.password,
       });
-
-      const body = await res.json().catch(() => ({}));
-
-      if (res.ok && body.totpRequired) {
-        // Password was right; server wants the 2FA code. Reveal the field.
-        setNeedsTotp(true);
+      // 2FA on: the twoFactorClient's onTwoFactorRedirect sends us to /login/2fa.
+      if (res && (res as { twoFactorRedirect?: boolean }).twoFactorRedirect) return;
+      if (error) {
+        toast.error("Invalid email or password");
         return;
       }
-
-      if (!res.ok) {
-        toast.error(needsTotp ? "Invalid authentication code" : "Invalid email or password");
-        return;
-      }
-
       router.push(callbackUrl);
       router.refresh();
     } catch {
@@ -102,37 +92,12 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         )}
       </div>
 
-      {needsTotp && (
-        <div className="space-y-1.5">
-          <Label
-            htmlFor="totp"
-            className="text-[10px] uppercase tracking-[0.12em] font-semibold text-muted-foreground"
-          >
-            Authentication code
-          </Label>
-          <Input
-            id="totp"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="123456 or backup code"
-            autoFocus
-            value={totp}
-            onChange={(e) => setTotp(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Enter the 6-digit code from your authenticator app.
-          </p>
-        </div>
-      )}
-
       <Button type="submit" className="w-full mt-2" disabled={loading}>
         {loading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
             Signing in…
           </>
-        ) : needsTotp ? (
-          "Verify & sign in"
         ) : (
           "Sign in"
         )}

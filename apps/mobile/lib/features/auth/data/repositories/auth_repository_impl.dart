@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/services/storage_service.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -28,14 +29,20 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<UserEntity> login({
     required String email,
     required String password,
-    String? totp,
   }) async {
-    final result = await _datasource.login(email: email, password: password, totp: totp);
-    await _storage.saveTokens(
-      access: result.tokens.accessToken,
-      refresh: result.tokens.refreshToken,
-    );
-    return result.user.toEntity();
+    final r = await _datasource.signIn(email: email, password: password);
+    // Store the token (partial when 2FA is pending, so the verify call carries it).
+    await _storage.saveToken(r.token);
+    if (r.totpRequired) throw const TotpRequiredException();
+    return r.user!.toEntity();
+  }
+
+  @override
+  Future<UserEntity> verifyTotp(String code) async {
+    final token = await _datasource.verifyTotp(code);
+    await _storage.saveToken(token);
+    final user = await _datasource.getMe();
+    return user.toEntity();
   }
 
   @override
@@ -45,5 +52,8 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> logout() => _storage.clearTokens();
+  Future<void> logout() async {
+    await _datasource.signOut();
+    await _storage.clearToken();
+  }
 }

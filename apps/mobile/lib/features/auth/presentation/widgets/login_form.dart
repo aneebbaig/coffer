@@ -37,11 +37,14 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     setState(() => _submitting = true);
 
     try {
-      await ref.read(authProvider.notifier).login(
-            email: _emailCtrl.text.trim(),
-            password: _passCtrl.text,
-            totp: _needsTotp ? _totpCtrl.text.trim() : null,
-          );
+      if (_needsTotp) {
+        await ref.read(authProvider.notifier).verifyTotp(_totpCtrl.text.trim());
+      } else {
+        await ref.read(authProvider.notifier).login(
+              email: _emailCtrl.text.trim(),
+              password: _passCtrl.text,
+            );
+      }
       // RouterNotifier auto-navigates on success
     } on TotpRequiredException {
       // Password accepted; reveal the 2FA field and wait for the code.

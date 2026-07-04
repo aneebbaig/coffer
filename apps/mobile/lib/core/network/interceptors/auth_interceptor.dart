@@ -1,23 +1,17 @@
 import 'package:dio/dio.dart';
 
-import '../../constants/api_constants.dart';
-import '../../errors/app_exception.dart';
 import '../../services/storage_service.dart';
 
 const _kSkipAuth = 'skip_auth';
 
-/// Injects Bearer token on every request.
-/// On 401: refreshes token once, retries original request.
-/// On refresh failure: clears tokens (RouterNotifier auto-redirects to login).
-/// Uses [QueuedInterceptorsWrapper] to serialise concurrent 401s -
-/// prevents multiple parallel refresh calls on concurrent expired requests.
+/// Injects the better-auth bearer token on every request. better-auth has no
+/// refresh token — the session token is long-lived — so on 401 we just clear
+/// the token and let RouterNotifier redirect to login.
 class AuthInterceptor extends QueuedInterceptorsWrapper {
   AuthInterceptor({required StorageService storage, required Dio dio})
-      : _storage = storage,
-        _dio = dio;
+      : _storage = storage;
 
   final StorageService _storage;
-  final Dio _dio;
 
   @override
   Future<void> onRequest(
@@ -28,7 +22,7 @@ class AuthInterceptor extends QueuedInterceptorsWrapper {
       handler.next(options);
       return;
     }
-    final token = await _storage.getAccessToken();
+    final token = await _storage.getToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
@@ -40,37 +34,9 @@ class AuthInterceptor extends QueuedInterceptorsWrapper {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode != 401) {
-      handler.next(err);
-      return;
+    if (err.response?.statusCode == 401) {
+      await _storage.clearToken();
     }
-
-    try {
-      final refreshToken = await _storage.getRefreshToken();
-      if (refreshToken == null) throw const NoRefreshTokenException();
-
-      final response = await _dio.post(
-        ApiConstants.refresh,
-        data: {'refreshToken': refreshToken},
-        options: Options(extra: {_kSkipAuth: true}),
-      );
-
-      final newAccess = (response.data['data'] as Map)['accessToken'] as String;
-      await _storage.saveTokens(access: newAccess, refresh: refreshToken);
-
-      final retryOptions = err.requestOptions
-        ..headers['Authorization'] = 'Bearer $newAccess';
-      final retryResponse = await _dio.fetch(retryOptions);
-      handler.resolve(retryResponse);
-    } on NoRefreshTokenException catch (_) {
-      await _storage.clearTokens();
-      handler.next(err);
-    } on DioException catch (e) {
-      await _storage.clearTokens();
-      handler.next(e);
-    } catch (_) {
-      await _storage.clearTokens();
-      handler.next(err);
-    }
+    handler.next(err);
   }
 }

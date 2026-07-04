@@ -42,7 +42,7 @@ export async function adminCreateUser(data: {
     const hashedPassword = await bcrypt.hash(data.password, 12);
     // Copy shared settings from first existing user so new user starts in sync
     const existing = await prisma.user.findFirst({ select: { currency: true, dateFormat: true, firstDayOfWeek: true, emergencyFundMonths: true } });
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         name: data.name,
         email: data.email,
@@ -52,6 +52,17 @@ export async function adminCreateUser(data: {
         dateFormat: existing?.dateFormat ?? "dd/MM/yyyy",
         firstDayOfWeek: existing?.firstDayOfWeek ?? 1,
         emergencyFundMonths: existing?.emergencyFundMonths ?? 6,
+      },
+    });
+    // better-auth logs users in against the credential `account` row (bcrypt
+    // verify is configured in lib/auth.ts), so create one alongside the user.
+    await prisma.account.create({
+      data: {
+        id: `cred_${user.id}`,
+        accountId: user.id,
+        providerId: "credential",
+        userId: user.id,
+        password: hashedPassword,
       },
     });
     revalidatePath("/settings");
