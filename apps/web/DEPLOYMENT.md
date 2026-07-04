@@ -112,14 +112,19 @@ In your Vercel project → **Settings → Environment Variables**, add:
 | `NEXTAUTH_URL` | `https://your-domain.com` | Production |
 | `NEXTAUTH_URL` | `https://your-project.vercel.app` | Preview |
 | `USER1_EMAIL` | `admin@example.com` | All |
-| `USER1_PASSWORD` | Your password | All |
+| `USER1_PASSWORD` | Your **strong** password (min 8 chars) | All |
 | `USER1_NAME` | `Admin` | All |
 | `USER2_EMAIL` | `member@example.com` | All |
-| `USER2_PASSWORD` | the second user.s password | All |
+| `USER2_PASSWORD` | the second user.s **strong** password | All |
 | `USER2_NAME` | `Member` | All |
+| `TOTP_ENC_KEY` | Random 16+ char string - encrypts 2FA secrets at rest. Generate: `openssl rand -base64 32` | All |
 | `GMAIL_USER` | Your Gmail (optional - enables all email alerts) | All |
 | `GMAIL_APP_PASSWORD` | 16-char Google App Password (optional) | All |
 | `CRON_SECRET` | Random secret for the daily digest cron - generate same as AUTH_SECRET | All |
+
+> **`TOTP_ENC_KEY` is required** if any user enables two-factor authentication (Settings → Security). Without it, enabling or verifying 2FA fails. Set it before your first deploy and never change it afterward, or existing 2FA secrets become undecryptable.
+
+> **Never leave `USER*_PASSWORD` unset.** The seed script generates a random password (printed once) when it is, but a weak or shared value on a public backend is the easiest way in — pick something strong.
 
 Click **Deploy**. Vercel will:
 1. Pull your code
