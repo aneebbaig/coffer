@@ -15,35 +15,37 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { createWeddingExpense, updateWeddingExpense, deleteWeddingExpense } from "@/actions/wedding";
 import { cn } from "@/lib/utils";
 import {
-  WeddingPlan, WeddingExpense, WeddingEvent,
+  WeddingPlan, WeddingExpense, WeddingEvent, CurrencyLite,
   EXPENSE_CATEGORIES,
-  fmt, fmtUsd, fmtSource, getEventInfo, getExpenseCategoryLabel,
+  fmt, fmtSource, getEventInfo, getExpenseCategoryLabel,
 } from "./wedding-types";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function CurrencyToggle({
+  currencies,
   value,
   onChange,
 }: {
+  currencies: CurrencyLite[];
   value: string;
   onChange: (v: string) => void;
 }) {
   return (
     <div className="flex rounded-md overflow-hidden border border-border text-xs font-medium">
-      {["PKR", "USD"].map((c) => (
+      {currencies.map((c) => (
         <button
-          key={c}
+          key={c.id}
           type="button"
-          onClick={() => onChange(c)}
+          onClick={() => onChange(c.id)}
           className={cn(
             "px-3 py-1.5 transition-colors",
-            value === c
+            value === c.id
               ? "bg-primary text-primary-foreground"
               : "bg-card text-muted-foreground hover:bg-muted"
           )}
         >
-          {c}
+          {c.code}
         </button>
       ))}
     </div>
@@ -56,27 +58,29 @@ interface FormState {
   name: string;
   category: string;
   eventId: string;
-  s1Currency: string;
+  s1CurrencyId: string;
   s1Amount: string;
   s1Paid: string;
   hasS2: boolean;
-  s2Currency: string;
+  s2CurrencyId: string;
   s2Amount: string;
   s2Paid: string;
   isPaid: boolean;
   notes: string;
 }
 
-function initForm(initial?: Partial<WeddingExpense>, defaultEventId?: string | null): FormState {
+function initForm(currencies: CurrencyLite[], initial?: Partial<WeddingExpense>, defaultEventId?: string | null): FormState {
+  const base = currencies.find((c) => c.isBase) ?? currencies[0];
+  const secondary = currencies.find((c) => c.id !== base?.id) ?? base;
   return {
     name: initial?.name ?? "",
     category: initial?.category ?? "MISC",
     eventId: initial?.eventId ?? defaultEventId ?? "",
-    s1Currency: initial?.source1Currency ?? "PKR",
+    s1CurrencyId: initial?.source1CurrencyId ?? base?.id ?? "",
     s1Amount: initial?.source1Amount ? String(initial.source1Amount / 100) : "",
     s1Paid: initial?.source1Paid ? String(initial.source1Paid / 100) : "",
-    hasS2: !!(initial?.source2Currency),
-    s2Currency: initial?.source2Currency ?? "USD",
+    hasS2: !!(initial?.source2CurrencyId),
+    s2CurrencyId: initial?.source2CurrencyId ?? secondary?.id ?? "",
     s2Amount: initial?.source2Amount ? String(initial.source2Amount / 100) : "",
     s2Paid: initial?.source2Paid ? String(initial.source2Paid / 100) : "",
     isPaid: initial?.isPaid ?? false,
@@ -88,6 +92,7 @@ function ExpenseForm({
   initial,
   weddingPlanId,
   events,
+  currencies,
   defaultEventId,
   onDone,
   editId,
@@ -95,13 +100,17 @@ function ExpenseForm({
   initial?: Partial<WeddingExpense>;
   weddingPlanId: string;
   events: WeddingEvent[];
+  currencies: CurrencyLite[];
   defaultEventId?: string | null;
   onDone: () => void;
   editId?: string;
 }) {
   const [loading, setLoading] = useState(false);
-  const [f, setF] = useState<FormState>(() => initForm(initial, defaultEventId));
+  const [f, setF] = useState<FormState>(() => initForm(currencies, initial, defaultEventId));
   const set = (patch: Partial<FormState>) => setF((p) => ({ ...p, ...patch }));
+  const s1Code = currencies.find((c) => c.id === f.s1CurrencyId)?.code ?? "";
+  const s2Code = currencies.find((c) => c.id === f.s2CurrencyId)?.code ?? "";
+  const otherCurrencyId = (excludeId: string) => currencies.find((c) => c.id !== excludeId)?.id ?? excludeId;
 
   async function onSubmit() {
     if (!f.name.trim()) return;
@@ -110,10 +119,10 @@ function ExpenseForm({
       name: f.name,
       category: f.category,
       eventId: f.eventId || undefined,
-      source1Currency: f.s1Currency,
+      source1CurrencyId: f.s1CurrencyId,
       source1Amount: f.s1Amount ? parseFloat(f.s1Amount) : 0,
       source1Paid: f.s1Paid ? parseFloat(f.s1Paid) : undefined,
-      source2Currency: f.hasS2 ? f.s2Currency : undefined,
+      source2CurrencyId: f.hasS2 ? f.s2CurrencyId : undefined,
       source2Amount: f.hasS2 && f.s2Amount ? parseFloat(f.s2Amount) : undefined,
       source2Paid: f.hasS2 && f.s2Paid ? parseFloat(f.s2Paid) : undefined,
       isPaid: f.isPaid,
@@ -175,20 +184,20 @@ function ExpenseForm({
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Source 1 - Primary
           </span>
-          <CurrencyToggle value={f.s1Currency} onChange={(v) => set({ s1Currency: v })} />
+          <CurrencyToggle currencies={currencies} value={f.s1CurrencyId} onChange={(v) => set({ s1CurrencyId: v })} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Estimated ({f.s1Currency})</Label>
+            <Label>Estimated ({s1Code})</Label>
             <Input
               type="number"
-              placeholder={f.s1Currency === "PKR" ? "e.g. 20000" : "e.g. 200"}
+              placeholder="e.g. 20000"
               value={f.s1Amount}
               onChange={(e) => set({ s1Amount: e.target.value })}
             />
           </div>
           <div>
-            <Label>Actual paid ({f.s1Currency})</Label>
+            <Label>Actual paid ({s1Code})</Label>
             <Input
               type="number"
               placeholder="leave blank if unpaid"
@@ -203,7 +212,7 @@ function ExpenseForm({
       {!f.hasS2 ? (
         <button
           type="button"
-          onClick={() => set({ hasS2: true, s2Currency: f.s1Currency === "PKR" ? "USD" : "PKR" })}
+          onClick={() => set({ hasS2: true, s2CurrencyId: otherCurrencyId(f.s1CurrencyId) })}
           className="text-sm text-primary hover:underline font-medium"
         >
           + Add second funding source (remainder)
@@ -215,7 +224,7 @@ function ExpenseForm({
               Source 2 - Remainder
             </span>
             <div className="flex items-center gap-2">
-              <CurrencyToggle value={f.s2Currency} onChange={(v) => set({ s2Currency: v })} />
+              <CurrencyToggle currencies={currencies} value={f.s2CurrencyId} onChange={(v) => set({ s2CurrencyId: v })} />
               <button
                 type="button"
                 onClick={() => set({ hasS2: false, s2Amount: "", s2Paid: "" })}
@@ -227,16 +236,16 @@ function ExpenseForm({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Estimated ({f.s2Currency})</Label>
+              <Label>Estimated ({s2Code})</Label>
               <Input
                 type="number"
-                placeholder={f.s2Currency === "PKR" ? "e.g. 5000" : "e.g. 50"}
+                placeholder="e.g. 5000"
                 value={f.s2Amount}
                 onChange={(e) => set({ s2Amount: e.target.value })}
               />
             </div>
             <div>
-              <Label>Actual paid ({f.s2Currency})</Label>
+              <Label>Actual paid ({s2Code})</Label>
               <Input
                 type="number"
                 placeholder="leave blank if unpaid"
@@ -412,7 +421,7 @@ function EventExpenseSection({
 
 // ─── main tab ─────────────────────────────────────────────────────────────────
 
-export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
+export function WeddingExpensesTab({ plan, currencies }: { plan: WeddingPlan; currencies: CurrencyLite[] }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addDefaultEventId, setAddDefaultEventId] = useState<string | null>(null);
   const [editExpense, setEditExpense] = useState<WeddingExpense | null>(null);
@@ -436,20 +445,20 @@ export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
     }
   }
 
-  // Totals by currency (can't add PKR + USD)
-  const totalPkrEst = plan.expenses
-    .filter((e) => e.source1Currency === "PKR")
-    .reduce((s, e) => s + e.source1Amount, 0)
-    + plan.expenses
-    .filter((e) => e.source2Currency === "PKR" && e.source2Amount)
-    .reduce((s, e) => s + (e.source2Amount ?? 0), 0);
-
-  const totalUsdEst = plan.expenses
-    .filter((e) => e.source1Currency === "USD")
-    .reduce((s, e) => s + e.source1Amount, 0)
-    + plan.expenses
-    .filter((e) => e.source2Currency === "USD" && e.source2Amount)
-    .reduce((s, e) => s + (e.source2Amount ?? 0), 0);
+  // Totals grouped by currency (can't add across currencies)
+  const totalsByCurrency = new Map<string, { currency: CurrencyLite; amount: number }>();
+  const addToTotal = (currency: CurrencyLite, amount: number) => {
+    const entry = totalsByCurrency.get(currency.id) ?? { currency, amount: 0 };
+    entry.amount += amount;
+    totalsByCurrency.set(currency.id, entry);
+  };
+  for (const e of plan.expenses) {
+    addToTotal(e.source1Currency, e.source1Amount);
+    if (e.source2Currency && e.source2Amount) addToTotal(e.source2Currency, e.source2Amount);
+  }
+  const currencyTotals = [...totalsByCurrency.values()].sort((a, b) =>
+    a.currency.isBase === b.currency.isBase ? 0 : a.currency.isBase ? -1 : 1
+  );
 
   const totalPaid = plan.expenses.filter((e) => e.isPaid).length;
 
@@ -465,7 +474,7 @@ export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold">Misc Expenses</h3>
-          <p className="text-xs text-muted-foreground">Dresses, flowers, fireworks, props - split across PKR and USD sources.</p>
+          <p className="text-xs text-muted-foreground">Dresses, flowers, fireworks, props - split across multiple funding sources.</p>
         </div>
         <Button size="sm" onClick={() => openAddFor(null)}>
           <Plus className="h-3.5 w-3.5" />Add Expense
@@ -473,15 +482,13 @@ export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
       </div>
 
       {plan.expenses.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-border bg-card p-3 text-center">
-            <p className="text-xs text-muted-foreground">PKR Estimated</p>
-            <p className="font-semibold text-sm">{fmt(totalPkrEst)}</p>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-3 text-center">
-            <p className="text-xs text-muted-foreground">USD Estimated</p>
-            <p className="font-semibold text-sm">{fmtUsd(totalUsdEst)}</p>
-          </div>
+        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${currencyTotals.length + 1}, minmax(0, 1fr))` }}>
+          {currencyTotals.map(({ currency, amount }) => (
+            <div key={currency.id} className="rounded-xl border border-border bg-card p-3 text-center">
+              <p className="text-xs text-muted-foreground">{currency.code} Estimated</p>
+              <p className="font-semibold text-sm">{fmt(amount, currency.symbol)}</p>
+            </div>
+          ))}
           <div className="rounded-xl border border-border bg-card p-3 text-center">
             <p className="text-xs text-muted-foreground">Paid</p>
             <p className="font-semibold text-sm">{totalPaid}/{plan.expenses.length}</p>
@@ -535,6 +542,7 @@ export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
           <ExpenseForm
             weddingPlanId={plan.id}
             events={plan.events}
+            currencies={currencies}
             defaultEventId={addDefaultEventId}
             onDone={() => { setAddOpen(false); setAddDefaultEventId(null); }}
           />
@@ -549,6 +557,7 @@ export function WeddingExpensesTab({ plan }: { plan: WeddingPlan }) {
               initial={editExpense}
               weddingPlanId={plan.id}
               events={plan.events}
+              currencies={currencies}
               editId={editExpense.id}
               onDone={() => setEditExpense(null)}
             />

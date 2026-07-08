@@ -29,7 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
   DELIVERED: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
 };
 
-export function VaultClient({ surprises }: { surprises: Surprise[] }) {
+export function VaultClient({ surprises, baseSymbol = "Rs" }: { surprises: Surprise[]; baseSymbol?: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", forWhom: "", occasion: "", targetDate: "", estimatedBudget: "" });
@@ -77,11 +77,11 @@ export function VaultClient({ surprises }: { surprises: Surprise[] }) {
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Budget</span>
-                      <span>Rs {(s.estimatedBudget / 100).toLocaleString()}</span>
+                      <span>{baseSymbol} {(s.estimatedBudget / 100).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Spent</span>
-                      <span className="text-rose-500">Rs {(s.actualSpent / 100).toLocaleString()}</span>
+                      <span className="text-rose-500">{baseSymbol} {(s.actualSpent / 100).toLocaleString()}</span>
                     </div>
                     {daysLeft !== null && (
                       <div className="flex justify-between">
@@ -107,7 +107,7 @@ export function VaultClient({ surprises }: { surprises: Surprise[] }) {
             <div><Label>For Whom</Label><Input value={form.forWhom} onChange={(e) => setForm((p) => ({ ...p, forWhom: e.target.value }))} placeholder="e.g. Wife, Mum, Friend" /></div>
             <div><Label>Occasion (optional)</Label><Input value={form.occasion} onChange={(e) => setForm((p) => ({ ...p, occasion: e.target.value }))} placeholder="e.g. Birthday, Anniversary, Eid" /></div>
             <div><Label>Target Date</Label><Input type="date" value={form.targetDate} onChange={(e) => setForm((p) => ({ ...p, targetDate: e.target.value }))} /></div>
-            <div><Label>Estimated Budget (Rs )</Label><Input type="number" value={form.estimatedBudget} onChange={(e) => setForm((p) => ({ ...p, estimatedBudget: e.target.value }))} /></div>
+            <div><Label>Estimated Budget ({baseSymbol})</Label><Input type="number" value={form.estimatedBudget} onChange={(e) => setForm((p) => ({ ...p, estimatedBudget: e.target.value }))} /></div>
             <div><Label>Notes (optional)</Label><Textarea rows={2} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Ideas, notes..." /></div>
             <Button className="w-full bg-rose-500 hover:bg-rose-600" onClick={handleCreate} disabled={loading}>{loading ? "Creating..." : "Create Surprise 🎁"}</Button>
           </div>

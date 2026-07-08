@@ -16,17 +16,24 @@ export async function GET(req: NextRequest) {
         color: true,
         type: true,
         targetAmount: true,
-        currentAmount: true,
-        currentAmountUsd: true,
+        balances: { include: { currency: true } },
       },
       orderBy: [{ type: "asc" }, { createdAt: "asc" }],
     });
 
-    const totalPaisas = pots.reduce((s, p) => s + p.currentAmount, 0);
+    // Mobile only understands a base-currency balance + an optional USD
+    // balance (pre-dates the household-configurable currency list on web).
+    const shaped = pots.map((p) => {
+      const { balances, ...rest } = p;
+      const currentAmount = balances.find((b) => b.currency.isBase)?.amount ?? 0;
+      const currentAmountUsd = balances.find((b) => b.currency.code === "USD" && !b.currency.isBase)?.amount ?? 0;
+      return { ...rest, currentAmount, currentAmountUsd };
+    });
+    const totalPaisas = shaped.reduce((s, p) => s + p.currentAmount, 0);
 
     return NextResponse.json({
       data: {
-        pots,
+        pots: shaped,
         totalPaisas,
       },
     });

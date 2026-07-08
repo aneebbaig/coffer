@@ -6,5 +6,6 @@ abstract interface class ExpenseRepository {
     required String description,
     String? notes,
     required DateTime date,
+    bool isRegretPurchase = false,
   });
 }

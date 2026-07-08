@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../domain/entities/project_entity.dart';
+import 'project_card.dart' show projectColor;
 
 Color kanbanPriorityColor(String p) => switch (p) {
       'URGENT' => const Color(0xFFEF4444),
@@ -103,6 +104,30 @@ class KanbanCard extends StatelessWidget {
                                 ),
                               ],
                             ),
+                          ),
+                        ],
+                        if (task.tags.isNotEmpty) ...[
+                          const SizedBox(height: 7),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              for (final tag in task.tags)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: projectColor(tag.color).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    tag.name,
+                                    style: AppTextStyles.labelSmall.copyWith(
+                                      color: projectColor(tag.color),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ],

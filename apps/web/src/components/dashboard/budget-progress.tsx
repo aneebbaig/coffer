@@ -14,9 +14,10 @@ interface Props {
   categories: BudgetCategory[];
   totalBudget: number;
   totalSpent: number;
+  baseSymbol?: string;
 }
 
-export function BudgetProgress({ categories, totalBudget, totalSpent }: Props) {
+export function BudgetProgress({ categories, totalBudget, totalSpent, baseSymbol = "Rs" }: Props) {
   const overallPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   return (
@@ -51,8 +52,8 @@ export function BudgetProgress({ categories, totalBudget, totalSpent }: Props) {
               className={cn("h-1.5", overallPct > 100 ? "[&>div]:bg-red-500" : overallPct >= 75 ? "[&>div]:bg-amber-500" : "")}
             />
             <div className="flex justify-between text-[11px] text-muted-foreground/75 mt-1.5">
-              <span className="tabnum">Rs {(totalSpent / 100).toLocaleString()} spent</span>
-              <span className="tabnum">Rs {(totalBudget / 100).toLocaleString()} total</span>
+              <span className="tabnum">{baseSymbol} {(totalSpent / 100).toLocaleString()} spent</span>
+              <span className="tabnum">{baseSymbol} {(totalBudget / 100).toLocaleString()} total</span>
             </div>
           </div>
 
@@ -66,7 +67,7 @@ export function BudgetProgress({ categories, totalBudget, totalSpent }: Props) {
                     "tabnum",
                     cat.percentage > 100 ? "text-red-500 font-semibold" : cat.percentage >= 75 ? "text-amber-500" : "text-muted-foreground/75"
                   )}>
-                    Rs {(cat.spent / 100).toLocaleString()}
+                    {baseSymbol} {(cat.spent / 100).toLocaleString()}
                     <span className="text-muted-foreground/75"> / {(cat.allocatedAmount / 100).toLocaleString()}</span>
                   </span>
                 </div>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getUserId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { toPaisas } from "@/lib/utils";
+import { getBaseCurrency } from "@/lib/currency-helpers";
 import { ActionResult } from "@/types";
 
 // ─── WeddingPlan ───────────────────────────────────────────────────────────
@@ -15,7 +16,10 @@ export async function getWeddingPlans() {
     include: {
       events: { orderBy: { order: "asc" } },
       vendors: { orderBy: [{ category: "asc" }, { createdAt: "asc" }] },
-      expenses: { orderBy: { createdAt: "asc" } },
+      expenses: {
+        orderBy: { createdAt: "asc" },
+        include: { source1Currency: true, source2Currency: true },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -28,7 +32,10 @@ export async function getWeddingPlan(id: string) {
     include: {
       events: { orderBy: { order: "asc" } },
       vendors: { orderBy: [{ eventId: "asc" }, { category: "asc" }, { createdAt: "asc" }] },
-      expenses: { orderBy: [{ eventId: "asc" }, { createdAt: "asc" }] },
+      expenses: {
+        orderBy: [{ eventId: "asc" }, { createdAt: "asc" }],
+        include: { source1Currency: true, source2Currency: true },
+      },
     },
   });
 }
@@ -328,10 +335,10 @@ export async function createWeddingExpense(weddingPlanId: string, data: {
   name: string;
   category?: string;
   eventId?: string;
-  source1Currency?: string;
+  source1CurrencyId?: string;
   source1Amount?: number;
   source1Paid?: number;
-  source2Currency?: string;
+  source2CurrencyId?: string;
   source2Amount?: number;
   source2Paid?: number;
   isPaid?: boolean;
@@ -342,8 +349,9 @@ export async function createWeddingExpense(weddingPlanId: string, data: {
     const plan = await prisma.weddingPlan.findFirst({ where: { id: weddingPlanId, userId } });
     if (!plan) return { success: false, error: "Not found" };
 
-    const s1 = data.source1Currency ?? "PKR";
-    const s2 = data.source2Currency ?? null;
+    const base = await getBaseCurrency();
+    const s1 = data.source1CurrencyId ?? base.id;
+    const s2 = data.source2CurrencyId ?? null;
 
     await prisma.weddingExpense.create({
       data: {
@@ -351,10 +359,10 @@ export async function createWeddingExpense(weddingPlanId: string, data: {
         name: data.name,
         category: data.category ?? "MISC",
         eventId: data.eventId || null,
-        source1Currency: s1,
+        source1CurrencyId: s1,
         source1Amount: data.source1Amount ? Math.round(data.source1Amount * 100) : 0,
         source1Paid: data.source1Paid ? Math.round(data.source1Paid * 100) : null,
-        source2Currency: s2,
+        source2CurrencyId: s2,
         source2Amount: data.source2Amount ? Math.round(data.source2Amount * 100) : null,
         source2Paid: data.source2Paid ? Math.round(data.source2Paid * 100) : null,
         isPaid: data.isPaid ?? false,
@@ -373,10 +381,10 @@ export async function updateWeddingExpense(id: string, data: Partial<{
   name: string;
   category: string;
   eventId: string | null;
-  source1Currency: string;
+  source1CurrencyId: string;
   source1Amount: number;
   source1Paid: number | null;
-  source2Currency: string | null;
+  source2CurrencyId: string | null;
   source2Amount: number | null;
   source2Paid: number | null;
   isPaid: boolean;
@@ -401,10 +409,10 @@ export async function updateWeddingExpense(id: string, data: Partial<{
         eventId: data.eventId,
         isPaid: data.isPaid,
         notes: data.notes,
-        source1Currency: data.source1Currency,
+        source1CurrencyId: data.source1CurrencyId,
         source1Amount: data.source1Amount !== undefined ? Math.round(data.source1Amount * 100) : undefined,
         source1Paid: toUnits(data.source1Paid),
-        source2Currency: data.source2Currency,
+        source2CurrencyId: data.source2CurrencyId,
         source2Amount: toUnits(data.source2Amount),
         source2Paid: toUnits(data.source2Paid),
       },

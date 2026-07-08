@@ -26,7 +26,7 @@ function StatCard({ label, value, sub, highlight }: { label: string; value: stri
   );
 }
 
-export function WeddingOverviewTab({ plan }: { plan: WeddingPlan }) {
+export function WeddingOverviewTab({ plan, baseSymbol = "Rs" }: { plan: WeddingPlan; baseSymbol?: string }) {
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -106,10 +106,10 @@ export function WeddingOverviewTab({ plan }: { plan: WeddingPlan }) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Total Budget" value={fmt(plan.totalBudget)} />
-        <StatCard label="Selected Vendors" value={fmt(selectedVendorCost)} sub={plan.totalBudget > 0 ? `${Math.round((selectedVendorCost / plan.totalBudget) * 100)}% of budget` : undefined} />
-        <StatCard label="Paid So Far" value={fmt(paid)} highlight />
-        <StatCard label="Haq Mehr" value={plan.haqMehr ? fmt(plan.haqMehr) : "-"} sub={plan.haqMehrNote ?? undefined} />
+        <StatCard label="Total Budget" value={fmt(plan.totalBudget, baseSymbol)} />
+        <StatCard label="Selected Vendors" value={fmt(selectedVendorCost, baseSymbol)} sub={plan.totalBudget > 0 ? `${Math.round((selectedVendorCost / plan.totalBudget) * 100)}% of budget` : undefined} />
+        <StatCard label="Paid So Far" value={fmt(paid, baseSymbol)} highlight />
+        <StatCard label="Haq Mehr" value={plan.haqMehr ? fmt(plan.haqMehr, baseSymbol) : "-"} sub={plan.haqMehrNote ?? undefined} />
       </div>
 
       {/* Events timeline */}

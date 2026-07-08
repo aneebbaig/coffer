@@ -31,7 +31,7 @@ const ITEM_STATUS_COLORS: Record<string, string> = {
 
 const EMPTY_NEW_ITEM = { name: "", estimatedCost: "", purchaseLink: "", notes: "" };
 
-export function VaultDetailClient({ surprise }: { surprise: Surprise }) {
+export function VaultDetailClient({ surprise, baseSymbol = "Rs" }: { surprise: Surprise; baseSymbol?: string }) {
   const router = useRouter();
 
   // Add item dialog
@@ -170,13 +170,13 @@ export function VaultDetailClient({ surprise }: { surprise: Surprise }) {
         </div>
         <div className="bg-card border border-rose-100 dark:border-rose-900 rounded-xl p-4 space-y-1">
           <div className="text-xs text-muted-foreground">Budget</div>
-          <div className="text-lg font-bold text-foreground">Rs {(surprise.estimatedBudget / 100).toLocaleString()}</div>
+          <div className="text-lg font-bold text-foreground">{baseSymbol} {(surprise.estimatedBudget / 100).toLocaleString()}</div>
           <div className="text-xs text-rose-500 font-medium">
-            Rs {(surprise.actualSpent / 100).toLocaleString()} spent
+            {baseSymbol} {(surprise.actualSpent / 100).toLocaleString()} spent
           </div>
           {surprise.items.length > 0 && (
             <div className="text-xs text-muted-foreground">
-              Rs {(totalItemsEstimated / 100).toLocaleString()} in items
+              {baseSymbol} {(totalItemsEstimated / 100).toLocaleString()} in items
             </div>
           )}
         </div>
@@ -196,8 +196,8 @@ export function VaultDetailClient({ surprise }: { surprise: Surprise }) {
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{item.name}</div>
                 <div className="text-xs text-muted-foreground">
-                  Rs {(item.estimatedCost / 100).toLocaleString()} est.
-                  {item.actualCost != null ? ` · Rs ${(item.actualCost / 100).toLocaleString()} actual` : ""}
+                  {baseSymbol} {(item.estimatedCost / 100).toLocaleString()} est.
+                  {item.actualCost != null ? ` · ${baseSymbol} ${(item.actualCost / 100).toLocaleString()} actual` : ""}
                 </div>
                 {item.purchaseLink && (
                   <a href={item.purchaseLink} target="_blank" rel="noopener noreferrer"
@@ -243,7 +243,7 @@ export function VaultDetailClient({ surprise }: { surprise: Surprise }) {
           <DialogHeader><DialogTitle>Add Gift Item 🎁</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Item Name</Label><Input value={newItem.name} onChange={(e) => setNewItem((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Perfume, Book, Flowers" /></div>
-            <div><Label>Estimated Cost (Rs)</Label><Input type="number" value={newItem.estimatedCost} onChange={(e) => setNewItem((p) => ({ ...p, estimatedCost: e.target.value }))} placeholder="0" /></div>
+            <div><Label>Estimated Cost ({baseSymbol})</Label><Input type="number" value={newItem.estimatedCost} onChange={(e) => setNewItem((p) => ({ ...p, estimatedCost: e.target.value }))} placeholder="0" /></div>
             <div><Label>Product Link (optional)</Label><Input value={newItem.purchaseLink} onChange={(e) => setNewItem((p) => ({ ...p, purchaseLink: e.target.value }))} placeholder="https://..." /></div>
             <div><Label>Notes (optional)</Label><Input value={newItem.notes} onChange={(e) => setNewItem((p) => ({ ...p, notes: e.target.value }))} placeholder="Size, colour, etc." /></div>
             <Button className="w-full bg-rose-500 hover:bg-rose-600" onClick={handleAddItem} disabled={loading || !newItem.name}>
@@ -260,9 +260,9 @@ export function VaultDetailClient({ surprise }: { surprise: Surprise }) {
           {editItem && (
             <div className="space-y-4">
               <div><Label>Item Name</Label><Input value={editItem.name} onChange={(e) => setEditItem((p) => p ? { ...p, name: e.target.value } : p)} placeholder="e.g. Perfume" /></div>
-              <div><Label>Estimated Cost (Rs)</Label><Input type="number" value={editItem.estimatedCost} onChange={(e) => setEditItem((p) => p ? { ...p, estimatedCost: e.target.value } : p)} placeholder="0" /></div>
+              <div><Label>Estimated Cost ({baseSymbol})</Label><Input type="number" value={editItem.estimatedCost} onChange={(e) => setEditItem((p) => p ? { ...p, estimatedCost: e.target.value } : p)} placeholder="0" /></div>
               <div>
-                <Label>Actual Cost (Rs) <span className="text-muted-foreground text-xs font-normal">- fill once bought</span></Label>
+                <Label>Actual Cost ({baseSymbol}) <span className="text-muted-foreground text-xs font-normal">- fill once bought</span></Label>
                 <Input type="number" value={editItem.actualCost} onChange={(e) => setEditItem((p) => p ? { ...p, actualCost: e.target.value } : p)} placeholder="Leave blank if not purchased yet" />
               </div>
               <div><Label>Product Link (optional)</Label><Input value={editItem.purchaseLink} onChange={(e) => setEditItem((p) => p ? { ...p, purchaseLink: e.target.value } : p)} placeholder="https://..." /></div>

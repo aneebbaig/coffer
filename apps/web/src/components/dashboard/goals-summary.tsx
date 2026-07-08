@@ -13,7 +13,7 @@ interface Goal {
   priority: string;
 }
 
-export function GoalsSummary({ goals }: { goals: Goal[] }) {
+export function GoalsSummary({ goals, baseSymbol = "Rs" }: { goals: Goal[]; baseSymbol?: string }) {
   return (
     <div className="bg-card border border-border rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
@@ -56,8 +56,8 @@ export function GoalsSummary({ goals }: { goals: Goal[] }) {
                       />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>Rs {(goal.savedAmount / 100).toLocaleString()}</span>
-                      <span>Rs {(goal.targetAmount / 100).toLocaleString()}</span>
+                      <span>{baseSymbol} {(goal.savedAmount / 100).toLocaleString()}</span>
+                      <span>{baseSymbol} {(goal.targetAmount / 100).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-// Shared TypeScript types for Coffer
+// Shared TypeScript types for Align
 
 export type TransactionType = "INCOME" | "EXPENSE";
 export type CategoryType = "EXPENSE" | "INCOME" | "BOTH";
@@ -27,6 +27,9 @@ export interface GoalItem {
   estimatedCost: number;
   actualCost?: number;
   purchased: boolean;
+  // Set once the quick-add-expense action (shown right after marking an item
+  // purchased) has logged a matching Transaction, so the button doesn't fire twice.
+  expenseLogged?: boolean;
 }
 
 // Server action response type

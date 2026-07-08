@@ -9,7 +9,8 @@ import { ActionResult } from "@/types";
 import { getCurrentPeriod } from "@/lib/month";
 import { toPaisas, toLocalDate } from "@/lib/utils";
 import { creditPot, debitPot, type PotEntryPeriod } from "@/lib/pot-helpers";
-import { fetchMonthIncomeIntegrityData } from "@/lib/income-helpers";
+import { getBaseCurrency, getCurrencies } from "@/lib/currency-helpers";
+import { fetchMonthIncomeIntegrityData, baseIntegrity } from "@/lib/income-helpers";
 import { revalidateTransactionPaths } from "@/lib/revalidate";
 import { sendEmail, budgetWarningEmail, budgetExceededEmail, doomSpendingEmail } from "@/lib/email";
 import { MAX_FUNDING_SOURCES } from "@/lib/constants";
@@ -20,13 +21,13 @@ function fundingEntryDescription(description: string) {
   return `Expense: ${description}`;
 }
 
-/** Convert a PKR-paisas amount to the native units of a pot (paisas for PKR pots, cents for USD pots). */
-function getPotUnits(pkrPaisas: number, currency: "PKR" | "USD", usdToPkrRate: number): number {
-  return currency === "USD" ? Math.round(pkrPaisas / usdToPkrRate) : pkrPaisas;
+/** Convert a base-currency amount to the native units of `currency` (e.g. base paisas -> USD cents). */
+function getPotUnits(baseAmount: number, currency: { rateToBase: number }): number {
+  return Math.round(baseAmount / currency.rateToBase);
 }
 
 /**
- * How many PKR paisas of income funding does a transaction consume?
+ * How many base-currency units of income funding does a transaction consume?
  * - INCOME:       full amount
  * - SAVINGS_POT:  zero (funded from a pot, not income)
  * - SPLIT:        sum of pkrAmount for rows where source = "INCOME"
@@ -54,6 +55,7 @@ async function getIncomeAvailableForMonth(
   excludeTransactionId?: string,
 ): Promise<number> {
   const userPotIds = (await prisma.savingsPot.findMany({ where: { userId }, select: { id: true } })).map((p) => p.id);
+  const base = await getBaseCurrency();
 
   const [income, expenseTxns, incomePotDeposits] = await Promise.all([
     prisma.transaction.aggregate({
@@ -72,16 +74,16 @@ async function getIncomeAvailableForMonth(
       select: { amount: true, fundingSource: true, fundingSources: { select: { source: true, pkrAmount: true } } },
     }),
     prisma.savingsPotEntry.findMany({
-      where: { potId: { in: userPotIds }, sourceType: "INCOME", budgetMonth: month, budgetYear: year },
-      select: { amount: true, currency: true },
+      where: { potId: { in: userPotIds }, sourceType: "INCOME", budgetMonth: month, budgetYear: year, currencyId: base.id },
+      select: { amount: true },
     }),
   ]);
 
   const totalIncome = income._sum.amount ?? 0;
   const incomeFundedExpenses = expenseTxns.reduce((sum, t) => sum + incomePkrForTransaction(t), 0);
-  const pkrPotDeposits = incomePotDeposits.filter((e) => e.currency === "PKR").reduce((s, e) => s + e.amount, 0);
+  const potDeposits = incomePotDeposits.reduce((s, e) => s + e.amount, 0);
 
-  return totalIncome - incomeFundedExpenses - pkrPotDeposits;
+  return totalIncome - incomeFundedExpenses - potDeposits;
 }
 
 // ─── funding validation ───────────────────────────────────────────────────────
@@ -89,8 +91,8 @@ async function getIncomeAvailableForMonth(
 interface FundingSource {
   source: "INCOME" | "SAVINGS_POT";
   potId?: string;
-  currency?: "PKR" | "USD";
-  pkrAmount: number; // how much of the expense (PKR paisas) this source covers
+  currencyId?: string; // required when source === "SAVINGS_POT"
+  pkrAmount: number; // how much of the expense (base-currency units) this source covers
 }
 
 async function validateFundingSources(
@@ -98,26 +100,27 @@ async function validateFundingSources(
   sources: FundingSource[],
   month: number,
   year: number,
-  usdToPkrRate: number,
   excludeTransactionId?: string,
 ): Promise<string | null> {
   for (const src of sources) {
     if (src.source === "INCOME") {
       const available = await getIncomeAvailableForMonth(userId, month, year, excludeTransactionId);
       if (available < src.pkrAmount) {
-        return `Insufficient monthly income. Available: Rs ${(available / 100).toLocaleString()}, need: Rs ${(src.pkrAmount / 100).toLocaleString()}`;
+        const base = await getBaseCurrency();
+        return `Insufficient monthly income. Available: ${base.symbol} ${(available / 100).toLocaleString()}, need: ${base.symbol} ${(src.pkrAmount / 100).toLocaleString()}`;
       }
     } else {
-      if (!src.potId) return "Choose a savings pot";
-      const currency = src.currency === "USD" ? "USD" : "PKR";
-      const potUnits = getPotUnits(src.pkrAmount, currency, usdToPkrRate);
-      const pot = await prisma.savingsPot.findFirst({ where: { id: src.potId, userId } });
+      if (!src.potId || !src.currencyId) return "Choose a savings pot";
+      const [pot, currency, balance] = await Promise.all([
+        prisma.savingsPot.findFirst({ where: { id: src.potId, userId } }),
+        prisma.currency.findUnique({ where: { id: src.currencyId } }),
+        prisma.savingsPotBalance.findUnique({ where: { potId_currencyId: { potId: src.potId, currencyId: src.currencyId } } }),
+      ]);
       if (!pot) return "Savings pot not found";
-      if (currency === "USD" && pot.currentAmountUsd < potUnits) {
-        return `Insufficient USD balance in ${pot.name}. Available: $${(pot.currentAmountUsd / 100).toFixed(2)}`;
-      }
-      if (currency === "PKR" && pot.currentAmount < potUnits) {
-        return `Insufficient PKR balance in ${pot.name}. Available: Rs ${(pot.currentAmount / 100).toLocaleString()}`;
+      if (!currency) return "Currency not found";
+      const potUnits = getPotUnits(src.pkrAmount, currency);
+      if ((balance?.amount ?? 0) < potUnits) {
+        return `Insufficient ${currency.code} balance in ${pot.name}. Available: ${currency.symbol} ${((balance?.amount ?? 0) / 100).toLocaleString()}`;
       }
     }
   }
@@ -126,31 +129,15 @@ async function validateFundingSources(
 
 // ─── pot debit/credit helpers for split rows ─────────────────────────────────
 
-async function debitFundingSources(
-  tx: Prisma.TransactionClient,
-  sources: FundingSource[],
-  usdToPkrRate: number,
-  description: string,
-  period: PotEntryPeriod,
-) {
-  for (const src of sources) {
-    if (src.source === "SAVINGS_POT" && src.potId) {
-      const currency = src.currency === "USD" ? "USD" : "PKR";
-      const potUnits = getPotUnits(src.pkrAmount, currency, usdToPkrRate);
-      await debitPot(tx, src.potId, potUnits, currency, fundingEntryDescription(description), "MANUAL", period);
-    }
-  }
-}
-
 async function creditFundingSources(
   tx: Prisma.TransactionClient,
-  rows: { source: string; potId: string | null; currency: string | null; potAmount: number | null }[],
+  rows: { source: string; potId: string | null; currencyId: string | null; potAmount: number | null }[],
   description: string,
   period: PotEntryPeriod,
 ) {
   for (const row of rows) {
-    if (row.source === "SAVINGS_POT" && row.potId && row.potAmount && row.currency) {
-      await creditPot(tx, row.potId, row.potAmount, row.currency as "PKR" | "USD", `Reversal: ${description}`, "MANUAL", period);
+    if (row.source === "SAVINGS_POT" && row.potId && row.potAmount && row.currencyId) {
+      await creditPot(tx, row.potId, row.potAmount, row.currencyId, `Reversal: ${description}`, "MANUAL", period);
     }
   }
 }
@@ -188,16 +175,18 @@ export async function getTransactions(filters?: {
     include: {
       category: true,
       fundingPot: { select: { id: true, name: true, type: true } },
-      fundingSources: { orderBy: { priority: "asc" }, include: { pot: { select: { id: true, name: true, type: true } } } },
+      fundingCurrency: true,
+      nativeCurrency: true,
+      fundingSources: { orderBy: { priority: "asc" }, include: { pot: { select: { id: true, name: true, type: true } }, currency: true } },
     },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
 }
 
 export async function getExpenseFundingContext(month: number, year: number) {
-  const user = await getAuthenticatedUser({ usdTopkrRate: true });
+  const user = await getAuthenticatedUser({});
 
-  const [income, expenseTxns, pots] = await Promise.all([
+  const [income, expenseTxns, pots, currencies] = await Promise.all([
     prisma.transaction.aggregate({
       where: { userId: user.id, type: "INCOME", budgetMonth: month, budgetYear: year },
       _sum: { amount: true },
@@ -208,22 +197,24 @@ export async function getExpenseFundingContext(month: number, year: number) {
     }),
     prisma.savingsPot.findMany({
       where: { userId: user.id },
-      select: { id: true, name: true, type: true, currentAmount: true, currentAmountUsd: true },
+      select: { id: true, name: true, type: true, balances: { include: { currency: true } } },
       orderBy: [{ type: "asc" }, { createdAt: "asc" }],
     }),
+    getCurrencies(),
   ]);
 
+  const base = currencies.find((c) => c.isBase)!;
   const potIds = pots.map((p) => p.id);
   const incomePotDeposits = await prisma.savingsPotEntry.findMany({
-    where: { potId: { in: potIds }, sourceType: "INCOME", budgetMonth: month, budgetYear: year },
-    select: { amount: true, currency: true },
+    where: { potId: { in: potIds }, sourceType: "INCOME", budgetMonth: month, budgetYear: year, currencyId: base.id },
+    select: { amount: true },
   });
-  const pkrPotDeposits = incomePotDeposits.filter((e) => e.currency === "PKR").reduce((s, e) => s + e.amount, 0);
+  const potDeposits = incomePotDeposits.reduce((s, e) => s + e.amount, 0);
   const incomeFundedExpenses = expenseTxns.reduce((sum, t) => sum + incomePkrForTransaction(t), 0);
 
   return {
-    monthlyIncomeAvailable: (income._sum.amount ?? 0) - incomeFundedExpenses - pkrPotDeposits,
-    usdTopkrRate: user.usdTopkrRate as number,
+    monthlyIncomeAvailable: (income._sum.amount ?? 0) - incomeFundedExpenses - potDeposits,
+    currencies,
     pots,
   };
 }
@@ -243,19 +234,19 @@ export async function createTransaction(data: {
   isRecurring: boolean;
   recurringFrequency?: string;
   tags: string;
-  originalCurrency?: string;
-  originalAmount?: number;
-  exchangeRate?: number;
+  isRegretPurchase?: boolean;
+  // Income entered in a non-base currency (amount above is always base-currency)
+  nativeCurrencyId?: string;
+  nativeAmount?: number;
   // Single-source (backward compat)
   fundingSource?: string;
   fundingPotId?: string;
-  fundingCurrency?: "PKR" | "USD";
+  fundingCurrencyId?: string;
   // Split sources (up to MAX_FUNDING_SOURCES)
-  splitSources?: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currency?: "PKR" | "USD"; pkrAmount: number }[];
+  splitSources?: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currencyId?: string; pkrAmount: number }[];
 }): Promise<ActionResult> {
   try {
-    const user = await getAuthenticatedUser({ usdTopkrRate: true, email: true, currentBudgetMonth: true, currentBudgetYear: true, notifyDoomSpending: true, notifyBudgetWarning: true });
-    const usdTopkrRate = user.usdTopkrRate as number;
+    const user = await getAuthenticatedUser({ email: true, currentBudgetMonth: true, currentBudgetYear: true, notifyDoomSpending: true, notifyBudgetWarning: true });
     // New transactions are filed under the user's open budget period (not their calendar date),
     // unless an explicit override month is supplied.
     const period = (data.budgetMonth && data.budgetYear)
@@ -278,22 +269,27 @@ export async function createTransaction(data: {
         if (totalCovered !== amountPaisas) {
           return { success: false, error: "Funding source amounts must sum to the total expense" };
         }
-        const err = await validateFundingSources(user.id, data.splitSources!, period.month, period.year, usdTopkrRate);
+        const err = await validateFundingSources(user.id, data.splitSources!, period.month, period.year);
         if (err) return { success: false, error: err };
       } else {
         // Single source validation (existing logic)
         const fundingSource = data.fundingSource ?? "INCOME";
-        const fundingCurrency = data.fundingCurrency === "USD" ? "USD" : "PKR";
         const pkrAmount = amountPaisas;
-        const err = await validateFundingSources(user.id, [{ source: fundingSource as "INCOME" | "SAVINGS_POT", potId: data.fundingPotId, currency: fundingCurrency, pkrAmount }], period.month, period.year, usdTopkrRate);
+        const err = await validateFundingSources(user.id, [{ source: fundingSource as "INCOME" | "SAVINGS_POT", potId: data.fundingPotId, currencyId: data.fundingCurrencyId, pkrAmount }], period.month, period.year);
         if (err) return { success: false, error: err };
       }
     }
 
     const fundingSource = isSplit ? "SPLIT" : (data.type === "EXPENSE" ? data.fundingSource ?? "INCOME" : "INCOME");
-    const fundingCurrency = data.fundingCurrency === "USD" ? "USD" : "PKR";
-    const fundingAmount = fundingSource === "SAVINGS_POT"
-      ? getPotUnits(amountPaisas, fundingCurrency, usdTopkrRate)
+    const fundingCurrency = fundingSource === "SAVINGS_POT" && data.fundingCurrencyId
+      ? await prisma.currency.findUnique({ where: { id: data.fundingCurrencyId } })
+      : null;
+    const fundingAmount = fundingCurrency ? getPotUnits(amountPaisas, fundingCurrency) : null;
+
+    // Derived from the submitted amounts (not re-fetched) so a manually overridden
+    // rate at entry time - e.g. today's actual bank rate - is preserved as-entered.
+    const exchangeRateUsed = data.nativeCurrencyId && data.nativeAmount
+      ? amountPaisas / toPaisas(data.nativeAmount)
       : null;
 
     await prisma.$transaction(async (tx) => {
@@ -310,12 +306,13 @@ export async function createTransaction(data: {
           isRecurring: data.isRecurring,
           recurringFrequency: data.recurringFrequency ?? null,
           tags: data.tags,
-          originalCurrency: data.originalCurrency ?? null,
-          originalAmount: data.originalAmount ? toPaisas(data.originalAmount) : null,
-          exchangeRate: data.exchangeRate ?? null,
+          isRegretPurchase: data.isRegretPurchase ?? false,
+          nativeCurrencyId: data.nativeCurrencyId ?? null,
+          nativeAmount: data.nativeAmount ? toPaisas(data.nativeAmount) : null,
+          exchangeRateUsed,
           fundingSource,
           fundingPotId: fundingSource === "SAVINGS_POT" ? data.fundingPotId : null,
-          fundingCurrency: fundingSource === "SAVINGS_POT" ? fundingCurrency : null,
+          fundingCurrencyId: fundingCurrency?.id ?? null,
           fundingAmount,
           userId: user.id,
         },
@@ -325,25 +322,26 @@ export async function createTransaction(data: {
         // Create child funding source rows and debit pots
         for (let i = 0; i < data.splitSources!.length; i++) {
           const src = data.splitSources![i];
-          const currency = src.currency === "USD" ? "USD" : "PKR";
-          const potUnits = src.source === "SAVINGS_POT" ? getPotUnits(src.pkrAmount, currency, usdTopkrRate) : null;
+          const isPot = src.source === "SAVINGS_POT" && src.currencyId;
+          const currency = isPot ? await tx.currency.findUnique({ where: { id: src.currencyId! } }) : null;
+          const potUnits = currency ? getPotUnits(src.pkrAmount, currency) : null;
           await tx.transactionFundingSource.create({
             data: {
               transactionId: created.id,
               priority: i + 1,
               source: src.source,
               potId: src.potId ?? null,
-              currency: src.source === "SAVINGS_POT" ? currency : null,
+              currencyId: isPot ? src.currencyId : null,
               potAmount: potUnits,
               pkrAmount: src.pkrAmount,
             },
           });
-          if (src.source === "SAVINGS_POT" && src.potId && potUnits) {
-            await debitPot(tx, src.potId, potUnits, currency, fundingEntryDescription(data.description), "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
+          if (src.source === "SAVINGS_POT" && src.potId && src.currencyId && potUnits) {
+            await debitPot(tx, src.potId, potUnits, src.currencyId, fundingEntryDescription(data.description), "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
           }
         }
-      } else if (data.type === "EXPENSE" && fundingSource === "SAVINGS_POT" && data.fundingPotId && fundingAmount) {
-        await debitPot(tx, data.fundingPotId, fundingAmount, fundingCurrency, fundingEntryDescription(data.description), "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
+      } else if (data.type === "EXPENSE" && fundingSource === "SAVINGS_POT" && data.fundingPotId && data.fundingCurrencyId && fundingAmount) {
+        await debitPot(tx, data.fundingPotId, fundingAmount, data.fundingCurrencyId, fundingEntryDescription(data.description), "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
       }
     });
 
@@ -356,7 +354,8 @@ export async function createTransaction(data: {
       });
       if (recentExpenses.length >= 3 && user.notifyDoomSpending) {
         const total = recentExpenses.reduce((s, t) => s + t.amount, 0) + amountPaisas;
-        await sendEmail(user.email as string, "🛑 Doom Spending Alert", doomSpendingEmail(recentExpenses.length + 1, total));
+        const base = await getBaseCurrency();
+        await sendEmail(user.email as string, "🛑 Doom Spending Alert", doomSpendingEmail(recentExpenses.length + 1, total, base.symbol));
       }
 
       const [budgetCat, spent] = await Promise.all([
@@ -373,11 +372,13 @@ export async function createTransaction(data: {
         const totalSpent = (spent._sum.amount ?? 0) + amountPaisas;
         const pct = Math.round((totalSpent / budgetCat.allocatedAmount) * 100);
         if (pct >= 100 && (totalSpent - amountPaisas) < budgetCat.allocatedAmount) {
-          await sendEmail(user.email as string, `🚨 Budget Exceeded: ${budgetCat.category.name}`, budgetExceededEmail(budgetCat.category.name, totalSpent, budgetCat.allocatedAmount));
+          const base = await getBaseCurrency();
+          await sendEmail(user.email as string, `🚨 Budget Exceeded: ${budgetCat.category.name}`, budgetExceededEmail(budgetCat.category.name, totalSpent, budgetCat.allocatedAmount, base.symbol));
         } else if (pct >= 85 && pct < 100) {
           const prevPct = Math.round(((totalSpent - amountPaisas) / budgetCat.allocatedAmount) * 100);
           if (prevPct < 85) {
-            await sendEmail(user.email as string, `⚠️ Budget Warning: ${budgetCat.category.name}`, budgetWarningEmail(budgetCat.category.name, pct, totalSpent, budgetCat.allocatedAmount));
+            const base = await getBaseCurrency();
+            await sendEmail(user.email as string, `⚠️ Budget Warning: ${budgetCat.category.name}`, budgetWarningEmail(budgetCat.category.name, pct, totalSpent, budgetCat.allocatedAmount, base.symbol));
           }
         }
       }
@@ -406,14 +407,14 @@ export async function updateTransaction(id: string, data: {
   isRecurring: boolean;
   recurringFrequency?: string;
   tags: string;
+  isRegretPurchase?: boolean;
   fundingSource?: string;
   fundingPotId?: string;
-  fundingCurrency?: "PKR" | "USD";
-  splitSources?: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currency?: "PKR" | "USD"; pkrAmount: number }[];
+  fundingCurrencyId?: string;
+  splitSources?: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currencyId?: string; pkrAmount: number }[];
 }): Promise<ActionResult> {
   try {
-    const user = await getAuthenticatedUser({ usdTopkrRate: true });
-    const usdTopkrRate = user.usdTopkrRate as number;
+    const user = await getAuthenticatedUser({});
 
     const existing = await prisma.transaction.findFirst({
       where: { id, userId: user.id },
@@ -432,11 +433,12 @@ export async function updateTransaction(id: string, data: {
     // Income reduction check
     if (existing.type === "INCOME" && data.type === "INCOME" && amountPaisas < existing.amount) {
       const { budgetMonth: month, budgetYear: year } = existing;
-      const d = await fetchMonthIncomeIntegrityData(user.id, month, year);
-      const newMonthPkrIncome = d.totalPkrIncome - existing.amount + amountPaisas;
-      if (newMonthPkrIncome < d.pkrExpenses + d.pkrPotDeposits) {
-        const deficit = d.pkrExpenses + d.pkrPotDeposits - newMonthPkrIncome;
-        return { success: false, error: `Cannot reduce income - Rs ${(deficit / 100).toLocaleString()} in expenses/savings this month would be left unfunded.` };
+      const d = baseIntegrity(await fetchMonthIncomeIntegrityData(user.id, month, year));
+      const newMonthIncome = d.totalIncome - existing.amount + amountPaisas;
+      if (newMonthIncome < d.expenses + d.potDeposits) {
+        const deficit = d.expenses + d.potDeposits - newMonthIncome;
+        const base = await getBaseCurrency();
+        return { success: false, error: `Cannot reduce income - ${base.symbol} ${(deficit / 100).toLocaleString()} in expenses/savings this month would be left unfunded.` };
       }
     }
 
@@ -445,27 +447,26 @@ export async function updateTransaction(id: string, data: {
         if (data.splitSources!.length > MAX_FUNDING_SOURCES) return { success: false, error: `Maximum ${MAX_FUNDING_SOURCES} funding sources` };
         const totalCovered = data.splitSources!.reduce((s, src) => s + src.pkrAmount, 0);
         if (totalCovered !== amountPaisas) return { success: false, error: "Source amounts must sum to total expense" };
-        const err = await validateFundingSources(user.id, data.splitSources!, period.budgetMonth, period.budgetYear, usdTopkrRate, id);
+        const err = await validateFundingSources(user.id, data.splitSources!, period.budgetMonth, period.budgetYear, id);
         if (err) return { success: false, error: err };
       } else {
         const fundingSource = data.fundingSource ?? "INCOME";
-        const fundingCurrency = data.fundingCurrency === "USD" ? "USD" : "PKR";
-        const err = await validateFundingSources(user.id, [{ source: fundingSource as "INCOME" | "SAVINGS_POT", potId: data.fundingPotId, currency: fundingCurrency, pkrAmount: amountPaisas }], period.budgetMonth, period.budgetYear, usdTopkrRate, id);
+        const err = await validateFundingSources(user.id, [{ source: fundingSource as "INCOME" | "SAVINGS_POT", potId: data.fundingPotId, currencyId: data.fundingCurrencyId, pkrAmount: amountPaisas }], period.budgetMonth, period.budgetYear, id);
         if (err) return { success: false, error: err };
       }
     }
 
     const newFundingSource = isSplit ? "SPLIT" : (data.type === "EXPENSE" ? data.fundingSource ?? "INCOME" : "INCOME");
-    const newFundingCurrency = data.fundingCurrency === "USD" ? "USD" : "PKR";
-    const newFundingAmount = newFundingSource === "SAVINGS_POT"
-      ? getPotUnits(amountPaisas, newFundingCurrency, usdTopkrRate)
+    const newFundingCurrency = newFundingSource === "SAVINGS_POT" && data.fundingCurrencyId
+      ? await prisma.currency.findUnique({ where: { id: data.fundingCurrencyId } })
       : null;
+    const newFundingAmount = newFundingCurrency ? getPotUnits(amountPaisas, newFundingCurrency) : null;
 
     await prisma.$transaction(async (tx) => {
       // Reverse old funding
       if (existing.type === "EXPENSE") {
-        if (existing.fundingSource === "SAVINGS_POT" && existing.fundingPotId && existing.fundingAmount && existing.fundingCurrency) {
-          await creditPot(tx, existing.fundingPotId, existing.fundingAmount, existing.fundingCurrency as "PKR" | "USD", `Reversal: ${existing.description}`, "MANUAL", period);
+        if (existing.fundingSource === "SAVINGS_POT" && existing.fundingPotId && existing.fundingAmount && existing.fundingCurrencyId) {
+          await creditPot(tx, existing.fundingPotId, existing.fundingAmount, existing.fundingCurrencyId, `Reversal: ${existing.description}`, "MANUAL", period);
         } else if (existing.fundingSource === "SPLIT" && existing.fundingSources.length > 0) {
           await creditFundingSources(tx, existing.fundingSources, existing.description, period);
           await tx.transactionFundingSource.deleteMany({ where: { transactionId: id } });
@@ -487,9 +488,10 @@ export async function updateTransaction(id: string, data: {
           isRecurring: data.isRecurring,
           recurringFrequency: data.recurringFrequency ?? null,
           tags: data.tags,
+          isRegretPurchase: data.isRegretPurchase ?? false,
           fundingSource: newFundingSource,
           fundingPotId: newFundingSource === "SAVINGS_POT" ? data.fundingPotId : null,
-          fundingCurrency: newFundingSource === "SAVINGS_POT" ? newFundingCurrency : null,
+          fundingCurrencyId: newFundingCurrency?.id ?? null,
           fundingAmount: newFundingAmount,
         },
       });
@@ -498,25 +500,26 @@ export async function updateTransaction(id: string, data: {
       if (isSplit) {
         for (let i = 0; i < data.splitSources!.length; i++) {
           const src = data.splitSources![i];
-          const currency = src.currency === "USD" ? "USD" : "PKR";
-          const potUnits = src.source === "SAVINGS_POT" ? getPotUnits(src.pkrAmount, currency, usdTopkrRate) : null;
+          const isPot = src.source === "SAVINGS_POT" && src.currencyId;
+          const currency = isPot ? await tx.currency.findUnique({ where: { id: src.currencyId! } }) : null;
+          const potUnits = currency ? getPotUnits(src.pkrAmount, currency) : null;
           await tx.transactionFundingSource.create({
             data: {
               transactionId: id,
               priority: i + 1,
               source: src.source,
               potId: src.potId ?? null,
-              currency: src.source === "SAVINGS_POT" ? currency : null,
+              currencyId: isPot ? src.currencyId : null,
               potAmount: potUnits,
               pkrAmount: src.pkrAmount,
             },
           });
-          if (src.source === "SAVINGS_POT" && src.potId && potUnits) {
-            await debitPot(tx, src.potId, potUnits, currency, fundingEntryDescription(data.description), "MANUAL", period);
+          if (src.source === "SAVINGS_POT" && src.potId && src.currencyId && potUnits) {
+            await debitPot(tx, src.potId, potUnits, src.currencyId, fundingEntryDescription(data.description), "MANUAL", period);
           }
         }
-      } else if (data.type === "EXPENSE" && newFundingSource === "SAVINGS_POT" && data.fundingPotId && newFundingAmount) {
-        await debitPot(tx, data.fundingPotId, newFundingAmount, newFundingCurrency, fundingEntryDescription(data.description), "MANUAL", period);
+      } else if (data.type === "EXPENSE" && newFundingSource === "SAVINGS_POT" && data.fundingPotId && data.fundingCurrencyId && newFundingAmount) {
+        await debitPot(tx, data.fundingPotId, newFundingAmount, data.fundingCurrencyId, fundingEntryDescription(data.description), "MANUAL", period);
       }
     });
 
@@ -544,25 +547,30 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
 
     if (existing.type === "INCOME") {
       const { budgetMonth: month, budgetYear: year } = existing;
-      const d = await fetchMonthIncomeIntegrityData(userId, month, year);
-      const remainingPkrIncome = d.totalPkrIncome - existing.amount;
-      if (remainingPkrIncome < d.pkrExpenses + d.pkrPotDeposits) {
-        const deficit = d.pkrExpenses + d.pkrPotDeposits - remainingPkrIncome;
-        return { success: false, error: `Cannot delete - Rs ${(deficit / 100).toLocaleString()} in expenses/savings this month depend on this income. Remove those first.` };
+      const integrity = await fetchMonthIncomeIntegrityData(userId, month, year);
+      const base = baseIntegrity(integrity);
+      const remainingIncome = base.totalIncome - existing.amount;
+      if (remainingIncome < base.expenses + base.potDeposits) {
+        const deficit = base.expenses + base.potDeposits - remainingIncome;
+        const baseCurrency = await getBaseCurrency();
+        return { success: false, error: `Cannot delete - ${baseCurrency.symbol} ${(deficit / 100).toLocaleString()} in expenses/savings this month depend on this income. Remove those first.` };
       }
-      if (existing.originalCurrency === "USD" && (existing.originalAmount ?? 0) > 0) {
-        const remainingUsdIncome = d.totalUsdIncome - (existing.originalAmount ?? 0);
-        if (remainingUsdIncome < d.usdPotDeposits) {
-          const deficit = d.usdPotDeposits - remainingUsdIncome;
-          return { success: false, error: `Cannot delete - $${(deficit / 100).toFixed(2)} in savings depends on this USD income. Remove those pot deposits first.` };
+      if (existing.nativeCurrencyId && (existing.nativeAmount ?? 0) > 0) {
+        const native = integrity.perCurrency.find((c) => c.currencyId === existing.nativeCurrencyId);
+        if (native) {
+          const remainingNative = native.totalIncome - (existing.nativeAmount ?? 0);
+          if (remainingNative < native.potDeposits) {
+            const deficit = native.potDeposits - remainingNative;
+            return { success: false, error: `Cannot delete - ${native.symbol} ${(deficit / 100).toFixed(2)} in savings depends on this ${native.code} income. Remove those pot deposits first.` };
+          }
         }
       }
     }
 
     await prisma.$transaction(async (tx) => {
       if (existing.type === "EXPENSE") {
-        if (existing.fundingSource === "SAVINGS_POT" && existing.fundingPotId && existing.fundingAmount && existing.fundingCurrency) {
-          await creditPot(tx, existing.fundingPotId, existing.fundingAmount, existing.fundingCurrency as "PKR" | "USD", `Deleted expense reversal: ${existing.description}`, "MANUAL", period);
+        if (existing.fundingSource === "SAVINGS_POT" && existing.fundingPotId && existing.fundingAmount && existing.fundingCurrencyId) {
+          await creditPot(tx, existing.fundingPotId, existing.fundingAmount, existing.fundingCurrencyId, `Deleted expense reversal: ${existing.description}`, "MANUAL", period);
         } else if (existing.fundingSource === "SPLIT" && existing.fundingSources.length > 0) {
           await creditFundingSources(tx, existing.fundingSources, existing.description, period);
         }
@@ -610,6 +618,38 @@ export async function getSpendingByCategory(month: number, year: number) {
   }
 
   return Object.values(byCategory).sort((a, b) => b.amount - a.amount);
+}
+
+export async function getRegretPurchaseStats(month: number, year: number) {
+  const userId = await getUserId();
+
+  const [thisMonth, allTime, recent] = await Promise.all([
+    prisma.transaction.aggregate({
+      where: { userId, type: "EXPENSE", isRegretPurchase: true, budgetMonth: month, budgetYear: year },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.transaction.aggregate({
+      where: { userId, type: "EXPENSE", isRegretPurchase: true },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.transaction.findMany({
+      where: { userId, type: "EXPENSE", isRegretPurchase: true },
+      orderBy: { date: "desc" },
+      take: 5,
+      select: {
+        id: true, description: true, amount: true, date: true,
+        category: { select: { name: true, color: true } },
+      },
+    }),
+  ]);
+
+  return {
+    thisMonth: { count: thisMonth._count, total: thisMonth._sum.amount ?? 0 },
+    allTime: { count: allTime._count, total: allTime._sum.amount ?? 0 },
+    recent,
+  };
 }
 
 export async function getMonthlyTrend(months = 6) {

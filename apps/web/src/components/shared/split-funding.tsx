@@ -28,11 +28,13 @@ export function SplitFunding({
   options,
   value,
   onChange,
+  baseSymbol = "Rs",
 }: {
-  totalAmount: number; // Rs (not paisas)
+  totalAmount: number; // base-currency units (not smallest unit)
   options: FundingOption[];
   value: SplitSourceRow[]; // [primary, secondary]
   onChange: (rows: SplitSourceRow[]) => void;
+  baseSymbol?: string;
 }) {
   const fallback = options[0]?.value ?? "INCOME";
   const primary = value[0] ?? { value: fallback, pkrAmount: "" };
@@ -57,7 +59,7 @@ export function SplitFunding({
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground shrink-0">Amount Rs</span>
+          <span className="text-sm text-muted-foreground shrink-0">Amount {baseSymbol}</span>
           <Input
             type="number"
             placeholder="0.00"
@@ -72,8 +74,8 @@ export function SplitFunding({
       <p className={cn("flex items-center gap-1.5 pl-3 text-xs", over ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground")}>
         <CornerDownRight className="h-3.5 w-3.5 shrink-0" />
         {over
-          ? `Over by Rs ${fmt(Math.abs(remainderPaisas))} - lower the amount above`
-          : <>remaining <span className="font-semibold text-foreground">Rs {fmt(remainderPaisas)}</span> from</>}
+          ? `Over by ${baseSymbol} ${fmt(Math.abs(remainderPaisas))} - lower the amount above`
+          : <>remaining <span className="font-semibold text-foreground">{baseSymbol} {fmt(remainderPaisas)}</span> from</>}
       </p>
       <div className="rounded-xl border border-border bg-muted/20 p-3">
         <Select value={secondary.value} onValueChange={(v) => setSecondary({ value: v })}>

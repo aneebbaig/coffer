@@ -24,12 +24,20 @@ export async function getProjects(filter?: { status?: string }) {
 
 export async function getProject(id: string) {
   const userId = await getUserId();
-  return prisma.project.findFirst({
+  const project = await prisma.project.findFirst({
     where: { id, userId },
     include: {
-      tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+      tasks: {
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        include: { tags: { include: { tag: true } } },
+      },
     },
   });
+  if (!project) return null;
+  return {
+    ...project,
+    tasks: project.tasks.map((t) => ({ ...t, tags: t.tags.map((pt) => pt.tag) })),
+  };
 }
 
 export async function createProject(data: {
@@ -119,16 +127,27 @@ async function assertProjectOwner(projectId: string, userId: string) {
   return project !== null;
 }
 
+/** Verify every tag id belongs to the current user before attaching it to a task. */
+async function assertTagsOwnedByUser(tagIds: string[], userId: string): Promise<boolean> {
+  if (tagIds.length === 0) return true;
+  const count = await prisma.tag.count({ where: { id: { in: tagIds }, userId } });
+  return count === tagIds.length;
+}
+
 export async function createProjectTask(projectId: string, data: {
   title: string;
   description?: string;
   priority?: string;
   dueDate?: string;
   status?: string;
+  tagIds?: string[];
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
     if (!(await assertProjectOwner(projectId, userId))) return { success: false, error: "Not found" };
+    if (data.tagIds && !(await assertTagsOwnedByUser(data.tagIds, userId))) {
+      return { success: false, error: "Invalid tag" };
+    }
 
     const maxOrder = await prisma.projectTask.aggregate({ where: { projectId }, _max: { order: true } });
     const order = (maxOrder._max.order ?? 0) + 1;
@@ -142,6 +161,7 @@ export async function createProjectTask(projectId: string, data: {
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         order,
         projectId,
+        ...(data.tagIds?.length ? { tags: { create: data.tagIds.map((tagId) => ({ tagId })) } } : {}),
       },
     });
     await prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
@@ -160,6 +180,7 @@ export async function updateProjectTask(id: string, data: {
   priority?: string;
   dueDate?: string | null;
   order?: number;
+  tagIds?: string[];
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
@@ -168,17 +189,28 @@ export async function updateProjectTask(id: string, data: {
       select: { id: true, projectId: true },
     });
     if (!existing) return { success: false, error: "Not found" };
+    if (data.tagIds && !(await assertTagsOwnedByUser(data.tagIds, userId))) {
+      return { success: false, error: "Invalid tag" };
+    }
 
-    await prisma.projectTask.update({
-      where: { id },
-      data: {
-        ...(data.title !== undefined && { title: data.title }),
-        ...(data.description !== undefined && { description: data.description || null }),
-        ...(data.status !== undefined && { status: data.status }),
-        ...(data.priority !== undefined && { priority: data.priority }),
-        ...(data.dueDate !== undefined && { dueDate: data.dueDate ? new Date(data.dueDate) : null }),
-        ...(data.order !== undefined && { order: data.order }),
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.projectTask.update({
+        where: { id },
+        data: {
+          ...(data.title !== undefined && { title: data.title }),
+          ...(data.description !== undefined && { description: data.description || null }),
+          ...(data.status !== undefined && { status: data.status }),
+          ...(data.priority !== undefined && { priority: data.priority }),
+          ...(data.dueDate !== undefined && { dueDate: data.dueDate ? new Date(data.dueDate) : null }),
+          ...(data.order !== undefined && { order: data.order }),
+        },
+      });
+      if (data.tagIds !== undefined) {
+        await tx.projectTaskTag.deleteMany({ where: { taskId: id } });
+        if (data.tagIds.length > 0) {
+          await tx.projectTaskTag.createMany({ data: data.tagIds.map((tagId) => ({ taskId: id, tagId })) });
+        }
+      }
     });
     await prisma.project.update({ where: { id: existing.projectId }, data: { updatedAt: new Date() } });
     revalidatePath(`/projects/${existing.projectId}`);
@@ -288,5 +320,66 @@ export async function bulkDeleteProjectTasks(ids: string[]): Promise<ActionResul
   } catch (e) {
     console.error("[bulkDeleteProjectTasks]", e);
     return { success: false, error: "Failed to delete tasks" };
+  }
+}
+
+// ─── Tags (dynamic task labels: Urgent, Nice to have, Feature, Bug, ...) ──────
+
+export async function getTags() {
+  const userId = await getUserId();
+  return prisma.tag.findMany({ where: { userId }, orderBy: { name: "asc" } });
+}
+
+export async function createTag(data: { name: string; color?: string }): Promise<ActionResult<{ id: string }>> {
+  try {
+    const userId = await getUserId();
+    const name = data.name.trim();
+    if (!name) return { success: false, error: "Tag name is required" };
+    const existing = await prisma.tag.findUnique({ where: { userId_name: { userId, name } } });
+    if (existing) return { success: false, error: "A tag with this name already exists" };
+    const tag = await prisma.tag.create({
+      data: { name, color: data.color || "#6366f1", userId },
+      select: { id: true },
+    });
+    revalidatePath("/projects");
+    return { success: true, data: { id: tag.id } };
+  } catch (e) {
+    console.error("[createTag]", e);
+    return { success: false, error: "Failed to create tag" };
+  }
+}
+
+export async function updateTag(id: string, data: { name?: string; color?: string }): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    const name = data.name?.trim();
+    if (data.name !== undefined && !name) return { success: false, error: "Tag name is required" };
+    if (name) {
+      const dupe = await prisma.tag.findFirst({ where: { userId, name, NOT: { id } } });
+      if (dupe) return { success: false, error: "A tag with this name already exists" };
+    }
+    const { count } = await prisma.tag.updateMany({
+      where: { id, userId },
+      data: { ...(name !== undefined && { name }), ...(data.color !== undefined && { color: data.color }) },
+    });
+    if (count === 0) return { success: false, error: "Tag not found" };
+    revalidatePath("/projects");
+    return { success: true };
+  } catch (e) {
+    console.error("[updateTag]", e);
+    return { success: false, error: "Failed to update tag" };
+  }
+}
+
+export async function deleteTag(id: string): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    const { count } = await prisma.tag.deleteMany({ where: { id, userId } });
+    if (count === 0) return { success: false, error: "Tag not found" };
+    revalidatePath("/projects");
+    return { success: true };
+  } catch (e) {
+    console.error("[deleteTag]", e);
+    return { success: false, error: "Failed to delete tag" };
   }
 }

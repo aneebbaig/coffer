@@ -46,13 +46,15 @@ interface Props {
   history: WantListItem[];
   categories: Category[];
   hideHeader?: boolean;
+  baseSymbol?: string;
 }
 
-function fmt(n: number) {
-  return "Rs " + (n / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 });
+function fmtWith(n: number, symbol: string) {
+  return symbol + " " + (n / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 });
 }
 
-export function WantListClient({ cooling, resurface, history, categories, hideHeader }: Props) {
+export function WantListClient({ cooling, resurface, history, categories, hideHeader, baseSymbol = "Rs" }: Props) {
+  const fmt = (n: number) => fmtWith(n, baseSymbol);
   const [addOpen, setAddOpen] = useState(false);
   const [buyItem, setBuyItem] = useState<WantListItem | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -160,6 +162,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
                 onBuy={() => openBuy(item)}
                 onDismiss={() => handleDismiss(item.id)}
                 onSnooze={(h) => handleSnooze(item.id, h)}
+                baseSymbol={baseSymbol}
               />
             ))}
           </div>
@@ -183,6 +186,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
                 key={item.id}
                 item={item}
                 onDelete={() => setDeleteId(item.id)}
+                baseSymbol={baseSymbol}
               />
             ))}
           </div>
@@ -212,7 +216,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
           {showHistory && (
             <div className="mt-3 space-y-2">
               {history.map((item) => (
-                <HistoryCard key={item.id} item={item} onDelete={() => setDeleteId(item.id)} />
+                <HistoryCard key={item.id} item={item} onDelete={() => setDeleteId(item.id)} baseSymbol={baseSymbol} />
               ))}
             </div>
           )}
@@ -248,7 +252,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Estimated cost (Rs )</Label>
+                <Label>Estimated cost ({baseSymbol})</Label>
                 <Input
                   type="number"
                   placeholder="0"
@@ -312,7 +316,7 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>
-                  Actual amount (Rs )
+                  Actual amount ({baseSymbol})
                   {buyItem?.estimatedCost && (
                     <span className="text-muted-foreground ml-1 font-normal">
                       est. {fmt(buyItem.estimatedCost)}
@@ -354,11 +358,12 @@ export function WantListClient({ cooling, resurface, history, categories, hideHe
   );
 }
 
-function ResurfaceCard({ item, onBuy, onDismiss, onSnooze }: {
+function ResurfaceCard({ item, onBuy, onDismiss, onSnooze, baseSymbol }: {
   item: WantListItem;
   onBuy: () => void;
   onDismiss: () => void;
   onSnooze: (hours: number) => void;
+  baseSymbol: string;
 }) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
 
@@ -370,7 +375,7 @@ function ResurfaceCard({ item, onBuy, onDismiss, onSnooze }: {
           {item.description && <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>}
           <div className="flex items-center gap-2 flex-wrap">
             {item.estimatedCost && (
-              <span className="text-sm font-medium text-foreground">Rs {(item.estimatedCost / 100).toLocaleString()}</span>
+              <span className="text-sm font-medium text-foreground">{baseSymbol} {(item.estimatedCost / 100).toLocaleString()}</span>
             )}
             <span className="text-xs text-muted-foreground">Added {formatDistanceToNow(item.addedAt)} ago</span>
           </div>
@@ -419,7 +424,7 @@ function ResurfaceCard({ item, onBuy, onDismiss, onSnooze }: {
   );
 }
 
-function CoolingCard({ item, onDelete }: { item: WantListItem; onDelete: () => void; }) {
+function CoolingCard({ item, onDelete, baseSymbol }: { item: WantListItem; onDelete: () => void; baseSymbol: string; }) {
   const timeLeft = formatDistanceToNow(item.remindAt, { addSuffix: true });
   const totalMs = item.remindAt.getTime() - item.addedAt.getTime();
   const elapsedMs = Date.now() - item.addedAt.getTime();
@@ -434,7 +439,7 @@ function CoolingCard({ item, onDelete }: { item: WantListItem; onDelete: () => v
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {item.estimatedCost && (
-            <span className="text-sm font-medium text-foreground">Rs {(item.estimatedCost / 100).toLocaleString()}</span>
+            <span className="text-sm font-medium text-foreground">{baseSymbol} {(item.estimatedCost / 100).toLocaleString()}</span>
           )}
           {item.url && (
             <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary">
@@ -459,7 +464,7 @@ function CoolingCard({ item, onDelete }: { item: WantListItem; onDelete: () => v
   );
 }
 
-function HistoryCard({ item, onDelete }: { item: WantListItem; onDelete: () => void; }) {
+function HistoryCard({ item, onDelete, baseSymbol }: { item: WantListItem; onDelete: () => void; baseSymbol: string; }) {
   const isBought = item.status === "BOUGHT";
   return (
     <div className={cn(
@@ -476,7 +481,7 @@ function HistoryCard({ item, onDelete }: { item: WantListItem; onDelete: () => v
         </div>
       </div>
       {item.estimatedCost && (
-        <span className="text-sm text-muted-foreground shrink-0">Rs {(item.estimatedCost / 100).toLocaleString()}</span>
+        <span className="text-sm text-muted-foreground shrink-0">{baseSymbol} {(item.estimatedCost / 100).toLocaleString()}</span>
       )}
       <button onClick={onDelete} className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
         <Trash2 className="h-3.5 w-3.5" />

@@ -5,10 +5,19 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../domain/entities/project_entity.dart';
 import 'kanban_card.dart';
+import 'project_card.dart' show projectColor;
 
 const _statuses = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
 const _statusLabels = {'TODO': 'To Do', 'IN_PROGRESS': 'In Progress', 'REVIEW': 'Review', 'DONE': 'Done'};
 const _priorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+const _tagColorPalette = [
+  '#6366f1', '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#94a3b8',
+];
+
+String _nextTagColor(String current) {
+  final i = _tagColorPalette.indexOf(current);
+  return _tagColorPalette[(i + 1) % _tagColorPalette.length];
+}
 
 /// Shows the task editor. Returns nothing; persistence happens through the
 /// callbacks so the page owns the datasource + refresh.
@@ -17,6 +26,9 @@ Future<void> showTaskEditSheet(
   required ProjectTaskEntity task,
   required Future<void> Function(Map<String, dynamic> changes) onSave,
   required Future<void> Function() onDelete,
+  List<TagEntity> allTags = const [],
+  Future<TagEntity?> Function(String name, String color)? onCreateTag,
+  Future<void> Function(String id)? onDeleteTag,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -27,17 +39,34 @@ Future<void> showTaskEditSheet(
     ),
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-      child: _TaskEditSheet(task: task, onSave: onSave, onDelete: onDelete),
+      child: _TaskEditSheet(
+        task: task,
+        onSave: onSave,
+        onDelete: onDelete,
+        allTags: allTags,
+        onCreateTag: onCreateTag,
+        onDeleteTag: onDeleteTag,
+      ),
     ),
   );
 }
 
 class _TaskEditSheet extends StatefulWidget {
-  const _TaskEditSheet({required this.task, required this.onSave, required this.onDelete});
+  const _TaskEditSheet({
+    required this.task,
+    required this.onSave,
+    required this.onDelete,
+    required this.allTags,
+    this.onCreateTag,
+    this.onDeleteTag,
+  });
 
   final ProjectTaskEntity task;
   final Future<void> Function(Map<String, dynamic> changes) onSave;
   final Future<void> Function() onDelete;
+  final List<TagEntity> allTags;
+  final Future<TagEntity?> Function(String name, String color)? onCreateTag;
+  final Future<void> Function(String id)? onDeleteTag;
 
   @override
   State<_TaskEditSheet> createState() => _TaskEditSheetState();
@@ -46,25 +75,34 @@ class _TaskEditSheet extends StatefulWidget {
 class _TaskEditSheetState extends State<_TaskEditSheet> {
   late final TextEditingController _title;
   late final TextEditingController _description;
+  late final TextEditingController _newTag;
   late String _status;
   late String _priority;
   DateTime? _dueDate;
   bool _saving = false;
+  late List<TagEntity> _availableTags;
+  late Set<String> _selectedTagIds;
+  String _newTagColor = '#6366f1';
+  bool _creatingTag = false;
 
   @override
   void initState() {
     super.initState();
     _title = TextEditingController(text: widget.task.title);
     _description = TextEditingController(text: widget.task.description ?? '');
+    _newTag = TextEditingController();
     _status = widget.task.status;
     _priority = widget.task.priority;
     _dueDate = widget.task.dueDate;
+    _availableTags = [...widget.allTags];
+    _selectedTagIds = widget.task.tags.map((t) => t.id).toSet();
   }
 
   @override
   void dispose() {
     _title.dispose();
     _description.dispose();
+    _newTag.dispose();
     super.dispose();
   }
 
@@ -78,8 +116,37 @@ class _TaskEditSheetState extends State<_TaskEditSheet> {
       'status': _status,
       'priority': _priority,
       'dueDate': _dueDate?.toIso8601String(),
+      'tagIds': _selectedTagIds.toList(),
     });
     if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _createTag() async {
+    final name = _newTag.text.trim();
+    if (name.isEmpty || widget.onCreateTag == null) return;
+    setState(() => _creatingTag = true);
+    final created = await widget.onCreateTag!(name, _newTagColor);
+    if (mounted) {
+      setState(() {
+        _creatingTag = false;
+        if (created != null) {
+          _availableTags = [..._availableTags, created];
+          _selectedTagIds = {..._selectedTagIds, created.id};
+          _newTag.clear();
+        }
+      });
+    }
+  }
+
+  Future<void> _deleteTag(String id) async {
+    if (widget.onDeleteTag == null) return;
+    await widget.onDeleteTag!(id);
+    if (mounted) {
+      setState(() {
+        _availableTags = _availableTags.where((t) => t.id != id).toList();
+        _selectedTagIds = {..._selectedTagIds}..remove(id);
+      });
+    }
   }
 
   Future<void> _pickDate() async {
@@ -157,6 +224,68 @@ class _TaskEditSheetState extends State<_TaskEditSheet> {
                   ),
               ],
             ),
+            const SizedBox(height: 16),
+            _label('Tags'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in _availableTags)
+                  GestureDetector(
+                    onLongPress: () => _deleteTag(tag.id),
+                    child: _chip(
+                      label: tag.name,
+                      selected: _selectedTagIds.contains(tag.id),
+                      dotColor: projectColor(tag.color),
+                      onTap: () => setState(() {
+                        _selectedTagIds.contains(tag.id) ? _selectedTagIds.remove(tag.id) : _selectedTagIds.add(tag.id);
+                      }),
+                    ),
+                  ),
+              ],
+            ),
+            if (widget.onCreateTag != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _newTagColor = _nextTagColor(_newTagColor)),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: projectColor(_newTagColor),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _newTag,
+                      style: AppTextStyles.bodySmall,
+                      textCapitalization: TextCapitalization.sentences,
+                      onSubmitted: (_) => _createTag(),
+                      decoration: _fieldDecoration('New tag').copyWith(isDense: true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _creatingTag ? null : _createTag,
+                    icon: _creatingTag
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                        : const Icon(Icons.add, size: 20, color: AppColors.primary),
+                  ),
+                ],
+              ),
+              Text(
+                'Long-press a tag to delete it.',
+                style: AppTextStyles.labelSmall.copyWith(color: AppColors.mutedForeground),
+              ),
+            ],
             const SizedBox(height: 16),
             _label('Due date'),
             Row(

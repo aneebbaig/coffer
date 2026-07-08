@@ -41,14 +41,13 @@ export async function adminCreateUser(data: {
 
     const hashedPassword = await bcrypt.hash(data.password, 12);
     // Copy shared settings from first existing user so new user starts in sync
-    const existing = await prisma.user.findFirst({ select: { currency: true, dateFormat: true, firstDayOfWeek: true, emergencyFundMonths: true } });
+    const existing = await prisma.user.findFirst({ select: { dateFormat: true, firstDayOfWeek: true, emergencyFundMonths: true } });
     const user = await prisma.user.create({
       data: {
         name: data.name,
         email: data.email,
         hashedPassword,
         role: data.role,
-        currency: existing?.currency ?? "PKR",
         dateFormat: existing?.dateFormat ?? "dd/MM/yyyy",
         firstDayOfWeek: existing?.firstDayOfWeek ?? 1,
         emergencyFundMonths: existing?.emergencyFundMonths ?? 6,

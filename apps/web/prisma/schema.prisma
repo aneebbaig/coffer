@@ -24,7 +24,6 @@ model User {
   totpSecret             String?
   totpBackupCodes        String[]  @default([])
   role                   String    @default("ADMIN") // "SUPER_ADMIN" | "ADMIN"
-  currency               String    @default("PKR")
   dateFormat             String    @default("dd/MM/yyyy")
   firstDayOfWeek         Int       @default(1)
   // Open budget period: which (month, year) new transactions are filed under.
@@ -40,7 +39,6 @@ model User {
   notifyDigestCalendar   Boolean   @default(true)
   notifyDigestBudget     Boolean   @default(true)
   notifyDigestFinancials Boolean   @default(true)
-  usdTopkrRate           Float     @default(278)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -60,6 +58,7 @@ model User {
   perfumes       Perfume[]
   weddingPlans   WeddingPlan[]
   projects       Project[]
+  tags           Tag[]
 
   emailVerified    Boolean     @default(false)
   image            String?
@@ -103,28 +102,35 @@ model Transaction {
   isRecurring        Boolean  @default(false)
   recurringFrequency String? // "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"
   tags               String   @default("")
+  // Flagged by the user as an impulse/regret purchase (EXPENSE only). Powers
+  // the regret-buy stats view - not enforced at the DB level for INCOME rows.
+  isRegretPurchase   Boolean  @default(false)
   // Optional link to a planner item (to track actual spend against a plan)
   plannerItemId      String?
-  // For USD income: store original currency info; amount is always PKR equivalent
-  originalCurrency   String? // "USD" if entered in USD
-  originalAmount     Int? // cents (e.g. $200 → 20000)
-  exchangeRate       Float? // USD→PKR rate used at time of entry
+  // For income entered in a non-base currency: amount (above) is always the
+  // base-currency equivalent; these capture what was actually entered.
+  nativeCurrencyId   String? // null = entered directly in the base currency
+  nativeAmount       Int? // smallest unit of nativeCurrency (e.g. $200 → 20000 cents)
+  exchangeRateUsed   Float? // nativeCurrency.rateToBase snapshot at entry time
   // Funding source for expense transactions
   // "INCOME" | "SAVINGS_POT" — single source (backward compat)
   // "SPLIT"                  — multi-source; details in TransactionFundingSource child rows
   fundingSource      String   @default("INCOME")
   fundingPotId       String?
-  fundingCurrency    String? // "PKR" | "USD" — populated when fundingSource = "SAVINGS_POT"
-  fundingAmount      Int? // paisas or cents deducted — populated when fundingSource = "SAVINGS_POT"
+  fundingCurrencyId  String? // which pot-balance currency was debited — populated when fundingSource = "SAVINGS_POT"
+  fundingAmount      Int? // smallest unit of fundingCurrency deducted — populated when fundingSource = "SAVINGS_POT"
   userId             String
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  category       Category                   @relation(fields: [categoryId], references: [id])
-  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plannerItem    PlannerItem?               @relation(fields: [plannerItemId], references: [id], onDelete: SetNull)
-  fundingPot     SavingsPot?                @relation("ExpenseFundingPot", fields: [fundingPotId], references: [id], onDelete: SetNull)
-  fundingSources TransactionFundingSource[]
+  category        Category                   @relation(fields: [categoryId], references: [id])
+  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannerItem     PlannerItem?               @relation(fields: [plannerItemId], references: [id], onDelete: SetNull)
+  fundingPot      SavingsPot?                @relation("ExpenseFundingPot", fields: [fundingPotId], references: [id], onDelete: SetNull)
+  fundingSources  TransactionFundingSource[]
+  nativeCurrency  Currency?                  @relation("TransactionNativeCurrency", fields: [nativeCurrencyId], references: [id])
+  fundingCurrency Currency?                  @relation("TransactionFundingCurrency", fields: [fundingCurrencyId], references: [id])
+  loanPrincipalOf Loan?
 
   @@index([userId])
   @@index([date])
@@ -133,18 +139,18 @@ model Transaction {
   @@index([plannerItemId])
   @@index([fundingPotId])
   @@index([userId, budgetMonth, budgetYear])
+  @@index([userId, isRegretPurchase])
   @@map("transactions")
 }
 
 model Budget {
-  id                String   @id @default(cuid())
-  month             Int
-  year              Int
-  totalBudget       Int
-  surplusReconciled Boolean  @default(false) // true once surplus moved to Liquid Savings
-  userId            String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id          String   @id @default(cuid())
+  month       Int
+  year        Int
+  totalBudget Int
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   budgetCategories   BudgetCategory[]
@@ -255,21 +261,20 @@ model PlannerItem {
 }
 
 model SavingsPot {
-  id               String   @id @default(cuid())
-  name             String
-  icon             String   @default("PiggyBank")
-  color            String   @default("#3b82f6")
-  targetAmount     Int      @default(0)
-  currentAmount    Int      @default(0) // PKR paisas
-  currentAmountUsd Int      @default(0) // USD cents
-  type             String   @default("GENERAL") // "EMERGENCY" | "LIQUID" | "GENERAL" | "GOAL_LINKED" | "CUSTOM"
-  linkedGoalId     String?
-  userId           String
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  icon         String   @default("PiggyBank")
+  color        String   @default("#3b82f6")
+  targetAmount Int      @default(0)
+  type         String   @default("GENERAL") // "EMERGENCY" | "LIQUID" | "GENERAL" | "GOAL_LINKED" | "CUSTOM"
+  linkedGoalId String?
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   linkedGoal         Goal?                      @relation(fields: [linkedGoalId], references: [id])
+  balances           SavingsPotBalance[]
   history            SavingsPotEntry[]
   budgetAllocations  BudgetSavingsAllocation[]
   fundedTransactions Transaction[]              @relation("ExpenseFundingPot")
@@ -277,6 +282,23 @@ model SavingsPot {
 
   @@index([userId])
   @@map("savings_pots")
+}
+
+// Per-currency running balance for a pot. A pot can hold any number of the
+// household's configured currencies at once (e.g. a PKR balance and a USD
+// balance in the same pot) instead of two fixed columns.
+model SavingsPotBalance {
+  id         String @id @default(cuid())
+  potId      String
+  currencyId String
+  amount     Int    @default(0) // smallest unit of currency
+
+  pot      SavingsPot @relation(fields: [potId], references: [id], onDelete: Cascade)
+  currency Currency   @relation(fields: [currencyId], references: [id])
+
+  @@unique([potId, currencyId])
+  @@index([potId])
+  @@map("savings_pot_balances")
 }
 
 // Funding source rows for split expenses (fundingSource = "SPLIT").
@@ -289,12 +311,13 @@ model TransactionFundingSource {
   priority      Int // 1 = primary, 2 = remainder
   source        String // "INCOME" | "SAVINGS_POT"
   potId         String? // FK when source = "SAVINGS_POT"
-  currency      String? // "PKR" | "USD" — currency of the pot
-  potAmount     Int? // amount deducted from pot in pot's native units (paisas or cents)
-  pkrAmount     Int // PKR paisas this source covers (portion of total expense)
+  currencyId    String? // FK when source = "SAVINGS_POT" — which pot-balance currency
+  potAmount     Int? // amount deducted from pot in pot's native units
+  pkrAmount     Int // base-currency amount this source covers (portion of total expense)
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   pot         SavingsPot? @relation("FundingSourcePot", fields: [potId], references: [id], onDelete: SetNull)
+  currency    Currency?   @relation(fields: [currencyId], references: [id])
 
   @@index([transactionId])
   @@index([potId])
@@ -304,9 +327,8 @@ model TransactionFundingSource {
 model SavingsPotEntry {
   id          String   @id @default(cuid())
   potId       String
-  amount      Int // PKR paisas (signed: + add, - withdraw); 0 if USD entry
-  amountUsd   Int      @default(0) // USD cents (signed); 0 if PKR entry
-  currency    String   @default("PKR") // "PKR" | "USD"
+  amount      Int // signed, in currency's smallest unit: + add, - withdraw
+  currencyId  String
   sourceType  String   @default("MANUAL") // "INCOME" | "POT_TRANSFER" | "MANUAL"
   description String?
   // Budget period this entry is filed under (open period at creation). Mirrors Transaction.
@@ -314,10 +336,36 @@ model SavingsPotEntry {
   budgetYear  Int?
   createdAt   DateTime @default(now())
 
-  pot SavingsPot @relation(fields: [potId], references: [id], onDelete: Cascade)
+  pot      SavingsPot @relation(fields: [potId], references: [id], onDelete: Cascade)
+  currency Currency   @relation(fields: [currencyId], references: [id])
 
   @@index([potId])
   @@map("savings_pot_entries")
+}
+
+// Household-shared list of currencies. Exactly one should have isBase = true
+// (the reporting/aggregation currency — Transaction.amount, budgets, dashboard
+// totals are always in this currency). rateToBase = units of base currency
+// per 1 unit of this currency; the base currency itself always has rateToBase 1.
+model Currency {
+  id         String   @id @default(cuid())
+  code       String // e.g. "PKR", "USD", "EUR" — household-defined
+  symbol     String // e.g. "Rs", "$", "€"
+  rateToBase Float    @default(1)
+  isBase     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  potBalances           SavingsPotBalance[]
+  potEntries            SavingsPotEntry[]
+  fundingSources        TransactionFundingSource[]
+  nativeTransactions    Transaction[]              @relation("TransactionNativeCurrency")
+  fundingTransactions   Transaction[]              @relation("TransactionFundingCurrency")
+  weddingExpenseSource1 WeddingExpense[]           @relation("WeddingExpenseSource1Currency")
+  weddingExpenseSource2 WeddingExpense[]           @relation("WeddingExpenseSource2Currency")
+
+  @@unique([code])
+  @@map("currencies")
 }
 
 model Investment {
@@ -522,13 +570,17 @@ model Loan {
   dueDate         DateTime?
   notes           String?
   status          String    @default("ACTIVE") // "ACTIVE" | "PARTIALLY_PAID" | "PAID"
-  sourcePotId     String? // If GIVEN and funded from a savings pot, return money here on delete
+  // The loan principal is recorded as a normal ledger Transaction (EXPENSE for
+  // GIVEN, INCOME for RECEIVED) - no pot involved. Deleting that transaction
+  // (from anywhere) cascades to delete this loan and its payments.
+  transactionId   String    @unique
   userId          String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments LoanPayment[]
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  payments    LoanPayment[]
 
   @@index([userId])
   @@index([status])
@@ -621,24 +673,26 @@ model WeddingVendor {
 }
 
 model WeddingExpense {
-  id              String   @id @default(cuid())
-  weddingPlanId   String
-  eventId         String? // null = general expense (spans whole wedding)
-  name            String // e.g. "Bridal dress", "Fireworks", "Flower arrangement"
-  category        String   @default("MISC") // DRESS|JEWELRY|DECOR|FLOWERS|FIREWORKS|TRANSPORT|FOOD|ENTERTAINMENT|PRINTING|PROPS|MISC
+  id                String   @id @default(cuid())
+  weddingPlanId     String
+  eventId           String? // null = general expense (spans whole wedding)
+  name              String // e.g. "Bridal dress", "Fireworks", "Flower arrangement"
+  category          String   @default("MISC") // DRESS|JEWELRY|DECOR|FLOWERS|FIREWORKS|TRANSPORT|FOOD|ENTERTAINMENT|PRINTING|PROPS|MISC
   // Up to two funding sources (priority order: source1 first, source2 for remainder)
-  source1Currency String   @default("PKR") // "PKR" | "USD"
-  source1Amount   Int      @default(0) // estimated — paisas if PKR, cents if USD
-  source1Paid     Int? // actual paid — paisas if PKR, cents if USD
-  source2Currency String? // "PKR" | "USD" — null if single source
-  source2Amount   Int? // estimated
-  source2Paid     Int? // actual paid
-  isPaid          Boolean  @default(false)
-  notes           String?
-  createdAt       DateTime @default(now())
+  source1CurrencyId String
+  source1Amount     Int      @default(0) // estimated — smallest unit of source1Currency
+  source1Paid       Int? // actual paid — smallest unit of source1Currency
+  source2CurrencyId String? // null if single source
+  source2Amount     Int? // estimated
+  source2Paid       Int? // actual paid
+  isPaid            Boolean  @default(false)
+  notes             String?
+  createdAt         DateTime @default(now())
 
-  weddingPlan WeddingPlan   @relation(fields: [weddingPlanId], references: [id], onDelete: Cascade)
-  event       WeddingEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  weddingPlan     WeddingPlan   @relation(fields: [weddingPlanId], references: [id], onDelete: Cascade)
+  event           WeddingEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  source1Currency Currency      @relation("WeddingExpenseSource1Currency", fields: [source1CurrencyId], references: [id])
+  source2Currency Currency?     @relation("WeddingExpenseSource2Currency", fields: [source2CurrencyId], references: [id])
 
   @@index([weddingPlanId])
   @@index([eventId])
@@ -682,10 +736,40 @@ model ProjectTask {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tags    ProjectTaskTag[]
 
   @@index([projectId])
   @@map("project_tasks")
+}
+
+// User-defined labels for kanban tasks (e.g. Urgent, Nice to have, Feature, Bug).
+// Deliberately dynamic/unbounded, unlike ProjectTask.priority which is a fixed enum.
+model Tag {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#6366f1")
+  userId    String
+  createdAt DateTime @default(now())
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks ProjectTaskTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("tags")
+}
+
+model ProjectTaskTag {
+  taskId String
+  tagId  String
+
+  task ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@index([tagId])
+  @@map("project_task_tags")
 }
 
 model Session {

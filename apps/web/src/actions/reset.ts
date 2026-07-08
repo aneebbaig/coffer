@@ -66,9 +66,6 @@ export async function resetAppData(
               break;
             }
             case "savingsPots": {
-              // Loan.sourcePotId is a soft reference (no DB foreign key) -
-              // clear it explicitly so it doesn't point at a deleted pot.
-              await tx.loan.updateMany({ data: { sourcePotId: null } });
               const r = await tx.savingsPot.deleteMany({});
               deleted.savingsPots = r.count;
               break;
@@ -84,7 +81,16 @@ export async function resetAppData(
               break;
             }
             case "loans": {
+              // Loan.transactionId is required - each loan's principal is a real
+              // ledger transaction. Deleting the loan wrapper doesn't touch it
+              // automatically (the cascade only runs the other direction), so
+              // clear those transactions too. No-op if "transactions" already
+              // ran above and cascaded these loans away.
+              const loans = await tx.loan.findMany({ select: { transactionId: true } });
               const r = await tx.loan.deleteMany({});
+              if (loans.length > 0) {
+                await tx.transaction.deleteMany({ where: { id: { in: loans.map((l) => l.transactionId) } } });
+              }
               deleted.loans = r.count;
               break;
             }

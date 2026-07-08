@@ -3,7 +3,7 @@ interface Props {
   className?: string;
 }
 
-export function CofferLogo({ size = 32, className }: Props) {
+export function AlignLogo({ size = 32, className }: Props) {
   return (
     <svg
       width={size}

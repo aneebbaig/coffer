@@ -6,10 +6,11 @@ interface Props {
   totalExpenses: number;
   remainingBudget: number;
   netSavings: number;
+  baseSymbol?: string;
 }
 
-export function OverviewCards({ totalIncome, totalExpenses, remainingBudget, netSavings }: Props) {
-  const fmt = (n: number) => `Rs ${(Math.abs(n) / 100).toLocaleString()}`;
+export function OverviewCards({ totalIncome, totalExpenses, remainingBudget, netSavings, baseSymbol = "Rs" }: Props) {
+  const fmt = (n: number) => `${baseSymbol} ${(Math.abs(n) / 100).toLocaleString()}`;
 
   const stats = [
     {

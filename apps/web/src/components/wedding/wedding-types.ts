@@ -30,6 +30,14 @@ export interface WeddingVendor {
   createdAt: Date;
 }
 
+export interface CurrencyLite {
+  id: string;
+  code: string;
+  symbol: string;
+  rateToBase: number;
+  isBase: boolean;
+}
+
 export interface WeddingExpense {
   id: string;
   weddingPlanId: string;
@@ -37,10 +45,12 @@ export interface WeddingExpense {
   name: string;
   category: string;
   // Priority-ordered funding sources (max 2)
-  source1Currency: string;      // "PKR" | "USD"
-  source1Amount: number;        // estimated - paisas or cents
+  source1CurrencyId: string;
+  source1Currency: CurrencyLite;
+  source1Amount: number;        // estimated - smallest unit of source1Currency
   source1Paid: number | null;   // actual paid
-  source2Currency: string | null;
+  source2CurrencyId: string | null;
+  source2Currency: CurrencyLite | null;
   source2Amount: number | null;
   source2Paid: number | null;
   isPaid: boolean;
@@ -129,25 +139,16 @@ export const PLAN_STATUS_CONFIG: Record<string, { label: string; badge: string }
   DONE:        { label: "Done",         badge: "bg-emerald-100 text-emerald-700" },
 };
 
-export function fmt(n: number) {
-  return "Rs " + (n / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 });
+export function fmt(n: number, symbol = "Rs") {
+  return symbol + " " + (n / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 });
 }
 
-export function fmtUsd(cents: number) {
-  return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+export function fmtUsd(cents: number, symbol = "$") {
+  return symbol + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-export function fmtSource(currency: string, amount: number) {
-  return currency === "USD" ? fmtUsd(amount) : fmt(amount);
-}
-
-export function toSourceUnits(currency: string, value: number): number {
-  // value is user-entered (Rs or $). Convert to storage units (paisas or cents).
-  return Math.round(value * 100);
-}
-
-export function fromSourceUnits(currency: string, stored: number): number {
-  return stored / 100;
+export function fmtSource(currency: CurrencyLite, amount: number) {
+  return fmt(amount, currency.symbol);
 }
 
 export function getEventInfo(type: string) {

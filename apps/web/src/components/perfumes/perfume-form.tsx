@@ -70,11 +70,13 @@ export function PerfumeForm({
   onClose,
   onSubmit,
   perfume = null,
+  baseSymbol = "Rs",
 }: {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: PerfumeFormData) => Promise<void>;
   perfume?: PerfumeFormPerfume | null;
+  baseSymbol?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState(DEFAULT_FORM);
@@ -206,7 +208,7 @@ export function PerfumeForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="p-price">Price (Rs)</Label>
+              <Label htmlFor="p-price">Price ({baseSymbol})</Label>
               <Input
                 id="p-price"
                 type="number"

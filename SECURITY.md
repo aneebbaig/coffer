@@ -14,7 +14,7 @@ You'll get an acknowledgement as soon as possible, and a fix or mitigation plan 
 
 ## Scope
 
-Coffer is self-hosted: each deployment owns its database and secrets. Reports about the **code** (auth, the `/api/v1` surface, data isolation between users, injection, dependency vulnerabilities) are in scope. Issues caused purely by a specific deployment's misconfiguration are not.
+Align is self-hosted: each deployment owns its database and secrets. Reports about the **code** (auth, the `/api/v1` surface, data isolation between users, injection, dependency vulnerabilities) are in scope. Issues caused purely by a specific deployment's misconfiguration are not.
 
 ## Hardening notes for self-hosters
 

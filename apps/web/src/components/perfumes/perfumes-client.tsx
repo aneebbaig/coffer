@@ -51,11 +51,11 @@ const OCCASION_LABELS: Record<string, string> = {
   FORMAL_MEETING: "Formal meeting",
 };
 
-function formatPrice(price: number) {
-  return "Rs " + (price / 100).toLocaleString("en-PK", { maximumFractionDigits: 0 });
+function formatPriceWith(price: number, symbol: string) {
+  return symbol + " " + (price / 100).toLocaleString("en-PK", { maximumFractionDigits: 0 });
 }
 
-export function PerfumesClient({ initialPerfumes }: { initialPerfumes: Perfume[] }) {
+export function PerfumesClient({ initialPerfumes, baseSymbol = "Rs" }: { initialPerfumes: Perfume[]; baseSymbol?: string }) {
   const router = useRouter();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingPerfume, setEditingPerfume] = useState<Perfume | null>(null);
@@ -157,6 +157,7 @@ export function PerfumesClient({ initialPerfumes }: { initialPerfumes: Perfume[]
         onDelete={setDeleteId}
         onLiked={handleLiked}
         onMarkBought={handleMarkBought}
+        baseSymbol={baseSymbol}
       />
     );
   }
@@ -190,6 +191,7 @@ export function PerfumesClient({ initialPerfumes }: { initialPerfumes: Perfume[]
         open={isAddOpen}
         onClose={() => setIsAddOpen(false)}
         onSubmit={handleCreate}
+        baseSymbol={baseSymbol}
       />
 
       {editingPerfume && (
@@ -211,6 +213,7 @@ export function PerfumesClient({ initialPerfumes }: { initialPerfumes: Perfume[]
           }}
           onClose={() => setEditingPerfume(null)}
           onSubmit={(data) => handleUpdate(editingPerfume.id, data)}
+          baseSymbol={baseSymbol}
         />
       )}
 
@@ -233,6 +236,7 @@ function SeasonSections({
   onDelete,
   onLiked,
   onMarkBought,
+  baseSymbol,
 }: {
   perfumes: Perfume[];
   actionId: string | null;
@@ -240,6 +244,7 @@ function SeasonSections({
   onDelete: (id: string) => void;
   onLiked: (id: string, isLiked: boolean) => void;
   onMarkBought: (id: string) => void;
+  baseSymbol: string;
 }) {
   const sections = [
     { label: "Summer", icon: Sun, items: perfumes.filter((p) => p.isSummer) },
@@ -265,6 +270,7 @@ function SeasonSections({
                 onDelete={() => onDelete(perfume.id)}
                 onLiked={(isLiked) => onLiked(perfume.id, isLiked)}
                 onMarkBought={() => onMarkBought(perfume.id)}
+                baseSymbol={baseSymbol}
               />
             ))}
           </div>
@@ -281,6 +287,7 @@ function PerfumeCard({
   onDelete,
   onLiked,
   onMarkBought,
+  baseSymbol,
 }: {
   perfume: Perfume;
   loading: boolean;
@@ -288,7 +295,9 @@ function PerfumeCard({
   onDelete: () => void;
   onLiked: (isLiked: boolean) => void;
   onMarkBought: () => void;
+  baseSymbol: string;
 }) {
+  const formatPrice = (price: number) => formatPriceWith(price, baseSymbol);
   const isOwned = perfume.status === "BOUGHT";
   const isWant = perfume.status === "WANT_TO_BUY";
 

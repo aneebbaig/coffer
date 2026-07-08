@@ -10,12 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { updateUserSettings, changePassword, createCategory, deleteCategory, exportUserData } from "@/actions/settings";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { updateUserSettings, changePassword, createCategory, updateCategory, deleteCategory, exportUserData } from "@/actions/settings";
+import { createCurrency, updateCurrency, setBaseCurrency, deleteCurrency } from "@/actions/currencies";
 import { adminCreateUser, adminDeleteUser, adminUpdateUserRole, updateNotificationPreferences } from "@/actions/users";
 import { TotpSettings } from "@/components/settings/totp-settings";
 import { resetAppData } from "@/actions/reset";
 import { RESET_GROUPS } from "@/lib/reset-groups";
-import { Plus, Trash2, Download, RefreshCw, CheckCircle, XCircle, ShieldCheck, Shield, X, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Download, RefreshCw, CheckCircle, XCircle, ShieldCheck, Shield, X, AlertTriangle, Pencil, Star, Coins } from "lucide-react";
+import { APP_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,7 +27,6 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 interface UserSettings {
   name: string;
   email: string;
-  currency: string;
   dateFormat: string;
   firstDayOfWeek: number;
   emergencyFundMonths: number;
@@ -36,6 +38,13 @@ interface UserSettings {
   notifyDigestCalendar: boolean;
   notifyDigestBudget: boolean;
   notifyDigestFinancials: boolean;
+}
+interface Currency {
+  id: string;
+  code: string;
+  symbol: string;
+  rateToBase: number;
+  isBase: boolean;
 }
 interface Category {
   id: string;
@@ -78,6 +87,7 @@ const WEEK_STARTS = [
 export function SettingsClient({
   settings,
   categories,
+  currencies: initialCurrencies,
   recurringTransactions,
   users,
   role,
@@ -85,6 +95,7 @@ export function SettingsClient({
 }: {
   settings: UserSettings | null;
   categories: Category[];
+  currencies: Currency[];
   recurringTransactions: RecurringTransaction[];
   users: AppUser[];
   role: string;
@@ -96,19 +107,27 @@ export function SettingsClient({
   // Profile state
   const [profile, setProfile] = useState({
     name: settings?.name ?? "",
-    currency: settings?.currency ?? "PKR",
     dateFormat: settings?.dateFormat ?? "dd/MM/yyyy",
     firstDayOfWeek: settings?.firstDayOfWeek ?? 1,
     emergencyFundMonths: settings?.emergencyFundMonths ?? 6,
   });
 
+  // Currencies state
+  const [currencies, setCurrencies] = useState(initialCurrencies);
+  const [newCurrency, setNewCurrency] = useState({ code: "", symbol: "", rateToBase: "" });
+  const [addingCurrency, setAddingCurrency] = useState(false);
+  const [editingRates, setEditingRates] = useState<Record<string, string>>({});
+  const [savingCurrencyId, setSavingCurrencyId] = useState<string | null>(null);
+
   // Password state
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
 
   // Categories state
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteCatData, setDeleteCatData] = useState<{ id: string; name: string; isDefault: boolean } | null>(null);
   const [newCat, setNewCat] = useState({ name: "", icon: "Tag", color: "#6366f1", type: "EXPENSE" });
   const [addingCat, setAddingCat] = useState(false);
+  const [editCat, setEditCat] = useState<{ id: string; name: string; color: string } | null>(null);
+  const [savingEditCat, setSavingEditCat] = useState(false);
 
   // Notifications state
   const [notifications, setNotifications] = useState({
@@ -174,8 +193,73 @@ export function SettingsClient({
   async function handleDeleteCategory(id: string) {
     const result = await deleteCategory(id);
     if (result.success) toast.success("Category deleted");
-    else toast.error("Cannot delete default category");
-    setDeleteId(null);
+    else toast.error(result.error ?? "Failed to delete category");
+    setDeleteCatData(null);
+  }
+
+  async function handleSaveEditCategory() {
+    if (!editCat || !editCat.name.trim()) return;
+    setSavingEditCat(true);
+    const result = await updateCategory(editCat.id, { name: editCat.name.trim(), color: editCat.color });
+    if (result.success) {
+      toast.success("Category updated!");
+      setEditCat(null);
+    } else {
+      toast.error(result.error ?? "Failed to update category");
+    }
+    setSavingEditCat(false);
+  }
+
+  async function handleAddCurrency() {
+    const code = newCurrency.code.trim();
+    const rate = parseFloat(newCurrency.rateToBase);
+    if (!code || !rate || rate <= 0) return;
+    setAddingCurrency(true);
+    const result = await createCurrency({ code, symbol: newCurrency.symbol.trim() || code, rateToBase: rate });
+    setAddingCurrency(false);
+    if (result.success) {
+      toast.success(`${code} added`);
+      setNewCurrency({ code: "", symbol: "", rateToBase: "" });
+      window.location.reload();
+    } else {
+      toast.error(result.error ?? "Failed to add currency");
+    }
+  }
+
+  async function handleSaveCurrencyRate(id: string) {
+    const raw = editingRates[id];
+    const rate = parseFloat(raw);
+    if (!rate || rate <= 0) return;
+    setSavingCurrencyId(id);
+    const result = await updateCurrency(id, { rateToBase: rate });
+    setSavingCurrencyId(null);
+    if (result.success) {
+      toast.success("Exchange rate updated");
+      setCurrencies((prev) => prev.map((c) => (c.id === id ? { ...c, rateToBase: rate } : c)));
+      setEditingRates((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    } else {
+      toast.error(result.error ?? "Failed to update rate");
+    }
+  }
+
+  async function handleSetBaseCurrency(id: string) {
+    const result = await setBaseCurrency(id);
+    if (result.success) {
+      toast.success("Base currency changed");
+      window.location.reload();
+    } else {
+      toast.error(result.error ?? "Failed to change base currency");
+    }
+  }
+
+  async function handleDeleteCurrency(id: string) {
+    const result = await deleteCurrency(id);
+    if (result.success) {
+      toast.success("Currency removed");
+      setCurrencies((prev) => prev.filter((c) => c.id !== id));
+    } else {
+      toast.error(result.error ?? "Failed to remove currency");
+    }
   }
 
   async function handleExport() {
@@ -186,7 +270,7 @@ export function SettingsClient({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `coffer-backup-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `${APP_NAME.toLowerCase()}-backup-${new Date().toISOString().split("T")[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success("Data exported!");
@@ -257,8 +341,9 @@ export function SettingsClient({
   const customCategories = categories.filter((c) => !c.isDefault);
   const defaultCategories = categories.filter((c) => c.isDefault);
   void defaultCategories; // kept for possible future use
+  const baseSymbol = currencies.find((c) => c.isBase)?.symbol ?? "Rs";
 
-  const tabs = ["profile", "security", "categories", "notifications", "data", ...(isSuperAdmin ? ["users"] : [])];
+  const tabs = ["profile", "security", "categories", "currencies", "notifications", "data", ...(isSuperAdmin ? ["users"] : [])];
 
   return (
     <Tabs defaultValue="profile">
@@ -266,6 +351,7 @@ export function SettingsClient({
         <TabsTrigger value="profile">Profile</TabsTrigger>
         <TabsTrigger value="security">Security</TabsTrigger>
         <TabsTrigger value="categories">Categories</TabsTrigger>
+        <TabsTrigger value="currencies">Currencies</TabsTrigger>
         <TabsTrigger value="notifications">Notifications</TabsTrigger>
         <TabsTrigger value="data">Data</TabsTrigger>
         {isSuperAdmin && <TabsTrigger value="users">Users</TabsTrigger>}
@@ -287,18 +373,6 @@ export function SettingsClient({
               <Label>Email</Label>
               <Input value={settings?.email ?? ""} disabled className="opacity-60" />
               <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
-            </div>
-            <div>
-              <Label>Currency</Label>
-              <Select onValueChange={(v) => setProfile((p) => ({ ...p, currency: v }))} defaultValue={profile.currency}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PKR">PKR - Pakistani Rupee (Rs )</SelectItem>
-                  <SelectItem value="USD">USD - US Dollar ($)</SelectItem>
-                  <SelectItem value="EUR">EUR - Euro (€)</SelectItem>
-                  <SelectItem value="GBP">GBP - British Pound (£)</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Label>Date Format</Label>
@@ -437,15 +511,20 @@ export function SettingsClient({
                     >
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                       <span className="leading-none">{cat.name}</span>
-                      {!cat.isDefault && (
-                        <button
-                          onClick={() => setDeleteId(cat.id)}
-                          className="text-muted-foreground hover:text-red-500 transition-colors p-0.5 rounded-full ml-0.5"
-                          title="Delete category"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setEditCat({ id: cat.id, name: cat.name, color: cat.color })}
+                        className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-full ml-0.5"
+                        title="Edit category"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteCatData({ id: cat.id, name: cat.name, isDefault: cat.isDefault })}
+                        className="text-muted-foreground hover:text-red-500 transition-colors p-0.5 rounded-full"
+                        title="Delete category"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -453,6 +532,97 @@ export function SettingsClient({
             </Card>
           );
         })}
+      </TabsContent>
+
+      {/* Currencies Tab */}
+      <TabsContent value="currencies" className="mt-4 space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Currency</CardTitle>
+            <CardDescription>
+              Any currency you add can be used for pot balances and income entries. Rate is how many units of your base currency equal 1 unit of this currency.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 items-end">
+              <div>
+                <Label>Code</Label>
+                <Input value={newCurrency.code} onChange={(e) => setNewCurrency((p) => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="e.g. EUR" maxLength={10} />
+              </div>
+              <div>
+                <Label>Symbol</Label>
+                <Input value={newCurrency.symbol} onChange={(e) => setNewCurrency((p) => ({ ...p, symbol: e.target.value }))} placeholder="e.g. €" maxLength={6} />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Rate to base</Label>
+                <Input type="number" value={newCurrency.rateToBase} onChange={(e) => setNewCurrency((p) => ({ ...p, rateToBase: e.target.value }))} placeholder="e.g. 300" onKeyDown={(e) => e.key === "Enter" && handleAddCurrency()} />
+              </div>
+              <Button className="w-full" onClick={handleAddCurrency} disabled={addingCurrency || !newCurrency.code.trim() || !newCurrency.rateToBase}>
+                <Plus className="h-4 w-4" />{addingCurrency ? "Adding..." : "Add"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Coins className="h-4 w-4" />Household Currencies</CardTitle>
+            <CardDescription>The base currency is what every total, budget, and report is shown in.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {currencies.map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-border">
+                <div className="flex items-center gap-2 min-w-[90px]">
+                  {c.isBase
+                    ? <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                    : <span className="w-3.5 shrink-0" />}
+                  <span className="font-semibold text-sm">{c.code}</span>
+                  <span className="text-sm text-muted-foreground">{c.symbol}</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                  {c.isBase ? (
+                    <span className="text-xs text-muted-foreground">Base currency (rate 1)</span>
+                  ) : (
+                    <>
+                      <Input
+                        type="number"
+                        value={editingRates[c.id] ?? String(c.rateToBase)}
+                        onChange={(e) => setEditingRates((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === "Enter" && handleSaveCurrencyRate(c.id)}
+                        className="h-8 w-28 text-sm"
+                      />
+                      <span className="text-xs text-muted-foreground shrink-0">per 1 {c.code}</span>
+                      {editingRates[c.id] !== undefined && editingRates[c.id] !== String(c.rateToBase) && (
+                        <Button size="sm" variant="outline" className="h-8" onClick={() => handleSaveCurrencyRate(c.id)} disabled={savingCurrencyId === c.id}>
+                          {savingCurrencyId === c.id ? "Saving..." : "Save"}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {!c.isBase && (
+                    <button
+                      onClick={() => handleSetBaseCurrency(c.id)}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Set as base
+                    </button>
+                  )}
+                  {!c.isBase && (
+                    <button
+                      onClick={() => handleDeleteCurrency(c.id)}
+                      className="text-muted-foreground hover:text-red-500 transition-colors p-1"
+                      title="Remove currency"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       </TabsContent>
 
       {/* Notifications Tab */}
@@ -631,7 +801,7 @@ export function SettingsClient({
                       {tx.recurringFrequency?.toLowerCase() ?? "recurring"}
                     </Badge>
                     <span className={`text-sm font-semibold shrink-0 ${tx.type === "INCOME" ? "text-emerald-600" : "text-red-600"}`}>
-                      {tx.type === "INCOME" ? "+" : "-"}Rs {(tx.amount / 100).toLocaleString()}
+                      {tx.type === "INCOME" ? "+" : "-"}{baseSymbol} {(tx.amount / 100).toLocaleString()}
                     </span>
                   </div>
                 ))}
@@ -786,12 +956,51 @@ export function SettingsClient({
       )}
 
       <ConfirmDialog
-        open={!!deleteId}
-        onOpenChange={(o) => !o && setDeleteId(null)}
-        title="Delete category?"
-        description="Transactions using this category will keep it as a reference."
-        onConfirm={() => handleDeleteCategory(deleteId!)}
+        open={!!deleteCatData}
+        onOpenChange={(o) => !o && setDeleteCatData(null)}
+        title={deleteCatData?.isDefault ? `Delete default category "${deleteCatData.name}"?` : "Delete category?"}
+        description={
+          deleteCatData?.isDefault
+            ? "This is a built-in category shared by the whole household. Deleting it removes it everywhere, not just for you. Transactions using it will keep it as a reference."
+            : "Transactions using this category will keep it as a reference."
+        }
+        onConfirm={() => handleDeleteCategory(deleteCatData!.id)}
       />
+
+      <Dialog open={!!editCat} onOpenChange={(o) => !o && setEditCat(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit category</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+            <div>
+              <Label>Name</Label>
+              <Input
+                value={editCat?.name ?? ""}
+                onChange={(e) => setEditCat((p) => (p ? { ...p, name: e.target.value } : p))}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveEditCategory()}
+              />
+            </div>
+            <div>
+              <Label>Color</Label>
+              <input
+                type="color"
+                value={editCat?.color ?? "#6366f1"}
+                onChange={(e) => setEditCat((p) => (p ? { ...p, color: e.target.value } : p))}
+                className="h-9 w-14 cursor-pointer rounded border border-input block"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditCat(null)} disabled={savingEditCat}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEditCategory} disabled={savingEditCat || !editCat?.name.trim()}>
+              {savingEditCat ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={!!deleteUserId}
         onOpenChange={(o) => !o && setDeleteUserId(null)}
