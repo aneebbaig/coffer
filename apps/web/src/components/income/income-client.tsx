@@ -11,8 +11,13 @@ import { TransactionList } from "@/components/expenses/transaction-list";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
+import { RecurringIncomeCard } from "@/components/income/recurring-income-card";
 
 interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
+interface RecurringIncome {
+  id: string; label: string; kind: string; amount: number; variable: boolean;
+  countsTowardFloor: boolean; dayOfMonth: number | null; startDate: Date; endDate: Date | null; active: boolean;
+}
 interface Transaction {
   id: string; amount: number; type: string; categoryId: string; description: string;
   notes?: string | null; date: Date; budgetMonth: number; budgetYear: number; tags: string; isRecurring: boolean;
@@ -37,6 +42,7 @@ export function IncomeClient({
   monthlyAvailable = 0,
   currentPeriod,
   lastPeriod,
+  recurringIncomes,
 }: {
   transactions: Transaction[];
   categories: Category[];
@@ -46,6 +52,7 @@ export function IncomeClient({
   monthlyAvailable?: number;
   currentPeriod: { month: number; year: number };
   lastPeriod: { month: number; year: number };
+  recurringIncomes: RecurringIncome[];
 }) {
   const [open, setOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -119,6 +126,8 @@ export function IncomeClient({
     <>
       <PageHeader section="Money Flow" title="Income" />
       <div className="space-y-6">
+
+        <RecurringIncomeCard incomes={recurringIncomes} baseSymbol={baseSymbol} />
 
         {/* This period summary cards */}
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">

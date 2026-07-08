@@ -20,7 +20,10 @@ export async function getLoans(filter?: "ACTIVE" | "PAID" | "ALL") {
 
   return prisma.loan.findMany({
     where,
-    include: { payments: { orderBy: { date: "desc" } } },
+    include: {
+      payments: { orderBy: { date: "desc" } },
+      schedules: { orderBy: { startDate: "asc" } },
+    },
     orderBy: [{ status: "asc" }, { date: "desc" }],
   });
 }
