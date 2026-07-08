@@ -57,6 +57,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export function LoansClient({ loans, summary, fundingContext, openPeriod }: { loans: Loan[]; summary: Summary; fundingContext: FundingContext; openPeriod: { month: number; year: number } }) {
   const [createOpen, setCreateOpen] = useState(false);
+  const [createPeriodOverride, setCreatePeriodOverride] = useState<PeriodOverride>({ enabled: false, month: openPeriod.month, year: openPeriod.year });
   const [periodOverride, setPeriodOverride] = useState<PeriodOverride>({ enabled: false, month: openPeriod.month, year: openPeriod.year });
   const [payOpen, setPayOpen] = useState<string | null>(null);
   const [deleteLoanData, setDeleteLoanData] = useState<{ id: string; personName: string } | null>(null);
@@ -91,11 +92,13 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
     const result = await createLoan({
       ...form,
       principalAmount: parseFloat(form.principalAmount),
+      ...(createPeriodOverride.enabled ? { budgetMonth: createPeriodOverride.month, budgetYear: createPeriodOverride.year } : {}),
     });
     if (result.success) {
       toast.success(form.type === "GIVEN" ? "Loan added - recorded as an expense" : "Loan added - recorded as income");
       setCreateOpen(false);
       setForm({ personName: "", description: "", type: "GIVEN", principalAmount: "", date: format(new Date(), "yyyy-MM-dd"), dueDate: "", notes: "" });
+      setCreatePeriodOverride({ enabled: false, month: openPeriod.month, year: openPeriod.year });
     } else toast.error(result.error ?? "Failed");
     setLoading(false);
   }
@@ -434,6 +437,7 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
               <Label>Notes (optional)</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Any extra details..." />
             </div>
+            <BudgetPeriodOverride openPeriod={openPeriod} value={createPeriodOverride} onChange={setCreatePeriodOverride} />
             <p className="text-xs text-muted-foreground">
               {form.type === "GIVEN"
                 ? "Recorded as an expense - the money leaves your available cash."

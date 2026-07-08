@@ -27,6 +27,9 @@ export async function GET(req: NextRequest) {
           orderBy: { date: "desc" },
           take: 5,
         },
+        schedules: {
+          orderBy: { startDate: "asc" },
+        },
       },
       orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
     });
@@ -39,6 +42,18 @@ export async function GET(req: NextRequest) {
         payments: l.payments.map((p) => ({
           ...p,
           date: p.date.toISOString(),
+        })),
+        schedules: l.schedules.map((s) => ({
+          id: s.id,
+          loanId: s.loanId,
+          kind: s.kind,
+          amountPaisas: s.amount,
+          startDate: s.startDate.toISOString(),
+          endDate: s.endDate?.toISOString() ?? null,
+          flexibility: s.flexibility,
+          priority: s.priority,
+          slideWindowMonths: s.slideWindowMonths,
+          interestRate: s.interestRate,
         })),
       })),
     });
@@ -57,6 +72,9 @@ const createLoanSchema = z.object({
   date: z.string().min(1),
   dueDate: z.string().optional(),
   notes: z.string().max(1000).optional(),
+  // Optional budget-period override. When omitted, the user's open period is used.
+  budgetMonth: z.number().int().min(1).max(12).optional(),
+  budgetYear: z.number().int().min(2000).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -71,13 +89,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { personName, type, principalPaisas, description, date, dueDate, notes } = parsed.data;
+    const { personName, type, principalPaisas, description, date, dueDate, notes, budgetMonth, budgetYear } = parsed.data;
 
     const user = await prisma.user.findUniqueOrThrow({
       where: { id: auth.id },
       select: { currentBudgetMonth: true, currentBudgetYear: true },
     });
-    const period = getCurrentPeriod(user.currentBudgetMonth, user.currentBudgetYear);
+    const period = (budgetMonth && budgetYear)
+      ? { month: budgetMonth, year: budgetYear }
+      : getCurrentPeriod(user.currentBudgetMonth, user.currentBudgetYear);
     const isGiven = type === "GIVEN";
 
     let category = await prisma.category.findFirst({ where: { userId: auth.id, name: "Loan" } });
