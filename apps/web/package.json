@@ -9,6 +9,8 @@
     "start": "next start",
     "seed": "npx tsx prisma/seed.ts",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio"
   },
@@ -79,6 +81,7 @@
     "eslint": "^9.29.0",
     "eslint-config-next": "^16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

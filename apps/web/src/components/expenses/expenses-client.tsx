@@ -11,8 +11,13 @@ import { TransactionList } from "@/components/expenses/transaction-list";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
+import { PlannedExpensesCard } from "@/components/expenses/planned-expenses-card";
 
 interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
+interface PlannedExpense {
+  id: string; name: string; amount: number; dueDate: Date; flexibility: string;
+  priority: number; slideWindowMonths: number; status: string; notes: string | null;
+}
 interface Transaction {
   id: string; amount: number; type: string; categoryId: string; description: string;
   notes?: string | null; date: Date; budgetMonth: number; budgetYear: number; tags: string; isRecurring: boolean;
@@ -45,6 +50,7 @@ export function ExpensesClient({
   lastPeriod,
   thisMonthSpent = 0,
   budgetTotal = 0,
+  plannedExpenses,
 }: {
   transactions: Transaction[];
   categories: Category[];
@@ -55,6 +61,7 @@ export function ExpensesClient({
   lastPeriod: { month: number; year: number };
   thisMonthSpent?: number;
   budgetTotal?: number;
+  plannedExpenses: PlannedExpense[];
 }) {
   const [open, setOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -128,6 +135,8 @@ export function ExpensesClient({
       />
 
       <div className="space-y-6">
+        <PlannedExpensesCard expenses={plannedExpenses} baseSymbol={baseSymbol} />
+
         {/* Summary cards - always current period */}
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4">

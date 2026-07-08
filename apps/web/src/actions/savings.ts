@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { getUserId, getAuthenticatedUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getCurrentPeriod } from "@/lib/month";
+import { getCurrentPeriod, getCalendarMonthRange } from "@/lib/month";
 import { toPaisas } from "@/lib/utils";
 import { creditPot, debitPot } from "@/lib/pot-helpers";
 import { getCurrencies, getPotBalancesInBase } from "@/lib/currency-helpers";
+import { getCashflowProjection } from "@/actions/cashflow";
+import { computeInvestmentSuggestion } from "@/lib/cashflow/investment-suggestion";
 import { ActionResult } from "@/types";
 
 export interface CurrencyAvailability {
@@ -421,4 +423,184 @@ export async function getCumulativeSavings(): Promise<{
   });
 
   return { totalAccumulated: cumulative, months };
+}
+
+// ─── Investment planning (spec Checkpoint 2) ────────────────────────────────
+// Extends the existing investment module: a configurable monthly contribution
+// target split by category, with a per-cycle suggestion and planned-vs-actual
+// tracking. Rendered inside the existing /investments views, not a new screen.
+
+export interface InvestmentPlanCategoryInput {
+  id?: string; // omit to create a new category row
+  name: string;
+  investmentType?: string | null; // maps to Investment.type for actual-vs-planned matching
+  percentage: number; // 0-100
+}
+
+export async function getInvestmentPlan() {
+  const userId = await getUserId();
+  return prisma.investmentPlan.findUnique({
+    where: { userId },
+    include: { categories: { orderBy: { order: "asc" } } },
+  });
+}
+
+export async function upsertInvestmentPlan(data: {
+  monthlyTarget?: number;
+  autoFromSurplus?: boolean;
+  categories: InvestmentPlanCategoryInput[];
+}): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+
+    const totalPct = data.categories.reduce((s, c) => s + c.percentage, 0);
+    if (data.categories.length > 0 && totalPct !== 100) {
+      return { success: false, error: `Category split must total 100% (currently ${totalPct}%)` };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const plan = await tx.investmentPlan.upsert({
+        where: { userId },
+        create: {
+          userId,
+          monthlyTarget: data.monthlyTarget != null ? toPaisas(data.monthlyTarget) : 0,
+          autoFromSurplus: data.autoFromSurplus ?? true,
+        },
+        update: {
+          ...(data.monthlyTarget != null && { monthlyTarget: toPaisas(data.monthlyTarget) }),
+          ...(data.autoFromSurplus != null && { autoFromSurplus: data.autoFromSurplus }),
+        },
+      });
+
+      // Full replace - the split is small (a handful of categories) and edited
+      // as a whole in the UI, so this is simpler and safer than diffing rows.
+      await tx.investmentPlanCategory.deleteMany({ where: { planId: plan.id } });
+      if (data.categories.length > 0) {
+        await tx.investmentPlanCategory.createMany({
+          data: data.categories.map((c, i) => ({
+            planId: plan.id,
+            name: c.name,
+            investmentType: c.investmentType ?? null,
+            percentage: c.percentage,
+            order: i,
+          })),
+        });
+      }
+    });
+
+    revalidatePath("/investments");
+    return { success: true };
+  } catch (e) {
+    console.error("[upsertInvestmentPlan]", e);
+    return { success: false, error: "Failed to save investment plan" };
+  }
+}
+
+export async function deleteInvestmentPlan(): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    await prisma.investmentPlan.deleteMany({ where: { userId } });
+    revalidatePath("/investments");
+    return { success: true };
+  } catch (e) {
+    console.error("[deleteInvestmentPlan]", e);
+    return { success: false, error: "Failed to delete investment plan" };
+  }
+}
+
+export interface InvestmentCategorySuggestion {
+  id: string;
+  name: string;
+  investmentType: string | null;
+  percentage: number;
+  plannedAmount: number; // this cycle's suggested contribution for this category
+  actualAmount: number; // sum of Investment.investedAmount of matching type, purchased this period
+}
+
+export interface InvestmentSuggestion {
+  hasPlan: boolean;
+  monthlyIncome: number; // this period's actual income
+  obligationsDue: number; // this period's due obligations (Checkpoint 1, month 1 of the projection)
+  bufferTarget: number; // emergencyFundMonths x average monthly expenses
+  bufferCurrent: number; // current EMERGENCY-pot balance, base currency
+  bufferUnmet: number; // max(0, bufferTarget - bufferCurrent)
+  suggestedTotal: number; // max(0, income - obligationsDue - bufferUnmet)
+  categories: InvestmentCategorySuggestion[];
+}
+
+/**
+ * Suggested investment = income − this cycle's obligations (from the cash-flow
+ * scheduler) − any unmet emergency-fund buffer, then split by category. This is
+ * a read-only projection - it never moves money or creates rows.
+ */
+export async function getInvestmentSuggestion(): Promise<InvestmentSuggestion> {
+  const user = await getAuthenticatedUser({
+    currentBudgetMonth: true,
+    currentBudgetYear: true,
+    emergencyFundMonths: true,
+  });
+  const userId = user.id;
+  const { month, year } = getCurrentPeriod(
+    user.currentBudgetMonth as number | null,
+    user.currentBudgetYear as number | null,
+  );
+
+  const [plan, monthIncomeTx, projection, avgMonthlyExpenses, emergencyPots] = await Promise.all([
+    prisma.investmentPlan.findUnique({
+      where: { userId },
+      include: { categories: { orderBy: { order: "asc" } } },
+    }),
+    prisma.transaction.aggregate({
+      where: { userId, type: "INCOME", budgetMonth: month, budgetYear: year },
+      _sum: { amount: true },
+    }),
+    getCashflowProjection(),
+    getAverageMonthlyExpenses(),
+    prisma.savingsPot.findMany({
+      where: { userId, type: "EMERGENCY" },
+      include: { balances: { include: { currency: true } } },
+    }),
+  ]);
+
+  const monthlyIncome = monthIncomeTx._sum.amount ?? 0;
+  const obligationsDue = projection[0]?.dueTotal ?? 0;
+  const bufferTarget = Math.round(avgMonthlyExpenses * (user.emergencyFundMonths as number));
+  const bufferCurrent = emergencyPots.reduce(
+    (sum, pot) => sum + pot.balances.reduce((s, b) => s + Math.round(b.amount * b.currency.rateToBase), 0),
+    0,
+  );
+
+  if (!plan || plan.categories.length === 0) {
+    const { bufferUnmet, suggestedTotal } = computeInvestmentSuggestion({
+      monthlyIncome, obligationsDue, bufferTarget, bufferCurrent, categories: [],
+    });
+    return { hasPlan: false, monthlyIncome, obligationsDue, bufferTarget, bufferCurrent, bufferUnmet, suggestedTotal, categories: [] };
+  }
+
+  const { start, end } = getCalendarMonthRange(month, year);
+  const typesInPlan = plan.categories.map((c) => c.investmentType).filter((t): t is string => !!t);
+  const periodInvestments = typesInPlan.length > 0
+    ? await prisma.investment.findMany({
+        where: { userId, type: { in: typesInPlan }, purchaseDate: { gte: start, lte: end } },
+        select: { type: true, investedAmount: true },
+      })
+    : [];
+
+  const { bufferUnmet, suggestedTotal, categories } = computeInvestmentSuggestion({
+    monthlyIncome,
+    obligationsDue,
+    bufferTarget,
+    bufferCurrent,
+    categories: plan.categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      investmentType: c.investmentType,
+      percentage: c.percentage,
+      actualAmount: c.investmentType
+        ? periodInvestments.filter((i) => i.type === c.investmentType).reduce((s, i) => s + i.investedAmount, 0)
+        : 0,
+    })),
+  });
+
+  return { hasPlan: true, monthlyIncome, obligationsDue, bufferTarget, bufferCurrent, bufferUnmet, suggestedTotal, categories };
 }

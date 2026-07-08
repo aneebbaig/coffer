@@ -9,8 +9,10 @@ import { getTodaysTasks } from "@/actions/tasks";
 import { getTodaysEvents } from "@/actions/calendar";
 import { getSavingsPots, getAverageMonthlyExpenses } from "@/actions/savings";
 import { getTransactions } from "@/actions/expenses";
+import { getUpcomingDueAlerts } from "@/actions/cashflow";
 import { getBaseCurrency } from "@/lib/currency-helpers";
 import { isOverdue } from "@/lib/utils";
+import { format } from "date-fns";
 
 export type AppNotification = {
   id: string;
@@ -25,7 +27,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
   const settings = await getUserSettings();
   const { month, year } = getCurrentPeriod(settings?.currentBudgetMonth, settings?.currentBudgetYear);
 
-  const [budgetData, goals, todaysTasks, todaysEvents, savingsPots, avgMonthlyExpenses, recentTransactions, base] =
+  const [budgetData, goals, todaysTasks, todaysEvents, savingsPots, avgMonthlyExpenses, recentTransactions, base, upcomingDue] =
     await Promise.all([
       getBudgetWithSpending(month, year),
       getGoals(),
@@ -35,9 +37,21 @@ export async function getNotifications(): Promise<AppNotification[]> {
       getAverageMonthlyExpenses(),
       getTransactions({ month, year }),
       getBaseCurrency(),
+      settings?.notifyLoanDue ? getUpcomingDueAlerts() : Promise.resolve([]),
     ]);
 
   const notifications: AppNotification[] = [];
+
+  // Cash-flow: loan repayments and known lump-sum expenses due within the
+  // user's configured lead time (repayment & cash-flow planner, Checkpoint 3).
+  for (const due of upcomingDue) {
+    const when = due.daysUntil === 0 ? "today" : due.daysUntil === 1 ? "tomorrow" : `on ${format(due.dueDate, "d MMM")}`;
+    notifications.push({
+      id: `cashflow-due-${due.sourceId}-${due.dueDate.getTime()}`,
+      type: due.daysUntil <= 1 ? "warning" : "info",
+      message: `${base.symbol} ${(due.amount / 100).toLocaleString()} to ${due.payee} due ${when}`,
+    });
+  }
 
   // Doom spending - 3+ expenses in last 2 hours
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
