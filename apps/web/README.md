@@ -102,7 +102,7 @@ You need a free [Neon](https://neon.tech) account. Neon gives you a cloud Postgr
 
 ```bash
 # 1. Clone and install
-npm install
+pnpm install
 
 # 2. Copy env template and fill in your Neon dev branch URL
 cp .env.example .env.local
@@ -110,15 +110,15 @@ cp .env.example .env.local
 # Use the DIRECT (non-pooler) URL for migrations - remove "-pooler" from the hostname
 
 # 3. Create tables + seed users
-npx prisma migrate dev --name init
-npm run seed
+pnpm exec prisma migrate dev --name init
+pnpm seed
 
 # 4. Run
-npm run dev
+pnpm dev
 # → http://localhost:3000
 ```
 
-> **Neon pooler vs direct URL**: `prisma migrate dev` requires a direct connection (non-pooler hostname - no `-pooler` in the URL). The pooler URL is fine for the running app (`DATABASE_URL` at runtime). For production migrations, use `DATABASE_URL_UNPOOLED` with `npx prisma migrate deploy`.
+> **Neon pooler vs direct URL**: `prisma migrate dev` requires a direct connection (non-pooler hostname - no `-pooler` in the URL). The pooler URL is fine for the running app (`DATABASE_URL` at runtime). For production migrations, use `DATABASE_URL_UNPOOLED` with `pnpm exec prisma migrate deploy`.
 
 ---
 

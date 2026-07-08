@@ -45,10 +45,10 @@ You need a free Postgres database. A [Neon](https://neon.tech) branch is the eas
 ```bash
 cd apps/web
 cp .env.example .env.local     # fill in your database URL and secrets
-npm install
-npx prisma migrate dev         # creates the tables
-npm run seed                   # creates your login(s)
-npm run dev                    # http://localhost:3000
+pnpm install
+pnpm exec prisma migrate dev   # creates the tables
+pnpm seed                      # creates your login(s)
+pnpm dev                       # http://localhost:3000
 ```
 
 Longer version in [apps/web/README.md](apps/web/README.md). Deploying to Vercel is in [apps/web/DEPLOYMENT.md](apps/web/DEPLOYMENT.md).
