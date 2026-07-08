@@ -15,9 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { createInvestment, updateInvestment, deleteInvestment } from "@/actions/savings";
+import { createInvestment, updateInvestment, deleteInvestment, type InvestmentSuggestion } from "@/actions/savings";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
+import { InvestmentPlanCard } from "@/components/investments/investment-plan-card";
 
 interface Investment {
   id: string;
@@ -181,7 +182,17 @@ const BLANK_FORM = {
   purchaseDate: format(new Date(), "yyyy-MM-dd"), notes: "",
 };
 
-export function InvestmentsClient({ investments, baseSymbol = "Rs" }: { investments: Investment[]; baseSymbol?: string }) {
+export function InvestmentsClient({
+  investments,
+  baseSymbol = "Rs",
+  plan,
+  suggestion,
+}: {
+  investments: Investment[];
+  baseSymbol?: string;
+  plan: { monthlyTarget: number; autoFromSurplus: boolean; categories: { id: string; name: string; investmentType: string | null; percentage: number }[] } | null;
+  suggestion: InvestmentSuggestion;
+}) {
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Investment | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -269,6 +280,8 @@ export function InvestmentsClient({ investments, baseSymbol = "Rs" }: { investme
           </Button>
         }
       />
+
+      <InvestmentPlanCard plan={plan} suggestion={suggestion} baseSymbol={baseSymbol} />
 
       {/* Summary strip */}
       {investments.length > 0 && (
