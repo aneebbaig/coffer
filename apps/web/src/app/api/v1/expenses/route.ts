@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireBearerAuth } from "@/lib/v1-auth";
 import { getCurrentPeriod } from "@/lib/month";
+import { getBaseCurrency } from "@/lib/currency-helpers";
 
 // ── GET /api/v1/expenses ──────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
           description: true,
           notes: true,
           date: true,
+          isRegretPurchase: true,
           category: { select: { id: true, name: true, icon: true, color: true } },
         },
       }),
@@ -64,6 +66,7 @@ export async function GET(req: NextRequest) {
           description: t.description,
           notes: t.notes ?? null,
           date: t.date.toISOString(),
+          isRegretPurchase: t.isRegretPurchase,
           category: t.category,
         })),
         total,
@@ -84,6 +87,7 @@ const createExpenseSchema = z.object({
   description: z.string().min(1).max(200),
   notes: z.string().max(1000).optional(),
   date: z.string().min(1),
+  isRegretPurchase: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -98,7 +102,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { amountPaisas, categoryId, description, notes, date } = parsed.data;
+    const { amountPaisas, categoryId, description, notes, date, isRegretPurchase } = parsed.data;
 
     const user = await prisma.user.findUnique({
       where: { id: auth.id },
@@ -126,9 +130,10 @@ export async function POST(req: NextRequest) {
     const available = totalIncome - incomeFundedExpenses;
 
     if (available < amountPaisas) {
-      const availableRs = (available / 100).toLocaleString("en-PK");
+      const base = await getBaseCurrency();
+      const availableFmt = (available / 100).toLocaleString("en-PK");
       return NextResponse.json(
-        { error: `Insufficient income. Available: Rs ${availableRs}` },
+        { error: `Insufficient income. Available: ${base.symbol} ${availableFmt}` },
         { status: 422 },
       );
     }
@@ -145,6 +150,7 @@ export async function POST(req: NextRequest) {
         budgetYear: period.year,
         isRecurring: false,
         tags: "",
+        isRegretPurchase: isRegretPurchase ?? false,
         fundingSource: "INCOME",
         userId: auth.id,
       },

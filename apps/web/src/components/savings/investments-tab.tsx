@@ -9,7 +9,7 @@ interface Investment {
   investedAmount: number; currentValue: number;
 }
 
-export function InvestmentsTab({ investments }: { investments: Investment[] }) {
+export function InvestmentsTab({ investments, baseSymbol = "Rs" }: { investments: Investment[]; baseSymbol?: string }) {
   const totalInvested = investments.reduce((s, i) => s + i.investedAmount, 0);
   const totalCurrentValue = investments.reduce((s, i) => s + i.currentValue, 0);
   const totalGain = totalCurrentValue - totalInvested;
@@ -31,11 +31,11 @@ export function InvestmentsTab({ investments }: { investments: Investment[] }) {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-card border border-border rounded-xl px-4 py-3">
           <div className="text-xs text-muted-foreground mb-1">Invested</div>
-          <div className="text-lg font-bold text-foreground">Rs {fmt(totalInvested)}</div>
+          <div className="text-lg font-bold text-foreground">{baseSymbol} {fmt(totalInvested)}</div>
         </div>
         <div className="bg-card border border-border rounded-xl px-4 py-3">
           <div className="text-xs text-muted-foreground mb-1">Current Value</div>
-          <div className="text-lg font-bold text-foreground">Rs {fmt(totalCurrentValue)}</div>
+          <div className="text-lg font-bold text-foreground">{baseSymbol} {fmt(totalCurrentValue)}</div>
         </div>
         <div className={cn("border rounded-xl px-4 py-3",
           totalGain >= 0
@@ -44,7 +44,7 @@ export function InvestmentsTab({ investments }: { investments: Investment[] }) {
         )}>
           <div className={cn("text-xs mb-1", totalGain >= 0 ? "text-emerald-600" : "text-red-500")}>Gain / Loss</div>
           <div className={cn("text-lg font-bold", totalGain >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-600")}>
-            {totalGain >= 0 ? "+" : ""}Rs {fmt(totalGain)}
+            {totalGain >= 0 ? "+" : ""}{baseSymbol} {fmt(totalGain)}
           </div>
         </div>
       </div>
@@ -59,9 +59,9 @@ export function InvestmentsTab({ investments }: { investments: Investment[] }) {
                 <div className="text-xs text-muted-foreground">{inv.type.replace("_", " ")} · {inv.platform}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-sm font-semibold text-foreground">Rs {fmt(inv.currentValue)}</div>
+                <div className="text-sm font-semibold text-foreground">{baseSymbol} {fmt(inv.currentValue)}</div>
                 <div className={cn("text-xs font-medium", gain >= 0 ? "text-emerald-600" : "text-red-500")}>
-                  {gain >= 0 ? "+" : ""}Rs {fmt(gain)}
+                  {gain >= 0 ? "+" : ""}{baseSymbol} {fmt(gain)}
                 </div>
               </div>
             </div>

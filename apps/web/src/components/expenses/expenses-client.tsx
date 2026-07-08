@@ -12,19 +12,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
 
+interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
 interface Transaction {
   id: string; amount: number; type: string; categoryId: string; description: string;
   notes?: string | null; date: Date; budgetMonth: number; budgetYear: number; tags: string; isRecurring: boolean;
-  recurringFrequency?: string | null;
-  fundingSource?: string; fundingPotId?: string | null; fundingCurrency?: string | null; fundingAmount?: number | null;
+  recurringFrequency?: string | null; isRegretPurchase?: boolean;
+  fundingSource?: string; fundingPotId?: string | null; fundingCurrencyId?: string | null; fundingAmount?: number | null;
+  fundingCurrency?: CurrencyLite | null;
   fundingPot?: { id: string; name: string; type: string } | null;
   category: { id: string; name: string; color: string; icon: string };
 }
 interface Category { id: string; name: string; icon: string; color: string; type: string; }
 interface FundingContext {
   monthlyIncomeAvailable: number;
-  usdTopkrRate: number;
-  pots: { id: string; name: string; type: string; currentAmount: number; currentAmountUsd: number }[];
+  currencies: CurrencyLite[];
+  pots: { id: string; name: string; type: string; balances: { amount: number; currency: CurrencyLite }[] }[];
 }
 
 const THIS_PERIOD = "THIS_PERIOD";
@@ -63,6 +65,7 @@ export function ExpensesClient({
   const [customEnd, setCustomEnd] = useState("");
 
   const expenseCategories = categories.filter((c) => c.type === "EXPENSE" || c.type === "BOTH");
+  const baseSymbol = fundingContext.currencies.find((c) => c.isBase)?.symbol ?? "Rs";
 
   const periodKey = (m: number, y: number) => `${y}-${String(m).padStart(2, "0")}`;
   const currentKey = periodKey(currentPeriod.month, currentPeriod.year);
@@ -129,11 +132,11 @@ export function ExpensesClient({
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">This Month</p>
-            <div className="text-xl font-bold text-red-500 dark:text-red-400 tabnum">Rs {fmt(thisMonthSpent)}</div>
+            <div className="text-xl font-bold text-red-500 dark:text-red-400 tabnum">{baseSymbol} {fmt(thisMonthSpent)}</div>
           </div>
           <div className="bg-card px-5 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">Budget</p>
-            <div className="text-xl font-bold text-foreground tabnum">{budgetTotal > 0 ? `Rs ${fmt(budgetTotal)}` : "-"}</div>
+            <div className="text-xl font-bold text-foreground tabnum">{budgetTotal > 0 ? `${baseSymbol} ${fmt(budgetTotal)}` : "-"}</div>
             {budgetTotal === 0 && <div className="text-xs text-muted-foreground mt-0.5">Not set</div>}
           </div>
           <div className="bg-card px-5 py-4">
@@ -143,7 +146,7 @@ export function ExpensesClient({
             </p>
             <div className={cn("text-xl font-bold tabnum",
               budgetTotal === 0 ? "text-muted-foreground" : overUnder >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
-              {budgetTotal === 0 ? "-" : `Rs ${fmt(Math.abs(overUnder))}`}
+              {budgetTotal === 0 ? "-" : `${baseSymbol} ${fmt(Math.abs(overUnder))}`}
             </div>
           </div>
         </div>
@@ -210,6 +213,7 @@ export function ExpensesClient({
         <TransactionList
           transactions={filtered}
           budgetByCategoryId={budgetByCategoryId}
+          baseSymbol={baseSymbol}
           onEdit={(tx) => { setEditingTx(tx); setOpen(true); }}
         />
       </div>
@@ -224,6 +228,7 @@ export function ExpensesClient({
             categories={expenseCategories}
             transaction={editingTx}
             budgetByCategoryId={budgetByCategoryId}
+            currencies={fundingContext.currencies}
             fundingContext={fundingContext}
             dateFormat={dateFormat}
             openPeriod={currentPeriod}

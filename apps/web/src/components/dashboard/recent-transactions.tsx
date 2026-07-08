@@ -11,7 +11,7 @@ interface Transaction {
   category: { name: string; color: string; icon: string };
 }
 
-export function RecentTransactions({ transactions }: { transactions: Transaction[] }) {
+export function RecentTransactions({ transactions, baseSymbol = "Rs" }: { transactions: Transaction[]; baseSymbol?: string }) {
   return (
     <div className="bg-card border border-border rounded-xl p-5">
       <div className="flex items-center justify-between mb-5">
@@ -43,7 +43,7 @@ export function RecentTransactions({ transactions }: { transactions: Transaction
                 "text-sm font-semibold tabnum shrink-0",
                 t.type === "INCOME" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
               )}>
-                {t.type === "INCOME" ? "+" : "-"}Rs {(t.amount / 100).toLocaleString()}
+                {t.type === "INCOME" ? "+" : "-"}{baseSymbol} {(t.amount / 100).toLocaleString()}
               </div>
             </div>
           ))}

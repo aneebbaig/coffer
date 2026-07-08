@@ -34,6 +34,7 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
   String? _selectedCategoryId;
   DateTime _date = DateTime.now();
   bool _loading = false;
+  bool _isRegretPurchase = false;
 
   @override
   void initState() {
@@ -110,6 +111,7 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
             description: description,
             notes: notes,
             date: _date,
+            isRegretPurchase: _isRegretPurchase,
           );
 
       if (!mounted) return;
@@ -289,6 +291,47 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
                     ],
                     const Spacer(),
                     Icon('ChevronDown'.lucideIcon, size: 14, color: AppColors.mutedForeground),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _isRegretPurchase = !_isRegretPurchase);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: _isRegretPurchase
+                      ? AppColors.destructive.withValues(alpha: 0.12)
+                      : AppColors.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _isRegretPurchase
+                        ? AppColors.destructive.withValues(alpha: 0.5)
+                        : AppColors.border.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isRegretPurchase ? Icons.sentiment_dissatisfied : Icons.sentiment_dissatisfied_outlined,
+                      size: 16,
+                      color: _isRegretPurchase ? AppColors.destructive : AppColors.mutedForeground,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Regret buy - wish I hadn\'t',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: _isRegretPurchase ? AppColors.destructive : AppColors.mutedForeground,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_isRegretPurchase) const Icon(Icons.check, size: 16, color: AppColors.destructive),
                   ],
                 ),
               ),

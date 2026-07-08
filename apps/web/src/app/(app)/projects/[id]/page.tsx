@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getProject } from "@/actions/projects";
+import { getProject, getTags } from "@/actions/projects";
 import { ProjectDetailClient, ProjectDetailData } from "@/components/projects/project-detail-client";
 import type { ProjectLink } from "@/components/projects/project-notes-drawer";
 
@@ -18,7 +18,7 @@ function parseLinks(raw: string): ProjectLink[] {
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const project = await getProject(id);
+  const [project, tags] = await Promise.all([getProject(id), getTags()]);
   if (!project) notFound();
 
   const data: ProjectDetailData = {
@@ -39,8 +39,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       priority: t.priority,
       dueDate: t.dueDate,
       order: t.order,
+      tags: t.tags,
     })),
   };
 
-  return <ProjectDetailClient project={data} />;
+  return <ProjectDetailClient project={data} allTags={tags} />;
 }

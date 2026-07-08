@@ -8,9 +8,9 @@ import { WeddingEventsTab } from "./wedding-events-tab";
 import { WeddingVendorsTab } from "./wedding-vendors-tab";
 import { WeddingExpensesTab } from "./wedding-expenses-tab";
 import { WeddingBudgetTab } from "./wedding-budget-tab";
-import { WeddingPlan } from "./wedding-types";
+import { WeddingPlan, CurrencyLite } from "./wedding-types";
 
-export function WeddingDetailClient({ plan }: { plan: WeddingPlan }) {
+export function WeddingDetailClient({ plan, currencies, baseSymbol = "Rs" }: { plan: WeddingPlan; currencies: CurrencyLite[]; baseSymbol?: string }) {
   return (
     <div className="space-y-6">
       <Link
@@ -31,23 +31,23 @@ export function WeddingDetailClient({ plan }: { plan: WeddingPlan }) {
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
-          <WeddingOverviewTab plan={plan} />
+          <WeddingOverviewTab plan={plan} baseSymbol={baseSymbol} />
         </TabsContent>
 
         <TabsContent value="events" className="mt-6">
-          <WeddingEventsTab plan={plan} />
+          <WeddingEventsTab plan={plan} baseSymbol={baseSymbol} />
         </TabsContent>
 
         <TabsContent value="vendors" className="mt-6">
-          <WeddingVendorsTab plan={plan} />
+          <WeddingVendorsTab plan={plan} baseSymbol={baseSymbol} />
         </TabsContent>
 
         <TabsContent value="expenses" className="mt-6">
-          <WeddingExpensesTab plan={plan} />
+          <WeddingExpensesTab plan={plan} currencies={currencies} />
         </TabsContent>
 
         <TabsContent value="budget" className="mt-6">
-          <WeddingBudgetTab plan={plan} />
+          <WeddingBudgetTab plan={plan} baseSymbol={baseSymbol} />
         </TabsContent>
       </Tabs>
     </div>

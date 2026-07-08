@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerUser } from "@/lib/session";
 import { LoginForm } from "@/components/auth/login-form";
-import { CofferLogo } from "@/components/shared/coffer-logo";
+import { AlignLogo } from "@/components/shared/align-logo";
 import { APP_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -23,7 +23,7 @@ export default async function LoginPage({
         {/* Brand */}
         <div className="text-center mb-7">
           <div className="inline-flex items-center justify-center mb-4">
-            <CofferLogo size={52} />
+            <AlignLogo size={52} />
           </div>
           <h1 className="text-lg font-bold tracking-tight text-foreground">{APP_NAME}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Private Finance OS</p>

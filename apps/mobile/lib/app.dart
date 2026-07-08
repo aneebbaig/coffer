@@ -39,8 +39,8 @@ GoRouter goRouter(Ref ref) {
     refreshListenable: notifier,
     errorBuilder: (_, state) => _ErrorPage(error: state.error),
     redirect: (context, state) {
-      // Custom-scheme deep links: coffer://quick-add → park on splash, deliver after auth resolves
-      if (state.uri.scheme == 'coffer') {
+      // Custom-scheme deep links: align://quick-add → park on splash, deliver after auth resolves
+      if (state.uri.scheme == 'align') {
         final host = state.uri.host;
         final query = state.uri.hasQuery ? '?${state.uri.query}' : '';
         pendingLink = '/$host$query';
@@ -217,8 +217,8 @@ class _ErrorPage extends StatelessWidget {
       );
 }
 
-class CofferApp extends ConsumerWidget {
-  const CofferApp({super.key});
+class AlignApp extends ConsumerWidget {
+  const AlignApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

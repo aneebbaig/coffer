@@ -93,7 +93,7 @@ final class CreateExpenseProvider
   }
 }
 
-String _$createExpenseHash() => r'9fce95747c793e16c3a68fce3dbff2eb7cce7758';
+String _$createExpenseHash() => r'fc43986a2b4ab1d8b7221dc1915b1aae83bdd7a7';
 
 abstract class _$CreateExpense extends $Notifier<AsyncValue<String?>> {
   AsyncValue<String?> build();

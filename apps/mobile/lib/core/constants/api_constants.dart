@@ -29,6 +29,7 @@ class ApiConstants {
 
   static const String tasks = '/tasks';
   static const String projects = '/projects';
+  static const String tags = '/tags';
 
   static String loanPayments(String loanId) => '/loans/$loanId/payments';
   static String expenseById(String id) => '/expenses/$id';
@@ -38,4 +39,5 @@ class ApiConstants {
   static String projectTasks(String projectId) => '/projects/$projectId/tasks';
   static String projectTaskById(String projectId, String taskId) =>
       '/projects/$projectId/tasks/$taskId';
+  static String tagById(String id) => '/tags/$id';
 }

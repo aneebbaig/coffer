@@ -34,6 +34,7 @@ class CreateExpense extends _$CreateExpense {
     required String description,
     String? notes,
     required DateTime date,
+    bool isRegretPurchase = false,
   }) async {
     state = const AsyncLoading();
     try {
@@ -43,6 +44,7 @@ class CreateExpense extends _$CreateExpense {
             description: description,
             notes: notes,
             date: date,
+            isRegretPurchase: isRegretPurchase,
           );
       state = AsyncData(id);
       return id;

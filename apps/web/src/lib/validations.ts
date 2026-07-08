@@ -10,6 +10,7 @@ export const transactionSchema = z.object({
   isRecurring: z.boolean().default(false),
   recurringFrequency: z.enum(["DAILY", "WEEKLY", "MONTHLY", "YEARLY"]).optional(),
   tags: z.string().default(""),
+  isRegretPurchase: z.boolean().default(false),
 });
 
 export const budgetSchema = z.object({

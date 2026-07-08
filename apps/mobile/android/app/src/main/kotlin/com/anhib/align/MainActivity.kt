@@ -1,4 +1,4 @@
-package com.coffer.app
+package com.anhib.align
 
 import android.content.ComponentName
 import android.content.Intent
@@ -26,7 +26,7 @@ class MainActivity : FlutterActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return
         val shortcutManager = getSystemService(ShortcutManager::class.java) ?: return
 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("coffer://quick-add")).apply {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("align://quick-add")).apply {
             component = ComponentName(this@MainActivity, MainActivity::class.java)
         }
         val shortcut = ShortcutInfo.Builder(this, "quick_add_expense")

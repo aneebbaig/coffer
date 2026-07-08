@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PerfumesClient } from "@/components/perfumes/perfumes-client";
 import { getPerfumes } from "@/actions/perfumes";
+import { getCurrencies } from "@/lib/currency-helpers";
 
 export const metadata: Metadata = { title: "Perfumes" };
 
 export default async function PerfumesPage() {
+  const [perfumes, currencies] = await Promise.all([getPerfumes(), getCurrencies()]);
+  const baseSymbol = currencies.find((c) => c.isBase)?.symbol ?? "Rs";
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
@@ -14,7 +17,7 @@ export default async function PerfumesPage() {
       </div>
 
       <Suspense fallback={<PerfumeSkeleton />}>
-        <PerfumesClient initialPerfumes={await getPerfumes()} />
+        <PerfumesClient initialPerfumes={perfumes} baseSymbol={baseSymbol} />
       </Suspense>
     </div>
   );

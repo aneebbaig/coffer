@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.coffer.app"
+    namespace = "com.anhib.align"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -29,13 +29,13 @@ android {
 
     defaultConfig {
         // override per build with -PappId=your.package.name
-        applicationId = (project.findProperty("appId") as String?) ?: "com.coffer.app"
+        applicationId = (project.findProperty("appId") as String?) ?: "com.anhib.align"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         // app label shown under the launcher icon; override with -PappName=YourName
-        manifestPlaceholders["appName"] = (project.findProperty("appName") as String?) ?: "Coffer"
+        manifestPlaceholders["appName"] = (project.findProperty("appName") as String?) ?: "Align"
     }
 
     signingConfigs {

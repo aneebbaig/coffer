@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProjectTaskDialog } from "@/components/projects/project-task-dialog";
+import type { TagOption } from "@/components/projects/tag-picker";
 import { deleteProjectTask } from "@/actions/projects";
 import { toast } from "sonner";
 import { cn, isOverdue } from "@/lib/utils";
@@ -22,6 +23,7 @@ export interface ProjectTaskData {
   priority: string;
   dueDate: Date | null;
   order: number;
+  tags?: TagOption[];
 }
 
 // Hex accents so the left priority bar can be a real gradient-free solid color.
@@ -35,6 +37,7 @@ const PRIORITY_ACCENT: Record<string, string> = {
 export function ProjectTaskCard({
   task, onChange, dragging = false,
   selected = false, selectionMode = false, onToggleSelect,
+  allTags = [], onTagsChanged = () => {},
 }: {
   task: ProjectTaskData;
   onChange: () => void;
@@ -42,6 +45,8 @@ export function ProjectTaskCard({
   selected?: boolean;
   selectionMode?: boolean;
   onToggleSelect?: () => void;
+  allTags?: TagOption[];
+  onTagsChanged?: (tags: TagOption[]) => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -161,15 +166,28 @@ export function ProjectTaskCard({
             )}
           </div>
 
-          {task.dueDate && (
-            <div className={cn(
-              "mt-2 inline-flex items-center gap-1 text-[11px] rounded px-1.5 py-0.5",
-              overdue
-                ? "text-red-600 bg-red-500/10 dark:text-red-400 font-medium"
-                : "text-muted-foreground bg-muted",
-            )}>
-              <CalendarClock className="h-3 w-3" />
-              {format(new Date(task.dueDate), "d MMM")}
+          {(task.dueDate || (task.tags && task.tags.length > 0)) && (
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              {task.dueDate && (
+                <div className={cn(
+                  "inline-flex items-center gap-1 text-[11px] rounded px-1.5 py-0.5",
+                  overdue
+                    ? "text-red-600 bg-red-500/10 dark:text-red-400 font-medium"
+                    : "text-muted-foreground bg-muted",
+                )}>
+                  <CalendarClock className="h-3 w-3" />
+                  {format(new Date(task.dueDate), "d MMM")}
+                </div>
+              )}
+              {task.tags?.map((t) => (
+                <span
+                  key={t.id}
+                  className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium"
+                  style={{ backgroundColor: `${t.color}22`, color: t.color }}
+                >
+                  {t.name}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -182,6 +200,8 @@ export function ProjectTaskCard({
             open={editOpen}
             onOpenChange={setEditOpen}
             onSaved={onChange}
+            allTags={allTags}
+            onTagsChanged={onTagsChanged}
           />
           <ConfirmDialog
             open={deleteOpen}

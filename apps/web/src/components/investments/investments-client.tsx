@@ -77,10 +77,11 @@ function parseCustomFields(raw: string | null): CustomFields {
   try { return JSON.parse(raw); } catch { return {}; }
 }
 
-function CustomFieldsForm({ type, fields, onChange }: {
+function CustomFieldsForm({ type, fields, onChange, baseSymbol }: {
   type: string;
   fields: CustomFields;
   onChange: (f: CustomFields) => void;
+  baseSymbol: string;
 }) {
   const set = (key: keyof CustomFields, value: string) => onChange({ ...fields, [key]: value });
 
@@ -90,7 +91,7 @@ function CustomFieldsForm({ type, fields, onChange }: {
       <div className="grid grid-cols-2 gap-3">
         <div><Label className="text-xs">Fund House</Label><Input placeholder="e.g. Meezan" value={fields.fundHouse ?? ""} onChange={(e) => set("fundHouse", e.target.value)} /></div>
         <div><Label className="text-xs">Folio Number</Label><Input placeholder="Optional" value={fields.folioNumber ?? ""} onChange={(e) => set("folioNumber", e.target.value)} /></div>
-        <div><Label className="text-xs">NAV (Rs )</Label><Input type="number" placeholder="0.00" value={fields.nav ?? ""} onChange={(e) => set("nav", e.target.value)} /></div>
+        <div><Label className="text-xs">NAV ({baseSymbol})</Label><Input type="number" placeholder="0.00" value={fields.nav ?? ""} onChange={(e) => set("nav", e.target.value)} /></div>
         <div><Label className="text-xs">Units</Label><Input type="number" placeholder="0.00" value={fields.mfUnits ?? ""} onChange={(e) => set("mfUnits", e.target.value)} /></div>
       </div>
     </div>
@@ -103,7 +104,7 @@ function CustomFieldsForm({ type, fields, onChange }: {
         <div><Label className="text-xs">Ticker</Label><Input placeholder="e.g. LUCK" value={fields.ticker ?? ""} onChange={(e) => set("ticker", e.target.value)} /></div>
         <div><Label className="text-xs">Exchange</Label><Input placeholder="e.g. PSX" value={fields.exchange ?? ""} onChange={(e) => set("exchange", e.target.value)} /></div>
         <div><Label className="text-xs">Shares</Label><Input type="number" placeholder="0" value={fields.shares ?? ""} onChange={(e) => set("shares", e.target.value)} /></div>
-        <div><Label className="text-xs">Price/Share (Rs )</Label><Input type="number" placeholder="0.00" value={fields.pricePerShare ?? ""} onChange={(e) => set("pricePerShare", e.target.value)} /></div>
+        <div><Label className="text-xs">Price/Share ({baseSymbol})</Label><Input type="number" placeholder="0.00" value={fields.pricePerShare ?? ""} onChange={(e) => set("pricePerShare", e.target.value)} /></div>
       </div>
     </div>
   );
@@ -140,12 +141,12 @@ function CustomFieldsForm({ type, fields, onChange }: {
   return null;
 }
 
-function CustomFieldsSummary({ type, raw }: { type: string; raw: string | null }) {
+function CustomFieldsSummary({ type, raw, baseSymbol }: { type: string; raw: string | null; baseSymbol: string }) {
   const f = parseCustomFields(raw);
   if (type === "MUTUAL_FUND") return (
     <div className="text-xs text-muted-foreground flex gap-3 flex-wrap">
       {f.fundHouse && <span>Fund: {f.fundHouse}</span>}
-      {f.nav && <span>NAV: Rs {f.nav}</span>}
+      {f.nav && <span>NAV: {baseSymbol} {f.nav}</span>}
       {f.mfUnits && <span>Units: {f.mfUnits}</span>}
       {f.folioNumber && <span>Folio: {f.folioNumber}</span>}
     </div>
@@ -155,7 +156,7 @@ function CustomFieldsSummary({ type, raw }: { type: string; raw: string | null }
       {f.ticker && <span className="font-mono">{f.ticker}</span>}
       {f.exchange && <span>{f.exchange}</span>}
       {f.shares && <span>{f.shares} shares</span>}
-      {f.pricePerShare && <span>@Rs {f.pricePerShare}</span>}
+      {f.pricePerShare && <span>@{baseSymbol} {f.pricePerShare}</span>}
     </div>
   );
   if (type === "GOLD") return (
@@ -180,7 +181,7 @@ const BLANK_FORM = {
   purchaseDate: format(new Date(), "yyyy-MM-dd"), notes: "",
 };
 
-export function InvestmentsClient({ investments }: { investments: Investment[] }) {
+export function InvestmentsClient({ investments, baseSymbol = "Rs" }: { investments: Investment[]; baseSymbol?: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Investment | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -274,12 +275,12 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-background px-5 py-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">Invested</p>
-            <p className="text-xl font-bold text-foreground tabnum">Rs {(totalInvested / 100).toLocaleString()}</p>
+            <p className="text-xl font-bold text-foreground tabnum">{baseSymbol} {(totalInvested / 100).toLocaleString()}</p>
           </div>
           <div className="bg-background px-5 py-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">Current Value</p>
             <p className={cn("text-xl font-bold tabnum", totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
-              Rs {(totalCurrentValue / 100).toLocaleString()}
+              {baseSymbol} {(totalCurrentValue / 100).toLocaleString()}
             </p>
           </div>
           <div className="bg-background px-5 py-5">
@@ -287,7 +288,7 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
               {totalGain >= 0 ? "Total Gain" : "Total Loss"}
             </p>
             <p className={cn("text-xl font-bold tabnum", totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
-              {totalGain >= 0 ? "+" : ""}Rs {(Math.abs(totalGain) / 100).toLocaleString()}
+              {totalGain >= 0 ? "+" : ""}{baseSymbol} {(Math.abs(totalGain) / 100).toLocaleString()}
             </p>
           </div>
         </div>
@@ -313,7 +314,7 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
                   <Badge className={cn("text-xs", TYPE_COLOR[type] ?? "bg-gray-100 text-gray-700")}>{typeLabel}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {items.length} holding{items.length !== 1 ? "s" : ""} ·
-                    {typeGain >= 0 ? " +" : " "}Rs {(Math.abs(typeGain) / 100).toLocaleString()}
+                    {typeGain >= 0 ? " +" : " "}{baseSymbol} {(Math.abs(typeGain) / 100).toLocaleString()}
                   </span>
                 </div>
                 <div className="space-y-2">
@@ -326,15 +327,15 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
                           <div className="flex-1 min-w-0 space-y-1">
                             <div className="font-semibold text-foreground">{inv.name}</div>
                             <div className="text-xs text-muted-foreground">{inv.platform} · {format(inv.purchaseDate, "dd MMM yyyy")}</div>
-                            <CustomFieldsSummary type={inv.type} raw={inv.customFields ?? null} />
+                            <CustomFieldsSummary type={inv.type} raw={inv.customFields ?? null} baseSymbol={baseSymbol} />
                             {inv.notes && <div className="text-xs text-muted-foreground italic">{inv.notes}</div>}
                           </div>
                           <div className="text-right shrink-0 space-y-0.5">
-                            <div className="font-bold text-foreground">Rs {(inv.currentValue / 100).toLocaleString()}</div>
+                            <div className="font-bold text-foreground">{baseSymbol} {(inv.currentValue / 100).toLocaleString()}</div>
                             <div className={cn("text-xs font-medium", gain >= 0 ? "text-emerald-600" : "text-red-500")}>
-                              {gain >= 0 ? "+" : ""}Rs {(gain / 100).toLocaleString()} ({gainPct}%)
+                              {gain >= 0 ? "+" : ""}{baseSymbol} {(gain / 100).toLocaleString()} ({gainPct}%)
                             </div>
-                            <div className="text-xs text-muted-foreground">Invested: Rs {(inv.investedAmount / 100).toLocaleString()}</div>
+                            <div className="text-xs text-muted-foreground">Invested: {baseSymbol} {(inv.investedAmount / 100).toLocaleString()}</div>
                           </div>
                         </div>
                         <div className="flex gap-2 mt-3">
@@ -384,11 +385,11 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Amount Invested (Rs )</Label>
+                <Label>Amount Invested ({baseSymbol})</Label>
                 <Input type="number" placeholder="0" value={form.investedAmount} onChange={(e) => setForm((f) => ({ ...f, investedAmount: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Current Value (Rs )</Label>
+                <Label>Current Value ({baseSymbol})</Label>
                 <Input type="number" placeholder="Same as invested" value={form.currentValue} onChange={(e) => setForm((f) => ({ ...f, currentValue: e.target.value }))} />
               </div>
             </div>
@@ -396,7 +397,7 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
               <Label>Purchase Date</Label>
               <Input type="date" value={form.purchaseDate} onChange={(e) => setForm((f) => ({ ...f, purchaseDate: e.target.value }))} />
             </div>
-            <CustomFieldsForm type={form.type} fields={customFields} onChange={setCustomFields} />
+            <CustomFieldsForm type={form.type} fields={customFields} onChange={setCustomFields} baseSymbol={baseSymbol} />
             <div className="space-y-1.5">
               <Label>Notes <span className="text-muted-foreground">(optional)</span></Label>
               <Textarea placeholder="Any notes" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
@@ -417,7 +418,7 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Current Value (Rs )</Label>
+                <Label>Current Value ({baseSymbol})</Label>
                 <Input type="number" value={editForm.currentValue} onChange={(e) => setEditForm((f) => ({ ...f, currentValue: e.target.value }))} />
               </div>
               {(editItem?.type === "MUTUAL_FUND" || editItem?.type === "STOCKS") && (
@@ -427,7 +428,7 @@ export function InvestmentsClient({ investments }: { investments: Investment[] }
                 </div>
               )}
             </div>
-            {editItem && <CustomFieldsForm type={editItem.type} fields={editFields} onChange={setEditFields} />}
+            {editItem && <CustomFieldsForm type={editItem.type} fields={editFields} onChange={setEditFields} baseSymbol={baseSymbol} />}
             <div className="space-y-1.5">
               <Label>Notes</Label>
               <Textarea rows={2} value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />

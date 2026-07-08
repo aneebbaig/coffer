@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireBearerAuth } from "@/lib/v1-auth";
+import { getCurrentPeriod } from "@/lib/month";
 
 export async function GET(req: NextRequest) {
   const auth = await requireBearerAuth(req);
@@ -72,19 +73,52 @@ export async function POST(req: NextRequest) {
 
     const { personName, type, principalPaisas, description, date, dueDate, notes } = parsed.data;
 
-    const created = await prisma.loan.create({
-      data: {
-        personName,
-        type,
-        principalAmount: principalPaisas,
-        remainingAmount: principalPaisas,
-        description: description ?? null,
-        date: new Date(date),
-        dueDate: dueDate ? new Date(dueDate) : null,
-        notes: notes ?? null,
-        userId: auth.id,
-      },
-      select: { id: true },
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: auth.id },
+      select: { currentBudgetMonth: true, currentBudgetYear: true },
+    });
+    const period = getCurrentPeriod(user.currentBudgetMonth, user.currentBudgetYear);
+    const isGiven = type === "GIVEN";
+
+    let category = await prisma.category.findFirst({ where: { userId: auth.id, name: "Loan" } });
+    if (!category) {
+      category = await prisma.category.create({
+        data: { userId: auth.id, name: "Loan", type: "BOTH", color: "#6366f1", icon: "🏦" },
+      });
+    }
+
+    const loanDate = new Date(date);
+    const created = await prisma.$transaction(async (tx) => {
+      const transaction = await tx.transaction.create({
+        data: {
+          amount: principalPaisas,
+          type: isGiven ? "EXPENSE" : "INCOME",
+          categoryId: category.id,
+          description: isGiven ? `Loan to ${personName}` : `Loan from ${personName}`,
+          notes: notes ?? null,
+          date: loanDate,
+          budgetMonth: period.month,
+          budgetYear: period.year,
+          fundingSource: "INCOME",
+          tags: "loan",
+          userId: auth.id,
+        },
+      });
+      return tx.loan.create({
+        data: {
+          personName,
+          type,
+          principalAmount: principalPaisas,
+          remainingAmount: principalPaisas,
+          description: description ?? null,
+          date: loanDate,
+          dueDate: dueDate ? new Date(dueDate) : null,
+          notes: notes ?? null,
+          transactionId: transaction.id,
+          userId: auth.id,
+        },
+        select: { id: true },
+      });
     });
 
     return NextResponse.json({ data: { id: created.id } }, { status: 201 });

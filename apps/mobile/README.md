@@ -1,6 +1,6 @@
-# Coffer Management - Android App
+# Align - Android App
 
-Flutter Android companion app for the Coffer personal finance platform ([your-coffer-instance.com](https://your-coffer-instance.com)). Distributed via [Obtainium](https://github.com/ImranR98/Obtainium) from this private GitHub repo - no Play Store.
+Flutter Android companion app for the Align personal finance platform ([your-align-instance.com](https://your-align-instance.com)). Distributed via [Obtainium](https://github.com/ImranR98/Obtainium) from this private GitHub repo - no Play Store.
 
 ---
 
@@ -29,7 +29,7 @@ Flutter Android companion app for the Coffer personal finance platform ([your-co
 
 ## What the App Does
 
-Mobile companion to the Coffer web app. All data lives on the server - the app is a client-only read/write layer.
+Mobile companion to the Align web app. All data lives on the server - the app is a client-only read/write layer.
 
 | Screen | Purpose |
 |--------|---------|
@@ -76,7 +76,7 @@ Mobile companion to the Coffer web app. All data lives on the server - the app i
 ```
 lib/
 ├── main.dart                      # Entry point: ProviderScope wraps app
-├── app.dart                       # GoRouter definition + CofferApp MaterialApp
+├── app.dart                       # GoRouter definition + AlignApp MaterialApp
 ├── app.g.dart                     # Codegen output
 ├── shell/
 │   └── app_scaffold.dart          # Bottom-nav ShellRoute scaffold
@@ -336,7 +336,7 @@ Routes defined in `lib/app.dart`:
 | `/quick-add` | QuickAddExpensePage | Top-level modal (outside ShellRoute, no bottom nav) |
 
 Auth redirect logic in GoRouter:
-1. If URI scheme is `coffer://` → strip scheme, convert to path
+1. If URI scheme is `align://` → strip scheme, convert to path
 2. While auth loading → stay on `/splash`
 3. Not authenticated + not on login → redirect to `/login`
 4. Authenticated + on login or splash → redirect to `/dashboard`
@@ -476,7 +476,7 @@ Android 3×2 app widget - quick access without opening the app.
 - `onUpdate()` wraps `updateWidget()` in try/catch - prevents "can't load widget" error banner on crash
 - Reads SharedPreferences via `HomeWidgetPlugin.getData(context)`
 - Sets text on RemoteViews text views
-- Sets `PendingIntent` on each category card → deep link `coffer://quick-add?category=<name>`
+- Sets `PendingIntent` on each category card → deep link `align://quick-add?category=<name>`
 - Request codes use `.and(0x7FFFFFFF)` to ensure non-negative
 
 ### Widget XML (`quick_expense_widget.xml`)
@@ -494,19 +494,19 @@ Critical constraint: **`<View>` is banned in RemoteViews on Android API 31+** (P
 
 ## Deep Links
 
-Custom URI scheme: `coffer://`
+Custom URI scheme: `align://`
 
 | URI | Effect |
 |-----|--------|
-| `coffer://quick-add?category=<name>` | Opens Quick Add with category pre-selected |
+| `align://quick-add?category=<name>` | Opens Quick Add with category pre-selected |
 
-Registered in `AndroidManifest.xml` intent-filter with `android:scheme="coffer"` and `android:category.BROWSABLE`.
+Registered in `AndroidManifest.xml` intent-filter with `android:scheme="align"` and `android:category.BROWSABLE`.
 
 GoRouter redirect strips the scheme and maps host → path:
 ```dart
-// coffer://quick-add?category=Food → /quick-add?category=Food
-// URI parser: scheme=coffer, host=quick-add, query=category=Food
-if (state.uri.scheme == 'coffer') {
+// align://quick-add?category=Food → /quick-add?category=Food
+// URI parser: scheme=align, host=quick-add, query=category=Food
+if (state.uri.scheme == 'align') {
   final host = state.uri.host;
   final query = state.uri.hasQuery ? '?${state.uri.query}' : '';
   return '/$host$query';
@@ -533,28 +533,30 @@ fvm use 3.44.4
 fvm flutter pub get
 fvm dart run build_runner build --delete-conflicting-outputs
 fvm flutter devices
-fvm flutter run -d <device-id> --dart-define=API_BASE_URL=https://your-coffer-instance.com/api/v1
+fvm flutter run -d <device-id> --dart-define=API_BASE_URL=https://your-align-instance.com/api/v1
 ```
+
+Want a different display name (white-label this instance)? Add `--dart-define=APP_NAME=YourName` - defaults to "Align" if omitted.
 
 ### Keystore setup (one-time, local release builds)
 
 ```bash
 keytool -genkey -v -keystore android/app/keystore.jks \
-  -alias coffer -keyalg RSA -keysize 2048 -validity 10000
+  -alias align -keyalg RSA -keysize 2048 -validity 10000
 ```
 
 Create `android/key.properties` (never commit):
 ```
 storePassword=<password>
 keyPassword=<password>
-keyAlias=coffer
+keyAlias=align
 storeFile=keystore.jks
 ```
 
 Local release build:
 ```bash
 fvm flutter build apk --release \
-  --dart-define=API_BASE_URL=https://your-coffer-instance.com/api/v1 \
+  --dart-define=API_BASE_URL=https://your-align-instance.com/api/v1 \
   --target-platform android-arm64
 ```
 
@@ -575,7 +577,7 @@ CI builds the signed APK, creates a GitHub Release. Obtainium on the Pixel detec
 ### Obtainium configuration (Pixel 7a)
 
 - Source type: GitHub
-- Repo: `https://github.com/your-username/coffer-management-app`
+- Repo: `https://github.com/your-username/align-management-app`
 - Auth: Personal Access Token (from `gh auth token`) in source-specific settings
 - APK filter: `app-release.apk`
 
@@ -586,8 +588,8 @@ CI builds the signed APK, creates a GitHub Release. Obtainium on the Pixel detec
 | `KEYSTORE_BASE64` | `base64 -i android/app/keystore.jks` |
 | `STORE_PASSWORD` | Keystore password |
 | `KEY_PASSWORD` | Key password |
-| `KEY_ALIAS` | `coffer` |
-| `API_BASE_URL` | `https://your-coffer-instance.com/api/v1` |
+| `KEY_ALIAS` | `align` |
+| `API_BASE_URL` | `https://your-align-instance.com/api/v1` |
 
 ---
 
@@ -721,7 +723,7 @@ No widget changes needed for v1. Future: add a "Projects" shortcut button as 5th
 | `AsyncValue.guard` | Silently swallows exceptions - never use for mutations. Always manual `try/catch + rethrow`. |
 | **Auto-dispose double-toast** | `@riverpod` mutation notifiers (no `keepAlive`) get disposed mid-async when nothing watches them - causes false error toast even though DB write succeeded. **Fix: bypass mutation notifiers entirely in page code.** Call datasource directly, use local `bool _loading`. Applies to all quick-add pages, `tasks_page`, `record_payment_page`. |
 | **Modal black screen from widget** | Widget uses `context.go()` which replaces the entire nav stack. Popping the modal on an empty stack → black screen. **Fix:** all quick-add pages use `_close()` with `canPop()` guard - falls back to `context.go('/dashboard')`. |
-| **Widget deep link cold start** | `coffer://` deep link on cold start gets overwritten by auth splash redirect, losing destination. **Fix:** `pendingLink` pattern in `app.dart` - park on `/splash`, deliver after auth resolves. |
+| **Widget deep link cold start** | `align://` deep link on cold start gets overwritten by auth splash redirect, losing destination. **Fix:** `pendingLink` pattern in `app.dart` - park on `/splash`, deliver after auth resolves. |
 | RouterNotifier timing | `_routerListener?.call()` inside `build()` fires before Riverpod commits state. Must be `Future.microtask(() => _routerListener?.call())`. |
 | `<View>` in widget XML | Banned in RemoteViews on Android API 31+. Use `<TextView>` even for dividers. |
 | INTERNET permission | Must be in main `AndroidManifest.xml`. Debug overlay manifest does NOT merge into release builds. |

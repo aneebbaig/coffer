@@ -36,11 +36,13 @@ function EventForm({
   weddingPlanId,
   onDone,
   editId,
+  baseSymbol = "Rs",
 }: {
   initial?: Partial<WeddingEvent>;
   weddingPlanId: string;
   onDone: () => void;
   editId?: string;
+  baseSymbol?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -120,7 +122,7 @@ function EventForm({
         <Input placeholder="e.g. Pearl Continental Hotel" value={form.venue} onChange={(e) => setForm((p) => ({ ...p, venue: e.target.value }))} />
       </div>
       <div>
-        <Label>Budget Allocated - Rs (optional)</Label>
+        <Label>Budget Allocated - {baseSymbol} (optional)</Label>
         <Input type="number" placeholder="e.g. 500000" value={form.budgetAllocated} onChange={(e) => setForm((p) => ({ ...p, budgetAllocated: e.target.value }))} />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -158,7 +160,7 @@ function EventForm({
   );
 }
 
-export function WeddingEventsTab({ plan }: { plan: WeddingPlan }) {
+export function WeddingEventsTab({ plan, baseSymbol = "Rs" }: { plan: WeddingPlan; baseSymbol?: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<WeddingEvent | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -208,7 +210,7 @@ export function WeddingEventsTab({ plan }: { plan: WeddingPlan }) {
                         {event.date && <p className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" />{format(new Date(event.date), "EEEE, d MMMM yyyy")}</p>}
                         {event.venue && <p>📍 {event.venue}</p>}
                         {event.guestCount && <p>👥 {event.guestCount} guests</p>}
-                        {event.budgetAllocated > 0 && <p>💰 Budget: {fmt(event.budgetAllocated)}</p>}
+                        {event.budgetAllocated > 0 && <p>💰 Budget: {fmt(event.budgetAllocated, baseSymbol)}</p>}
                         {event.notes && <p className="text-xs mt-1 italic">{event.notes}</p>}
                       </div>
                     </div>
@@ -237,7 +239,7 @@ export function WeddingEventsTab({ plan }: { plan: WeddingPlan }) {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Event</DialogTitle></DialogHeader>
-          <EventForm weddingPlanId={plan.id} onDone={() => setAddOpen(false)} />
+          <EventForm weddingPlanId={plan.id} onDone={() => setAddOpen(false)} baseSymbol={baseSymbol} />
         </DialogContent>
       </Dialog>
 
@@ -250,6 +252,7 @@ export function WeddingEventsTab({ plan }: { plan: WeddingPlan }) {
               weddingPlanId={plan.id}
               editId={editEvent.id}
               onDone={() => setEditEvent(null)}
+              baseSymbol={baseSymbol}
             />
           )}
         </DialogContent>

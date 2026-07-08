@@ -22,6 +22,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProjectForm } from "@/components/projects/project-form";
 import { ProjectTaskCard, ProjectTaskData } from "@/components/projects/project-task-card";
 import { ProjectNotesDrawer, ProjectLink } from "@/components/projects/project-notes-drawer";
+import type { TagOption } from "@/components/projects/tag-picker";
 import {
   createProjectTask, updateProject, deleteProject, reorderProjectTasks,
   bulkUpdateProjectTasks, bulkDeleteProjectTasks,
@@ -43,6 +44,11 @@ export interface ProjectDetailData {
   notes: string;
   links: ProjectLink[];
   tasks: ProjectTaskData[];
+}
+
+export interface ProjectDetailProps {
+  project: ProjectDetailData;
+  allTags: TagOption[];
 }
 
 type Columns = Record<string, ProjectTaskData[]>;
@@ -150,9 +156,10 @@ function KanbanColumn({
   );
 }
 
-export function ProjectDetailClient({ project }: { project: ProjectDetailData }) {
+export function ProjectDetailClient({ project, allTags: initialTags }: ProjectDetailProps) {
   const router = useRouter();
   const [columns, setColumns] = useState<Columns>(() => bucket(project.tasks));
+  const [allTags, setAllTags] = useState<TagOption[]>(initialTags);
   const [activeTask, setActiveTask] = useState<ProjectTaskData | null>(null);
   const dragSnapshot = useRef<{ status: string; columns: Columns } | null>(null);
   const [status, setStatus] = useState(project.status);
@@ -398,6 +405,8 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
                     selected={selectedIds.has(t.id)}
                     selectionMode={selectionMode}
                     onToggleSelect={() => toggleSelect(t.id)}
+                    allTags={allTags}
+                    onTagsChanged={setAllTags}
                   />
                 ))}
               </KanbanColumn>
@@ -406,7 +415,7 @@ export function ProjectDetailClient({ project }: { project: ProjectDetailData })
         </div>
 
         <DragOverlay>
-          {activeTask ? <ProjectTaskCard task={activeTask} onChange={refresh} dragging /> : null}
+          {activeTask ? <ProjectTaskCard task={activeTask} onChange={refresh} dragging allTags={allTags} /> : null}
         </DragOverlay>
       </DndContext>
 

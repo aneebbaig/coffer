@@ -1,4 +1,4 @@
-package com.coffer.app
+package com.anhib.align
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -56,7 +56,7 @@ class QuickExpenseWidgetProvider : AppWidgetProvider() {
         }
 
         private fun deepLinkIntent(context: Context, path: String, requestCode: Int): PendingIntent {
-            val uri = Uri.parse("coffer://$path")
+            val uri = Uri.parse("align://$path")
             val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                 setPackage(context.packageName)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
