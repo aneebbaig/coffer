@@ -96,10 +96,5 @@ jobs:
           files: apps/mobile/build/app/outputs/flutter-apk/app-release.apk
           name: "Align ${{ github.ref_name }}"
           generate_release_notes: true
-          # Draft, not published: API_BASE_URL is baked into the compiled APK
-          # as a plain string, so a publicly-published release would leak
-          # whatever backend this build points at. Draft releases (and their
-          # attached APK) are only visible to accounts with push access to
-          # the repo - publish manually per-release if a build is ever meant
-          # to be public.
-          draft: true
+          make_latest: true
+          draft: false
