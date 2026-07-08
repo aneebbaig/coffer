@@ -16,16 +16,23 @@ import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { createLoan, recordPayment, deleteLoan } from "@/actions/loans";
+import { createLoanSchedule, deleteLoanSchedule } from "@/actions/cashflow";
+import { Switch } from "@/components/ui/switch";
+import { CalendarClock } from "lucide-react";
 import { BudgetPeriodOverride, type PeriodOverride } from "@/components/shared/budget-period-override";
 import { SplitFunding, type FundingOption } from "@/components/shared/split-funding";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 
 interface LoanPayment { id: string; amount: number; date: Date; notes: string | null; }
+interface LoanSchedule {
+  id: string; kind: string; amount: number; startDate: Date; endDate: Date | null;
+  flexibility: string; priority: number; slideWindowMonths: number; interestRate: number | null;
+}
 interface Loan {
   id: string; personName: string; description: string | null; type: string;
   principalAmount: number; remainingAmount: number; date: Date; dueDate: Date | null;
-  notes: string | null; status: string; payments: LoanPayment[];
+  notes: string | null; status: string; payments: LoanPayment[]; schedules: LoanSchedule[];
 }
 interface Summary { totalGiven: number; totalReceived: number; netPosition: number; }
 interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
@@ -55,6 +62,11 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
   const [deleteLoanData, setDeleteLoanData] = useState<{ id: string; personName: string } | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState<string | null>(null); // loanId
+  const [scheduleForm, setScheduleForm] = useState({
+    kind: "LUMP_SUM", amount: "", startDate: format(new Date(), "yyyy-MM-dd"), endDate: "",
+    flexibility: "FIXED", priority: "0", slideWindowMonths: "0",
+  });
 
   const [form, setForm] = useState({ personName: "", description: "", type: "GIVEN", principalAmount: "", date: format(new Date(), "yyyy-MM-dd"), dueDate: "", notes: "" });
   const [payForm, setPayForm] = useState({ amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "", fundingSource: "INCOME", fundingPotId: "" });
@@ -147,6 +159,44 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
     if (result.success) toast.success("Loan deleted");
     else toast.error(result.error ?? "Failed to delete");
     setDeleteLoanData(null);
+  }
+
+  function openScheduleDialog(loanId: string) {
+    setScheduleForm({
+      kind: "LUMP_SUM", amount: "", startDate: format(new Date(), "yyyy-MM-dd"), endDate: "",
+      flexibility: "FIXED", priority: "0", slideWindowMonths: "0",
+    });
+    setScheduleOpen(loanId);
+  }
+
+  async function handleAddSchedule() {
+    if (!scheduleOpen || !scheduleForm.amount) return;
+    if (scheduleForm.kind === "FIXED_INSTALLMENT" && !scheduleForm.endDate) {
+      toast.error("Fixed installment plans need an end date");
+      return;
+    }
+    setLoading(true);
+    const result = await createLoanSchedule({
+      loanId: scheduleOpen,
+      kind: scheduleForm.kind as "LUMP_SUM" | "FIXED_INSTALLMENT",
+      amount: parseFloat(scheduleForm.amount),
+      startDate: scheduleForm.startDate,
+      endDate: scheduleForm.kind === "FIXED_INSTALLMENT" ? scheduleForm.endDate : undefined,
+      flexibility: scheduleForm.flexibility as "FIXED" | "FLEXIBLE",
+      priority: parseInt(scheduleForm.priority, 10) || 0,
+      slideWindowMonths: scheduleForm.flexibility === "FLEXIBLE" ? parseInt(scheduleForm.slideWindowMonths, 10) || 0 : 0,
+    });
+    if (result.success) {
+      toast.success("Repayment schedule added");
+      setScheduleOpen(null);
+    } else toast.error(result.error ?? "Failed to add schedule");
+    setLoading(false);
+  }
+
+  async function handleDeleteSchedule(id: string) {
+    const result = await deleteLoanSchedule(id);
+    if (result.success) toast.success("Schedule removed");
+    else toast.error(result.error ?? "Failed to remove schedule");
   }
 
   function LoanCard({ loan }: { loan: Loan }) {
@@ -243,6 +293,44 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
               <span>Started: {format(new Date(loan.date), "d MMM yyyy")}</span>
               {loan.notes && <span>{loan.notes}</span>}
             </div>
+
+            {loan.status !== "PAID" && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <CalendarClock className="h-3 w-3" />Repayment Plan
+                  </span>
+                  <Button size="sm" variant="ghost" className="text-xs h-6" onClick={() => openScheduleDialog(loan.id)}>
+                    <Plus className="h-3 w-3" />Add
+                  </Button>
+                </div>
+                {loan.schedules.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No repayment schedule yet - add one so the cash-flow planner can project this loan.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {loan.schedules.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            {s.flexibility === "FLEXIBLE" ? `Flexible ±${s.slideWindowMonths}mo` : "Fixed"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {s.kind === "LUMP_SUM"
+                              ? `${baseSymbol} ${(s.amount / 100).toLocaleString()} on ${format(new Date(s.startDate), "d MMM yyyy")}`
+                              : `${baseSymbol} ${(s.amount / 100).toLocaleString()}/mo, ${format(new Date(s.startDate), "MMM yyyy")}${s.endDate ? ` – ${format(new Date(s.endDate), "MMM yyyy")}` : ""}`}
+                          </span>
+                        </div>
+                        <button onClick={() => handleDeleteSchedule(s.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1 shrink-0" title="Remove schedule">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -446,6 +534,65 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
         description="This removes the loan and its linked transaction from your ledger, plus all payment history. This cannot be undone."
         onConfirm={handleDelete}
       />
+
+      {/* Add repayment schedule dialog */}
+      <Dialog open={!!scheduleOpen} onOpenChange={(o) => !o && setScheduleOpen(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Add Repayment Schedule</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Type</Label>
+              <Select value={scheduleForm.kind} onValueChange={(v) => setScheduleForm((p) => ({ ...p, kind: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LUMP_SUM">Lump sum on a date</SelectItem>
+                  <SelectItem value="FIXED_INSTALLMENT">Fixed installments (monthly)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>{scheduleForm.kind === "LUMP_SUM" ? "Amount" : "Amount per month"} ({baseSymbol})</Label>
+              <Input type="number" value={scheduleForm.amount} onChange={(e) => setScheduleForm((p) => ({ ...p, amount: e.target.value }))} placeholder="0" autoFocus />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>{scheduleForm.kind === "LUMP_SUM" ? "Due Date" : "Starts"}</Label>
+                <Input type="date" value={scheduleForm.startDate} onChange={(e) => setScheduleForm((p) => ({ ...p, startDate: e.target.value }))} />
+              </div>
+              {scheduleForm.kind === "FIXED_INSTALLMENT" && (
+                <div>
+                  <Label>Ends</Label>
+                  <Input type="date" value={scheduleForm.endDate} onChange={(e) => setScheduleForm((p) => ({ ...p, endDate: e.target.value }))} />
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Flexible</Label>
+                <p className="text-xs text-muted-foreground">Can be slid to a different month in a tight cycle</p>
+              </div>
+              <Switch
+                checked={scheduleForm.flexibility === "FLEXIBLE"}
+                onCheckedChange={(v) => setScheduleForm((p) => ({ ...p, flexibility: v ? "FLEXIBLE" : "FIXED" }))}
+              />
+            </div>
+            {scheduleForm.flexibility === "FLEXIBLE" && (
+              <div>
+                <Label>Slide Window (months)</Label>
+                <Input type="number" min={1} value={scheduleForm.slideWindowMonths} onChange={(e) => setScheduleForm((p) => ({ ...p, slideWindowMonths: e.target.value }))} />
+              </div>
+            )}
+            <div>
+              <Label>Priority</Label>
+              <Input type="number" value={scheduleForm.priority} onChange={(e) => setScheduleForm((p) => ({ ...p, priority: e.target.value }))} placeholder="0" />
+              <p className="text-xs text-muted-foreground mt-1">Lower slides first when a month is tight</p>
+            </div>
+            <Button className="w-full" onClick={handleAddSchedule} disabled={loading}>
+              {loading ? "Adding..." : "Add Schedule"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
