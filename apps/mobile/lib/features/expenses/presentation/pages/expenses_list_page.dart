@@ -11,6 +11,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_icon_box.dart';
 import '../../../../core/widgets/app_list_row.dart';
+import '../../../cashflow/presentation/widgets/planned_expenses_section.dart';
 import '../../data/repositories/expense_repository_impl.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../providers/expenses_list_provider.dart';
@@ -80,6 +81,12 @@ class _ExpensesListPageState extends ConsumerState<ExpensesListPage> {
                 elevation: 0,
                 title: Text('Expenses', style: AppTextStyles.headlineSmall),
               ),
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: PlannedExpensesSection(),
+              ),
+            ),
             async.when(
               data: (state) => state.items.isEmpty
                   ? const SliverFillRemaining(

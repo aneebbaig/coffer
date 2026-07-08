@@ -12,6 +12,32 @@ class LoanPaymentEntity {
   final String? notes;
 }
 
+class LoanScheduleEntity {
+  const LoanScheduleEntity({
+    required this.id,
+    required this.loanId,
+    required this.kind,
+    required this.amountPaisas,
+    required this.startDate,
+    required this.flexibility,
+    required this.priority,
+    required this.slideWindowMonths,
+    this.endDate,
+    this.interestRate,
+  });
+
+  final String id;
+  final String loanId;
+  final String kind; // LUMP_SUM | FIXED_INSTALLMENT
+  final int amountPaisas;
+  final DateTime startDate;
+  final DateTime? endDate;
+  final String flexibility; // FIXED | FLEXIBLE
+  final int priority;
+  final int slideWindowMonths;
+  final double? interestRate;
+}
+
 class LoanEntity {
   const LoanEntity({
     required this.id,
@@ -25,6 +51,7 @@ class LoanEntity {
     this.description,
     this.dueDate,
     this.notes,
+    this.schedules = const [],
   });
 
   final String id;
@@ -38,6 +65,7 @@ class LoanEntity {
   final String status; // ACTIVE | PARTIALLY_PAID | PAID
   final String? notes;
   final List<LoanPaymentEntity> recentPayments;
+  final List<LoanScheduleEntity> schedules;
 
   double get paidPct =>
       principalPaisas > 0

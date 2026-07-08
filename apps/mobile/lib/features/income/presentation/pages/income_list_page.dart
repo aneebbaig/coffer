@@ -11,6 +11,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_icon_box.dart';
 import '../../../../core/widgets/app_list_row.dart';
+import '../../../cashflow/presentation/widgets/recurring_income_section.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../data/datasources/income_datasource.dart';
 import '../providers/income_list_provider.dart';
@@ -80,6 +81,12 @@ class _IncomeListPageState extends ConsumerState<IncomeListPage> {
                 elevation: 0,
                 title: Text('Income', style: AppTextStyles.headlineSmall),
               ),
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: RecurringIncomeSection(),
+              ),
+            ),
             async.when(
               data: (state) => state.items.isEmpty
                   ? const SliverFillRemaining(
