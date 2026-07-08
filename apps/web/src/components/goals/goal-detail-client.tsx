@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Check, ArrowLeft, CheckCircle2, AlertTriangle, TrendingUp, Info, GripVertical, Loader2, Pencil } from "lucide-react";
+import { Plus, Trash2, Check, ArrowLeft, CheckCircle2, AlertTriangle, TrendingUp, Info, GripVertical, Loader2, Pencil, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { addMoneyToGoal, updateGoalItems, deleteGoal, updateGoal } from "@/actions/goals";
+import { addMoneyToGoal, updateGoalItems, deleteGoal, updateGoal, logGoalItemExpense } from "@/actions/goals";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { GoalForm } from "@/components/goals/goal-form";
 import { GoalItem } from "@/types";
@@ -56,18 +56,30 @@ interface FinancialPosition {
 }
 
 function SortableItem({
-  item, onToggle, onRemove, onRename, onUpdateCost,
+  item, onToggle, onRemove, onRename, onUpdateCost, onLogExpense, baseSymbol,
 }: {
   item: GoalItem;
   onToggle: () => void;
   onRemove: () => void;
   onRename: (name: string) => void;
   onUpdateCost: (cost: number) => void;
+  onLogExpense: () => Promise<void>;
+  baseSymbol: string;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
   const [editingCost, setEditingCost] = useState(false);
   const [costValue, setCostValue] = useState(item.estimatedCost > 0 ? (item.estimatedCost / 100).toString() : "");
+  const [loggingExpense, setLoggingExpense] = useState(false);
+
+  const cost = item.actualCost ?? item.estimatedCost;
+  const showLogExpense = item.purchased && !item.expenseLogged && cost > 0;
+
+  async function handleLogExpense() {
+    setLoggingExpense(true);
+    await onLogExpense();
+    setLoggingExpense(false);
+  }
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -86,82 +98,104 @@ function SortableItem({
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 py-2 border-b border-border last:border-0 group/item">
-      <button
-        {...attributes}
-        {...listeners}
-        className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none shrink-0 p-1 -ml-1"
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <button
-        onClick={onToggle}
-        className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-          item.purchased ? "border-emerald-500 bg-emerald-500" : "border-muted-foreground"
-        )}
-      >
-        {item.purchased && <Check className="h-3 w-3 text-white" />}
-      </button>
-
-      {/* Name - click to edit inline */}
-      {editingName ? (
-        <input
-          autoFocus
-          value={nameValue}
-          onChange={(e) => setNameValue(e.target.value)}
-          onBlur={commitName}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); commitName(); }
-            if (e.key === "Escape") { setNameValue(item.name); setEditingName(false); }
-          }}
-          className="flex-1 text-sm bg-transparent border-b border-primary outline-none py-0.5"
-        />
-      ) : (
-        <span
-          onClick={() => { setNameValue(item.name); setEditingName(true); }}
-          className={cn(
-            "flex-1 text-sm cursor-pointer select-none",
-            item.purchased && "line-through text-muted-foreground"
+    <div ref={setNodeRef} style={style} className="py-2 border-b border-border last:border-0 group/item">
+      <div className="flex items-center gap-2">
+        <button
+          {...attributes}
+          {...listeners}
+          className="text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing touch-none shrink-0 p-1 -ml-1"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onToggle}
+          className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+            item.purchased ? "border-emerald-500 bg-emerald-500" : "border-muted-foreground"
           )}
-          title="Click to rename"
         >
-          {item.name}
-        </span>
-      )}
+          {item.purchased && <Check className="h-3 w-3 text-white" />}
+        </button>
 
-      {/* Cost - click to edit inline */}
-      {editingCost ? (
-        <input
-          autoFocus
-          type="number"
-          value={costValue}
-          onChange={(e) => setCostValue(e.target.value)}
-          onBlur={commitCost}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); commitCost(); }
-            if (e.key === "Escape") { setCostValue(item.estimatedCost > 0 ? (item.estimatedCost / 100).toString() : ""); setEditingCost(false); }
-          }}
-          className="w-24 text-sm bg-transparent border-b border-primary outline-none py-0.5 text-right"
-          placeholder="0"
-        />
-      ) : (
-        <span
-          onClick={() => { setCostValue(item.estimatedCost > 0 ? (item.estimatedCost / 100).toString() : ""); setEditingCost(true); }}
-          className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors shrink-0"
-          title="Click to edit cost"
-        >
-          {item.estimatedCost > 0 ? `Rs ${(item.estimatedCost / 100).toLocaleString()}` : <span className="opacity-0 group-hover/item:opacity-100 transition-opacity"><Pencil className="h-3 w-3 inline" /> cost</span>}
-        </span>
-      )}
+        {/* Name - click to edit inline */}
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commitName(); }
+              if (e.key === "Escape") { setNameValue(item.name); setEditingName(false); }
+            }}
+            className="flex-1 text-sm bg-transparent border-b border-primary outline-none py-0.5"
+          />
+        ) : (
+          <span
+            onClick={() => { setNameValue(item.name); setEditingName(true); }}
+            className={cn(
+              "flex-1 text-sm cursor-pointer select-none",
+              item.purchased && "line-through text-muted-foreground"
+            )}
+            title="Click to rename"
+          >
+            {item.name}
+          </span>
+        )}
 
-      <button onClick={onRemove} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-1">
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+        {/* Cost - click to edit inline */}
+        {editingCost ? (
+          <input
+            autoFocus
+            type="number"
+            value={costValue}
+            onChange={(e) => setCostValue(e.target.value)}
+            onBlur={commitCost}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commitCost(); }
+              if (e.key === "Escape") { setCostValue(item.estimatedCost > 0 ? (item.estimatedCost / 100).toString() : ""); setEditingCost(false); }
+            }}
+            className="w-24 text-sm bg-transparent border-b border-primary outline-none py-0.5 text-right"
+            placeholder="0"
+          />
+        ) : (
+          <span
+            onClick={() => { setCostValue(item.estimatedCost > 0 ? (item.estimatedCost / 100).toString() : ""); setEditingCost(true); }}
+            className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors shrink-0"
+            title="Click to edit cost"
+          >
+            {item.estimatedCost > 0 ? `${baseSymbol} ${(item.estimatedCost / 100).toLocaleString()}` : <span className="opacity-0 group-hover/item:opacity-100 transition-opacity"><Pencil className="h-3 w-3 inline" /> cost</span>}
+          </span>
+        )}
+
+        <button onClick={onRemove} className="text-muted-foreground hover:text-red-500 transition-colors shrink-0 p-1">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {showLogExpense && (
+        <div className="flex items-center justify-end mt-1.5 pl-6">
+          <button
+            onClick={handleLogExpense}
+            disabled={loggingExpense}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:bg-primary/10 rounded-md px-2 py-1 transition-colors disabled:opacity-60"
+          >
+            {loggingExpense ? <Loader2 className="h-3 w-3 animate-spin" /> : <Receipt className="h-3 w-3" />}
+            Log {baseSymbol} {(cost / 100).toLocaleString()} expense
+          </button>
+        </div>
+      )}
+      {item.expenseLogged && (
+        <div className="flex items-center justify-end mt-1 pl-6">
+          <span className="text-[11px] text-muted-foreground/70 flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" />Expense logged
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
-export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; financialPosition: FinancialPosition }) {
+export function GoalDetailClient({ goal, financialPosition, baseSymbol = "Rs" }: { goal: Goal; financialPosition: FinancialPosition; baseSymbol?: string }) {
   const router = useRouter();
   const [addMoneyOpen, setAddMoneyOpen] = useState(false);
   const [addAmount, setAddAmount] = useState("");
@@ -198,7 +232,7 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
     const result = await addMoneyToGoal(goal.id, amount);
     setAddingMoney(false);
     if (result.success) {
-      toast.success(`Rs ${amount.toLocaleString()} added to goal!`);
+      toast.success(`${baseSymbol} ${amount.toLocaleString()} added to goal!`);
       setAddMoneyOpen(false);
       setAddAmount("");
       router.refresh();
@@ -227,6 +261,17 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
     const updated = items.map((i) => i.id === itemId ? { ...i, purchased: !i.purchased } : i);
     setItems(updated);
     await updateGoalItems(goal.id, updated);
+  }
+
+  async function logItemExpense(itemId: string) {
+    const result = await logGoalItemExpense(goal.id, itemId);
+    if (result.success) {
+      setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, expenseLogged: true } : i)));
+      toast.success("Expense logged");
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to log expense");
+    }
   }
 
   async function removeItem(itemId: string) {
@@ -317,13 +362,13 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
                     {items.filter((i) => i.purchased).length} / {items.length}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    items purchased · Rs {(purchasedTotal / 100).toLocaleString()} of Rs {(itemsTotal / 100).toLocaleString()}
+                    items purchased · {baseSymbol} {(purchasedTotal / 100).toLocaleString()} of {baseSymbol} {(itemsTotal / 100).toLocaleString()}
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="text-3xl font-bold" style={{ color: goal.color }}>Rs {(goal.savedAmount / 100).toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground">of Rs {(goal.targetAmount / 100).toLocaleString()} saved</div>
+                  <div className="text-3xl font-bold" style={{ color: goal.color }}>{baseSymbol} {(goal.savedAmount / 100).toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground">of {baseSymbol} {(goal.targetAmount / 100).toLocaleString()} saved</div>
                 </>
               )}
             </div>
@@ -379,17 +424,17 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
             <div>
               <div className="text-xs text-muted-foreground">Available (liquid)</div>
-              <div className="text-base font-bold text-foreground">Rs {(financialPosition.liquidAvailable / 100).toLocaleString()}</div>
+              <div className="text-base font-bold text-foreground">{baseSymbol} {(financialPosition.liquidAvailable / 100).toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">savings + pots</div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Investments</div>
-              <div className="text-base font-bold text-foreground">Rs {(financialPosition.investmentsTotal / 100).toLocaleString()}</div>
+              <div className="text-base font-bold text-foreground">{baseSymbol} {(financialPosition.investmentsTotal / 100).toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">if liquidated</div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Goal cost</div>
-              <div className="text-base font-bold text-foreground">Rs {(goalCost / 100).toLocaleString()}</div>
+              <div className="text-base font-bold text-foreground">{baseSymbol} {(goalCost / 100).toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">{itemsTotal > 0 ? "from items list" : "target amount"}</div>
             </div>
           </div>
@@ -398,7 +443,7 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
             <div className="flex items-start gap-2 text-xs text-muted-foreground border-t border-border pt-3 mt-1">
               <TrendingUp className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                Shortfall: Rs {(shortfall / 100).toLocaleString()}.
+                Shortfall: {baseSymbol} {(shortfall / 100).toLocaleString()}.
                 {financialPosition.investmentsTotal >= shortfall
                   ? " Your investments cover the gap if liquidated."
                   : " Keep saving - add money to this goal each month to reach it."}
@@ -420,7 +465,7 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
           <h3 className="font-semibold text-foreground">{isItemsGoal ? "Milestone Items" : "Shopping List"}</h3>
           <div className="flex items-center gap-3">
             {itemsTotal > 0 && (
-              <span className="text-sm text-muted-foreground">Total: Rs {(itemsTotal / 100).toLocaleString()}</span>
+              <span className="text-sm text-muted-foreground">Total: {baseSymbol} {(itemsTotal / 100).toLocaleString()}</span>
             )}
           </div>
         </div>
@@ -440,6 +485,8 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
                     onRemove={() => removeItem(item.id)}
                     onRename={(name) => renameItem(item.id, name)}
                     onUpdateCost={(cost) => updateItemCost(item.id, cost)}
+                    onLogExpense={() => logItemExpense(item.id)}
+                    baseSymbol={baseSymbol}
                   />
                 ))}
               </div>
@@ -449,7 +496,7 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
 
         <div className="flex gap-2">
           <Input placeholder="Item name" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="flex-1" />
-          <Input placeholder="Rs  cost" type="number" value={newItemCost} onChange={(e) => setNewItemCost(e.target.value)} className="w-28" />
+          <Input placeholder={`${baseSymbol} cost`} type="number" value={newItemCost} onChange={(e) => setNewItemCost(e.target.value)} className="w-28" />
           <Button onClick={handleAddItem} size="icon"><Plus className="h-4 w-4" /></Button>
         </div>
       </div>
@@ -460,13 +507,13 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
           <div className="space-y-4 mt-2">
             <Input
               type="number"
-              placeholder="Amount (Rs )"
+              placeholder={`Amount (${baseSymbol})`}
               value={addAmount}
               onChange={(e) => setAddAmount(e.target.value)}
               className="text-lg"
             />
             <Button onClick={handleAddMoney} className="w-full" style={{ backgroundColor: goal.color }} disabled={addingMoney || !addAmount || parseFloat(addAmount) <= 0}>
-              {addingMoney ? <Loader2 className="h-4 w-4 animate-spin" /> : `Add Rs ${parseFloat(addAmount || "0").toLocaleString()}`}
+              {addingMoney ? <Loader2 className="h-4 w-4 animate-spin" /> : `Add ${baseSymbol} ${parseFloat(addAmount || "0").toLocaleString()}`}
             </Button>
           </div>
         </DialogContent>
@@ -487,6 +534,7 @@ export function GoalDetailClient({ goal, financialPosition }: { goal: Goal; fina
           <GoalForm
             goal={{ id: goal.id, name: goal.name, description: goal.description, targetAmount: goal.targetAmount, priority: goal.priority, color: goal.color, goalType: goal.goalType }}
             onSuccess={() => { setEditOpen(false); router.refresh(); }}
+            baseSymbol={baseSymbol}
           />
         </DialogContent>
       </Dialog>

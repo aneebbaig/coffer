@@ -8,7 +8,7 @@ interface TrendData {
   expenses: number;
 }
 
-export function TrendChart({ data }: { data: TrendData[] }) {
+export function TrendChart({ data, baseSymbol = "Rs" }: { data: TrendData[]; baseSymbol?: string }) {
   const chartData = data.map((d) => ({
     name: d.month,
     Income: d.income / 100,
@@ -21,9 +21,9 @@ export function TrendChart({ data }: { data: TrendData[] }) {
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={chartData} barGap={4}>
           <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis tickFormatter={(v) => `Rs ${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+          <YAxis tickFormatter={(v) => `${baseSymbol} ${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip
-            formatter={(value) => [`Rs ${Number(value).toLocaleString()}`, ""]}
+            formatter={(value) => [`${baseSymbol} ${Number(value).toLocaleString()}`, ""]}
             contentStyle={{ borderRadius: "8px", fontSize: "12px" }}
           />
           <Legend formatter={(value) => <span className="text-xs">{value}</span>} />

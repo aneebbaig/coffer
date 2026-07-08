@@ -12,11 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
 
+interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
 interface Transaction {
   id: string; amount: number; type: string; categoryId: string; description: string;
   notes?: string | null; date: Date; budgetMonth: number; budgetYear: number; tags: string; isRecurring: boolean;
   recurringFrequency?: string | null;
-  originalCurrency?: string | null; originalAmount?: number | null; exchangeRate?: number | null;
+  nativeCurrencyId?: string | null; nativeAmount?: number | null; nativeCurrency?: CurrencyLite | null;
   category: { id: string; name: string; color: string; icon: string };
 }
 interface Category { id: string; name: string; icon: string; color: string; type: string; }
@@ -30,8 +31,8 @@ const fmt = (n: number) => (n / 100).toLocaleString();
 export function IncomeClient({
   transactions,
   categories,
+  currencies = [],
   dateFormat = "dd/MM/yyyy",
-  usdTopkrRate = 278,
   thisMonthIncome = 0,
   monthlyAvailable = 0,
   currentPeriod,
@@ -39,8 +40,8 @@ export function IncomeClient({
 }: {
   transactions: Transaction[];
   categories: Category[];
+  currencies?: CurrencyLite[];
   dateFormat?: string;
-  usdTopkrRate?: number;
   thisMonthIncome?: number;
   monthlyAvailable?: number;
   currentPeriod: { month: number; year: number };
@@ -54,12 +55,22 @@ export function IncomeClient({
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
+  const baseSymbol = currencies.find((c) => c.isBase)?.symbol ?? "Rs";
   const incomeCategories = categories.filter((c) => c.type === "INCOME" || c.type === "BOTH");
 
   const totalIncome = transactions.reduce((sum, t) => sum + t.amount, 0);
-  const usdTransactions = transactions.filter((t) => t.originalCurrency === "USD");
-  const usdTotalCents = usdTransactions.reduce((s, t) => s + (t.originalAmount ?? 0), 0);
-  const pkrOnlyIncome = totalIncome - usdTransactions.reduce((s, t) => s + t.amount, 0);
+  const nativeTransactions = transactions.filter((t) => t.nativeCurrencyId);
+  const baseOnlyIncome = totalIncome - nativeTransactions.reduce((s, t) => s + t.amount, 0);
+  // Group non-base income by currency, e.g. multiple USD entries + an EUR entry stay separate.
+  const nativeTotals = new Map<string, { currency: CurrencyLite; nativeTotal: number; baseTotal: number }>();
+  for (const t of nativeTransactions) {
+    if (!t.nativeCurrency) continue;
+    const entry = nativeTotals.get(t.nativeCurrency.id) ?? { currency: t.nativeCurrency, nativeTotal: 0, baseTotal: 0 };
+    entry.nativeTotal += t.nativeAmount ?? 0;
+    entry.baseTotal += t.amount;
+    nativeTotals.set(t.nativeCurrency.id, entry);
+  }
+  const nativeBreakdown = [...nativeTotals.values()];
 
   const periodKey = (m: number, y: number) => `${y}-${String(m).padStart(2, "0")}`;
   const currentKey = periodKey(currentPeriod.month, currentPeriod.year);
@@ -113,11 +124,11 @@ export function IncomeClient({
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
           <div className="bg-card px-5 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">This Month</p>
-            <div className="text-xl font-bold text-foreground tabnum">Rs {fmt(thisMonthIncome)}</div>
+            <div className="text-xl font-bold text-foreground tabnum">{baseSymbol} {fmt(thisMonthIncome)}</div>
           </div>
           <div className="bg-card px-5 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">Allocated</p>
-            <div className="text-xl font-bold text-amber-600 dark:text-amber-400 tabnum">Rs {fmt(allocated)}</div>
+            <div className="text-xl font-bold text-amber-600 dark:text-amber-400 tabnum">{baseSymbol} {fmt(allocated)}</div>
             <div className="text-xs text-muted-foreground mt-0.5">expenses + deposits</div>
           </div>
           <div className="bg-card px-5 py-4">
@@ -125,7 +136,7 @@ export function IncomeClient({
               Available
             </p>
             <div className={cn("text-xl font-bold tabnum", monthlyAvailable >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
-              Rs {fmt(Math.abs(monthlyAvailable))}
+              {baseSymbol} {fmt(Math.abs(monthlyAvailable))}
             </div>
             {monthlyAvailable < 0 && <div className="text-xs text-red-500 mt-0.5">over-allocated</div>}
           </div>
@@ -134,24 +145,24 @@ export function IncomeClient({
         {/* All-time summary + Add button */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="grid gap-px bg-border rounded-xl overflow-hidden border border-border"
-            style={{ gridTemplateColumns: `repeat(${1 + (usdTotalCents > 0 ? 1 : 0) + (usdTotalCents > 0 && pkrOnlyIncome > 0 ? 1 : 0)}, minmax(0,1fr))` }}>
+            style={{ gridTemplateColumns: `repeat(${1 + nativeBreakdown.length + (nativeBreakdown.length > 0 && baseOnlyIncome > 0 ? 1 : 0)}, minmax(0,1fr))` }}>
             <div className="bg-card px-5 py-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">Total Income (all time)</p>
-              <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabnum">Rs {(totalIncome / 100).toLocaleString()}</div>
+              <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabnum">{baseSymbol} {(totalIncome / 100).toLocaleString()}</div>
             </div>
-            {usdTotalCents > 0 && (
-              <div className="bg-card px-5 py-4">
+            {nativeBreakdown.map(({ currency, nativeTotal, baseTotal }) => (
+              <div key={currency.id} className="bg-card px-5 py-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-500 dark:text-blue-400 mb-1.5 flex items-center gap-1">
-                  <DollarSign className="h-2.5 w-2.5" />USD / Freelance
+                  <DollarSign className="h-2.5 w-2.5" />{currency.code}
                 </p>
-                <div className="text-xl font-bold text-blue-600 dark:text-blue-400 tabnum">$ {(usdTotalCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">≈ Rs {(usdTransactions.reduce((s, t) => s + t.amount, 0) / 100).toLocaleString()}</div>
+                <div className="text-xl font-bold text-blue-600 dark:text-blue-400 tabnum">{currency.symbol} {(nativeTotal / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">≈ {baseSymbol} {(baseTotal / 100).toLocaleString()}</div>
               </div>
-            )}
-            {usdTotalCents > 0 && pkrOnlyIncome > 0 && (
+            ))}
+            {nativeBreakdown.length > 0 && baseOnlyIncome > 0 && (
               <div className="bg-card px-5 py-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">Salary / PKR</p>
-                <div className="text-xl font-bold text-foreground tabnum">Rs {(pkrOnlyIncome / 100).toLocaleString()}</div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 mb-1.5">Other income</p>
+                <div className="text-xl font-bold text-foreground tabnum">{baseSymbol} {(baseOnlyIncome / 100).toLocaleString()}</div>
               </div>
             )}
           </div>
@@ -223,6 +234,7 @@ export function IncomeClient({
 
         <TransactionList
           transactions={filtered}
+          baseSymbol={baseSymbol}
           onEdit={(tx) => { setEditingTx(tx); setOpen(true); }}
         />
       </div>
@@ -237,7 +249,7 @@ export function IncomeClient({
             categories={incomeCategories}
             transaction={editingTx}
             dateFormat={dateFormat}
-            usdTopkrRate={usdTopkrRate}
+            currencies={currencies}
             openPeriod={currentPeriod}
             onSuccess={() => setOpen(false)}
           />

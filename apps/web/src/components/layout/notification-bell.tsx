@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import type { AppNotification } from "@/actions/notifications";
 
-const STORAGE_KEY = "coffer-dismissed-notifications";
+const STORAGE_KEY = "align-dismissed-notifications";
 
 const config: Record<AppNotification["type"], { icon: React.ElementType; className: string }> = {
   error:   { icon: AlertTriangle, className: "text-red-500" },

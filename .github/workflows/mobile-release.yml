@@ -63,9 +63,6 @@ jobs:
           EOF
 
       - name: Build signed APK
-        env:
-          APP_NAME: ${{ vars.MOBILE_APP_NAME || 'Coffer' }}
-          APP_ID: ${{ vars.MOBILE_APP_ID || 'com.coffer.app' }}
         run: |
           VERSION="${{ github.ref_name }}"
           BUILD_NAME="${VERSION#v}"
@@ -73,28 +70,23 @@ jobs:
             --no-pub \
             --target-platform android-arm64 \
             --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }} \
-            --dart-define=APP_NAME="$APP_NAME" \
-            -PappName="$APP_NAME" \
-            -PappId="$APP_ID" \
             --build-name="$BUILD_NAME" \
             --build-number=${{ github.run_number }} \
             --split-debug-info=build/debug-symbols \
             --obfuscate
 
-      # Guard: the launcher label must match the configured app name. Catches
-      # the branding flags silently going missing from the build step above -
-      # already happened once, the APK just installed labeled "Coffer".
+      # Guard: the launcher label must be "Align". Catches branding
+      # regressions in app_constants.dart / build.gradle.kts - already
+      # happened once, the APK just installed labeled "Coffer".
       - name: Verify branding
-        env:
-          EXPECTED_LABEL: ${{ vars.MOBILE_APP_NAME || 'Coffer' }}
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
           AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt 2>/dev/null | sort -V | tail -1)"
           if [ -z "$AAPT" ]; then echo "::error::aapt not found"; exit 1; fi
           LABEL="$("$AAPT" dump badging "$APK" | grep -oE "application-label:'[^']*'" | head -1 | cut -d"'" -f2)"
           echo "APK launcher label: '$LABEL'"
-          if [ "$LABEL" != "$EXPECTED_LABEL" ]; then
-            echo "::error::APK label is '$LABEL', expected '$EXPECTED_LABEL'. The branding flags are missing from the build step."
+          if [ "$LABEL" != "Align" ]; then
+            echo "::error::APK label is '$LABEL', expected 'Align'."
             exit 1
           fi
 
@@ -102,7 +94,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: apps/mobile/build/app/outputs/flutter-apk/app-release.apk
-          name: "${{ vars.MOBILE_APP_NAME || 'Coffer' }} ${{ github.ref_name }}"
+          name: "Align ${{ github.ref_name }}"
           generate_release_notes: true
           # Draft, not published: API_BASE_URL is baked into the compiled APK
           # as a plain string, so a publicly-published release would leak

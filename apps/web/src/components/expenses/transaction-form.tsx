@@ -30,14 +30,17 @@ const schema = z.object({
   isRecurring: z.boolean(),
   recurringFrequency: z.string().optional(),
   tags: z.string().optional(),
+  isRegretPurchase: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 interface SplitSource {
-  value: string;      // "INCOME" | "POT:id:currency"
-  pkrAmount: string;  // Rs amount as string (user input)
+  value: string;      // "INCOME" | "POT:id:currencyId"
+  pkrAmount: string;  // base-currency amount as string (user input)
 }
+
+interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
 
 interface Props {
   defaultType: "EXPENSE" | "INCOME";
@@ -46,25 +49,24 @@ interface Props {
   transaction?: {
     id: string; amount: number; categoryId: string; description: string;
     notes?: string | null; date: Date; budgetMonth?: number; budgetYear?: number; isRecurring: boolean;
-    recurringFrequency?: string | null; tags: string;
-    originalCurrency?: string | null; originalAmount?: number | null; exchangeRate?: number | null;
-    fundingSource?: string; fundingPotId?: string | null; fundingCurrency?: string | null; fundingAmount?: number | null;
-    fundingSources?: { priority: number; source: string; potId: string | null; currency: string | null; pkrAmount: number; pot?: { id: string; name: string; type: string } | null }[];
+    recurringFrequency?: string | null; tags: string; isRegretPurchase?: boolean;
+    fundingSource?: string; fundingPotId?: string | null; fundingCurrencyId?: string | null; fundingAmount?: number | null;
+    fundingSources?: { priority: number; source: string; potId: string | null; currencyId: string | null; pkrAmount: number; pot?: { id: string; name: string; type: string } | null }[];
   } | null;
   budgetByCategoryId?: Record<string, { allocated: number; spent: number }>;
+  // Currencies the household has configured - used for the income native-currency picker.
+  currencies?: CurrencyLite[];
   fundingContext?: {
     monthlyIncomeAvailable: number;
-    usdTopkrRate: number;
-    pots: { id: string; name: string; type: string; currentAmount: number; currentAmountUsd: number }[];
+    pots: { id: string; name: string; type: string; balances: { amount: number; currency: CurrencyLite }[] }[];
   };
   dateFormat?: string;
-  usdTopkrRate?: number;
   onSuccess: () => void;
 }
 
 // ─── helpers ───────────────────────────────────────────────────────────────────
 
-const IMPULSE_THRESHOLD = 5000; // Rs 5,000
+const IMPULSE_THRESHOLD = 5000; // base-currency 5,000
 
 function dateFormatToLang(fmt: string): string {
   if (fmt.startsWith("MM/dd")) return "en-US";
@@ -73,13 +75,12 @@ function dateFormatToLang(fmt: string): string {
 }
 
 function fmtMoney(paisas: number) { return (paisas / 100).toLocaleString(); }
-function fmtUsd(cents: number) { return (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
 /** Parse a funding picker value into action-ready data. */
-function parseFundingValue(value: string): { source: "INCOME" | "SAVINGS_POT"; potId?: string; currency?: "PKR" | "USD" } {
+function parseFundingValue(value: string): { source: "INCOME" | "SAVINGS_POT"; potId?: string; currencyId?: string } {
   if (value.startsWith("POT:")) {
-    const [, potId, currency] = value.split(":");
-    return { source: "SAVINGS_POT", potId, currency: currency === "USD" ? "USD" : "PKR" };
+    const [, potId, currencyId] = value.split(":");
+    return { source: "SAVINGS_POT", potId, currencyId };
   }
   return { source: "INCOME" };
 }
@@ -90,22 +91,23 @@ function fundingValueFromTransaction(t?: Props["transaction"]): string {
     // Split transactions are shown in locked summary - return INCOME as default for new
     return "INCOME";
   }
-  if (t?.fundingSource === "SAVINGS_POT" && t.fundingPotId) {
-    return `POT:${t.fundingPotId}:${t.fundingCurrency === "USD" ? "USD" : "PKR"}`;
+  if (t?.fundingSource === "SAVINGS_POT" && t.fundingPotId && t.fundingCurrencyId) {
+    return `POT:${t.fundingPotId}:${t.fundingCurrencyId}`;
   }
   return "INCOME";
 }
 
 // ─── funding picker options ──────────────────────────────────────────────────
 
-function buildFundingOptions(fundingContext: Props["fundingContext"]): FundingOption[] {
+function buildFundingOptions(fundingContext: Props["fundingContext"], baseSymbol: string): FundingOption[] {
   if (!fundingContext) return [];
   const opts: FundingOption[] = [
-    { value: "INCOME", label: `Monthly income · Rs ${fmtMoney(Math.max(0, fundingContext.monthlyIncomeAvailable))} available` },
+    { value: "INCOME", label: `Monthly income · ${baseSymbol} ${fmtMoney(Math.max(0, fundingContext.monthlyIncomeAvailable))} available` },
   ];
   for (const pot of fundingContext.pots) {
-    if (pot.currentAmount > 0) opts.push({ value: `POT:${pot.id}:PKR`, label: `${pot.name} (${pot.type}) · Rs ${fmtMoney(pot.currentAmount)}` });
-    if (pot.currentAmountUsd > 0) opts.push({ value: `POT:${pot.id}:USD`, label: `${pot.name} (${pot.type}) · $ ${fmtUsd(pot.currentAmountUsd)}` });
+    for (const b of pot.balances) {
+      if (b.amount > 0) opts.push({ value: `POT:${pot.id}:${b.currency.id}`, label: `${pot.name} (${pot.type}) · ${b.currency.symbol} ${fmtMoney(b.amount)}` });
+    }
   }
   return opts;
 }
@@ -133,8 +135,9 @@ function FundingSelect({
 
 export function TransactionForm({
   defaultType, categories, transaction, budgetByCategoryId = {},
-  fundingContext, dateFormat = "dd/MM/yyyy", usdTopkrRate = 278, openPeriod, onSuccess,
+  currencies = [], fundingContext, dateFormat = "dd/MM/yyyy", openPeriod, onSuccess,
 }: Props) {
+  const baseCurrency = currencies.find((c) => c.isBase) ?? { id: "", code: "PKR", symbol: "Rs", rateToBase: 1, isBase: true };
   const [loading, setLoading] = useState(false);
   const [periodOverride, setPeriodOverride] = useState<PeriodOverride>(() => ({
     enabled: false,
@@ -142,10 +145,11 @@ export function TransactionForm({
     year: transaction?.budgetYear ?? openPeriod.year,
   }));
   const [isRecurring, setIsRecurring] = useState(transaction?.isRecurring ?? false);
+  const [isRegretPurchase, setIsRegretPurchase] = useState(transaction?.isRegretPurchase ?? false);
   const [selectedCategory, setSelectedCategory] = useState(transaction?.categoryId ?? "");
   const [impulseCheck, setImpulseCheck] = useState<{ data: FormValues } | null>(null);
-  const [incomeCurrency, setIncomeCurrency] = useState<"PKR" | "USD">(transaction?.originalCurrency === "USD" ? "USD" : "PKR");
-  const [usdExchangeRate, setUsdExchangeRate] = useState(transaction?.exchangeRate ?? usdTopkrRate);
+  const [incomeCurrencyId, setIncomeCurrencyId] = useState(baseCurrency.id);
+  const [nativeRate, setNativeRate] = useState(baseCurrency.rateToBase);
 
   // Funding: either single source OR split
   const isExistingSplit = transaction?.fundingSource === "SPLIT";
@@ -156,7 +160,7 @@ export function TransactionForm({
       return [...transaction.fundingSources]
         .sort((a, b) => a.priority - b.priority)
         .map((s) => ({
-          value: s.potId ? `POT:${s.potId}:${s.currency ?? "PKR"}` : "INCOME",
+          value: s.potId && s.currencyId ? `POT:${s.potId}:${s.currencyId}` : "INCOME",
           pkrAmount: String(s.pkrAmount / 100),
         }));
     }
@@ -174,6 +178,7 @@ export function TransactionForm({
       isRecurring: transaction?.isRecurring ?? false,
       recurringFrequency: transaction?.recurringFrequency ?? "",
       tags: transaction?.tags ?? "",
+      isRegretPurchase: transaction?.isRegretPurchase ?? false,
     },
   });
 
@@ -182,12 +187,14 @@ export function TransactionForm({
   const remaining = budget ? budget.allocated - budget.spent : null;
   const isOverBudget = remaining !== null && remaining < 0;
   const isEditingExpense = !!transaction && defaultType === "EXPENSE";
-  const showUsdToggle = defaultType === "INCOME" && !transaction;
-  const fundingOptions = buildFundingOptions(fundingContext);
+  const showCurrencyToggle = defaultType === "INCOME" && !transaction && currencies.length > 1;
+  const selectedCurrency = currencies.find((c) => c.id === incomeCurrencyId) ?? baseCurrency;
+  const isNativeIncome = showCurrencyToggle && incomeCurrencyId !== baseCurrency.id;
+  const fundingOptions = buildFundingOptions(fundingContext, baseCurrency.symbol);
 
   // Build splitSources payload for submit
   function buildSplitPayload(totalAmount: number): {
-    splitSources: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currency?: "PKR" | "USD"; pkrAmount: number }[];
+    splitSources: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currencyId?: string; pkrAmount: number }[];
   } | null {
     if (!useSplit || splitSources.length < 2) return null;
     const totalPaisas = Math.round(totalAmount * 100);
@@ -205,12 +212,11 @@ export function TransactionForm({
     setLoading(true);
     try {
       const rawAmount = parseFloat(data.amount);
-      const isUsdIncome = defaultType === "INCOME" && incomeCurrency === "USD" && !transaction;
-      const pkrAmount = isUsdIncome ? rawAmount * usdExchangeRate : rawAmount;
+      const pkrAmount = isNativeIncome ? rawAmount * nativeRate : rawAmount;
 
       const splitPayload = defaultType === "EXPENSE" && !isEditingExpense ? buildSplitPayload(pkrAmount) : null;
 
-      let singleFunding: { fundingSource: string; fundingPotId?: string; fundingCurrency?: "PKR" | "USD" } = {
+      let singleFunding: { fundingSource: string; fundingPotId?: string; fundingCurrencyId?: string } = {
         fundingSource: "INCOME",
       };
       if (defaultType === "EXPENSE" && !splitPayload) {
@@ -218,7 +224,7 @@ export function TransactionForm({
         singleFunding = {
           fundingSource: parsed.source,
           fundingPotId: parsed.potId,
-          fundingCurrency: parsed.currency,
+          fundingCurrencyId: parsed.currencyId,
         };
       }
 
@@ -232,15 +238,15 @@ export function TransactionForm({
         isRecurring: data.isRecurring,
         recurringFrequency: data.recurringFrequency || undefined,
         tags: data.tags ?? "",
+        isRegretPurchase: defaultType === "EXPENSE" ? data.isRegretPurchase : false,
         ...(periodOverride.enabled ? { budgetMonth: periodOverride.month, budgetYear: periodOverride.year } : {}),
-        ...(isUsdIncome ? { originalCurrency: "USD", originalAmount: rawAmount, exchangeRate: usdExchangeRate } : {}),
+        ...(isNativeIncome ? { nativeCurrencyId: incomeCurrencyId, nativeAmount: rawAmount } : {}),
         ...singleFunding,
         ...(splitPayload ?? {}),
       };
 
       if (transaction) {
-        const { originalCurrency: _oc, originalAmount: _oa, exchangeRate: _er, ...updateBase } = base as typeof base & { originalCurrency?: string; originalAmount?: number; exchangeRate?: number };
-        const result = await updateTransaction(transaction.id, { ...updateBase, amount: rawAmount });
+        const result = await updateTransaction(transaction.id, { ...base, amount: rawAmount });
         if (result.success) { toast.success("Transaction updated"); onSuccess(); }
         else toast.error(result.error ?? "Something went wrong");
         return;
@@ -290,7 +296,7 @@ export function TransactionForm({
         <div className="rounded-xl border-2 border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 p-5 text-center space-y-2">
           <div className="text-3xl">⏸️</div>
           <div className="font-bold text-lg text-foreground">Hold on - big spend!</div>
-          <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">Rs {amount.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{baseCurrency.symbol} {amount.toLocaleString()}</div>
           <p className="text-sm text-muted-foreground">
             Was <span className="font-medium">"{impulseCheck.data.description}"</span> planned, or did it just pop into your head?
           </p>
@@ -323,7 +329,7 @@ export function TransactionForm({
           <div className="grid grid-cols-3 gap-3 text-sm">
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">Amount</p>
-              <p className="font-semibold">Rs {fmtMoney(transaction.amount)}</p>
+              <p className="font-semibold">{baseCurrency.symbol} {fmtMoney(transaction.amount)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">Date</p>
@@ -338,7 +344,7 @@ export function TransactionForm({
                     .map((s, i) => (
                       <p key={i} className="font-semibold text-xs">
                         {s.source === "INCOME" ? "Income" : s.pot?.name ?? "Savings pot"}
-                        {" · Rs "}{fmtMoney(s.pkrAmount)}
+                        {" · "}{baseCurrency.symbol} {fmtMoney(s.pkrAmount)}
                       </p>
                     ))}
                 </div>
@@ -355,13 +361,13 @@ export function TransactionForm({
       {!isEditingExpense && (
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <Label htmlFor="amount">Amount {incomeCurrency === "USD" ? "(USD $)" : "(Rs)"}</Label>
-            {showUsdToggle && (
-              <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 text-xs">
-                {(["PKR", "USD"] as const).map((c) => (
-                  <button key={c} type="button" onClick={() => setIncomeCurrency(c)}
-                    className={cn("px-2 py-1 rounded-md font-semibold transition-colors", incomeCurrency === c ? "bg-background shadow text-foreground" : "text-muted-foreground")}>
-                    {c === "PKR" ? "Rs PKR" : "$ USD"}
+            <Label htmlFor="amount">Amount ({selectedCurrency.symbol} {selectedCurrency.code})</Label>
+            {showCurrencyToggle && (
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 text-xs flex-wrap">
+                {currencies.map((c) => (
+                  <button key={c.id} type="button" onClick={() => { setIncomeCurrencyId(c.id); setNativeRate(c.rateToBase); }}
+                    className={cn("px-2 py-1 rounded-md font-semibold transition-colors", incomeCurrencyId === c.id ? "bg-background shadow text-foreground" : "text-muted-foreground")}>
+                    {c.symbol} {c.code}
                   </button>
                 ))}
               </div>
@@ -369,14 +375,14 @@ export function TransactionForm({
           </div>
           <Input id="amount" type="number" step="0.01" placeholder="0.00" className="text-lg font-semibold" {...register("amount")} />
           {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
-          {showUsdToggle && incomeCurrency === "USD" && (
+          {isNativeIncome && (
             <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
-              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium shrink-0">1 USD =</span>
-              <input type="number" step="0.01" value={usdExchangeRate}
-                onChange={(e) => setUsdExchangeRate(parseFloat(e.target.value) || usdTopkrRate)}
+              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium shrink-0">1 {selectedCurrency.code} =</span>
+              <input type="number" step="0.01" value={nativeRate}
+                onChange={(e) => setNativeRate(parseFloat(e.target.value) || selectedCurrency.rateToBase)}
                 className="w-24 text-xs font-semibold bg-transparent border-b border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 focus:outline-none" />
-              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">PKR</span>
-              <span className="text-xs text-blue-500 ml-auto">≈ Rs {((parseFloat(watchedAmount) || 0) * usdExchangeRate).toLocaleString()}</span>
+              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">{baseCurrency.code}</span>
+              <span className="text-xs text-blue-500 ml-auto">≈ {baseCurrency.symbol} {((parseFloat(watchedAmount) || 0) * nativeRate).toLocaleString()}</span>
             </div>
           )}
         </div>
@@ -403,8 +409,8 @@ export function TransactionForm({
           <div className={cn("flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg", isOverBudget ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300")}>
             {isOverBudget ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
             {isOverBudget
-              ? `Rs ${(Math.abs(remaining) / 100).toLocaleString()} over budget this month`
-              : `Rs ${(remaining / 100).toLocaleString()} remaining in budget this month`}
+              ? `${baseCurrency.symbol} ${(Math.abs(remaining) / 100).toLocaleString()} over budget this month`
+              : `${baseCurrency.symbol} ${(remaining / 100).toLocaleString()} remaining in budget this month`}
           </div>
         )}
         {defaultType === "EXPENSE" && selectedCategory && !budget && (
@@ -443,6 +449,7 @@ export function TransactionForm({
                 options={fundingOptions}
                 value={splitSources}
                 onChange={setSplitSources}
+                baseSymbol={baseCurrency.symbol}
               />
             </div>
           )}
@@ -469,6 +476,14 @@ export function TransactionForm({
         <Label htmlFor="notes">Notes (optional)</Label>
         <Textarea id="notes" rows={2} placeholder="Additional details..." {...register("notes")} />
       </div>
+
+      {/* Regret purchase */}
+      {defaultType === "EXPENSE" && (
+        <div className="flex items-center gap-2">
+          <Checkbox id="regret" checked={isRegretPurchase} onCheckedChange={(v) => { const c = !!v; setIsRegretPurchase(c); setValue("isRegretPurchase", c); }} />
+          <Label htmlFor="regret" className="cursor-pointer">Regret buy - wish I hadn't</Label>
+        </div>
+      )}
 
       {/* Recurring */}
       <div className="flex items-center gap-2">

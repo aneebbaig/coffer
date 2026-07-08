@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 /**
- * better-auth is the single auth system (fleet standard). Coffer specifics:
+ * better-auth is the single auth system (fleet standard). Align specifics:
  * - Custom bcrypt hash/verify so EXISTING users (whose passwords are bcrypt
  *   `hashedPassword` values, backfilled into the account table) keep working.
  * - disableSignUp: multi-user household, no open registration. New users are

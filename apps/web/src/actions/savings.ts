@@ -6,23 +6,32 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentPeriod } from "@/lib/month";
 import { toPaisas } from "@/lib/utils";
 import { creditPot, debitPot } from "@/lib/pot-helpers";
+import { getCurrencies, getPotBalancesInBase } from "@/lib/currency-helpers";
 import { ActionResult } from "@/types";
 
+export interface CurrencyAvailability {
+  currencyId: string;
+  code: string;
+  symbol: string;
+  isBase: boolean;
+  available: number; // smallest unit of that currency
+}
+
 export async function getIncomeAvailableForPot(): Promise<{
-  pkrAvailable: number;
-  usdAvailable: number;
-  totalIncome: number;
+  totalIncome: number; // base currency
+  perCurrency: CurrencyAvailability[];
 }> {
   const authUser = await getAuthenticatedUser({ currentBudgetMonth: true, currentBudgetYear: true });
   const userId = authUser.id;
   const { month, year } = getCurrentPeriod(authUser.currentBudgetMonth as number | null, authUser.currentBudgetYear as number | null);
 
   const userPotIds = (await prisma.savingsPot.findMany({ where: { userId }, select: { id: true } })).map((p) => p.id);
+  const currencies = await getCurrencies();
 
   const [monthIncomeTx, incomeFundedExpenses, existingPotDeposits] = await Promise.all([
     prisma.transaction.findMany({
       where: { userId, type: "INCOME", budgetMonth: month, budgetYear: year },
-      select: { amount: true, originalCurrency: true, originalAmount: true },
+      select: { amount: true, nativeCurrencyId: true, nativeAmount: true },
     }),
     prisma.transaction.aggregate({
       where: { userId, type: "EXPENSE", fundingSource: "INCOME", budgetMonth: month, budgetYear: year },
@@ -30,29 +39,29 @@ export async function getIncomeAvailableForPot(): Promise<{
     }),
     prisma.savingsPotEntry.findMany({
       where: { potId: { in: userPotIds }, sourceType: "INCOME", budgetMonth: month, budgetYear: year },
-      select: { amount: true, amountUsd: true, currency: true },
+      select: { amount: true, currencyId: true },
     }),
   ]);
 
-  const totalPkrIncome = monthIncomeTx.reduce((s, t) => s + t.amount, 0);
-  const pkrExpenses = incomeFundedExpenses._sum.amount ?? 0;
-  const pkrPotDeposits = existingPotDeposits.filter((e) => e.currency === "PKR").reduce((s, e) => s + e.amount, 0);
-  const pkrAvailable = Math.max(0, totalPkrIncome - pkrExpenses - pkrPotDeposits);
+  const totalBaseIncome = monthIncomeTx.reduce((s, t) => s + t.amount, 0);
+  const baseExpenses = incomeFundedExpenses._sum.amount ?? 0;
 
-  const totalUsdIncome = monthIncomeTx
-    .filter((t) => t.originalCurrency === "USD")
-    .reduce((s, t) => s + (t.originalAmount ?? 0), 0);
-  const usdPotDeposits = existingPotDeposits.filter((e) => e.currency === "USD").reduce((s, e) => s + e.amountUsd, 0);
-  const usdAvailable = Math.max(0, totalUsdIncome - usdPotDeposits);
+  const perCurrency: CurrencyAvailability[] = currencies.map((c) => {
+    const deposits = existingPotDeposits.filter((e) => e.currencyId === c.id).reduce((s, e) => s + e.amount, 0);
+    const available = c.isBase
+      ? totalBaseIncome - baseExpenses - deposits
+      : monthIncomeTx.filter((t) => t.nativeCurrencyId === c.id).reduce((s, t) => s + (t.nativeAmount ?? 0), 0) - deposits;
+    return { currencyId: c.id, code: c.code, symbol: c.symbol, isBase: c.isBase, available: Math.max(0, available) };
+  });
 
-  return { pkrAvailable, usdAvailable, totalIncome: totalPkrIncome };
+  return { totalIncome: totalBaseIncome, perCurrency };
 }
 
 export async function getSavingsPots() {
   const userId = await getUserId();
   return prisma.savingsPot.findMany({
     where: { userId },
-    include: { linkedGoal: true },
+    include: { linkedGoal: true, balances: { include: { currency: true } } },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -89,7 +98,7 @@ export async function createSavingsPot(data: {
 export async function addMoneyToPot(
   potId: string,
   amount: number,
-  currency: "PKR" | "USD" = "PKR",
+  currencyId: string,
   description?: string,
   sourceType: "INCOME" | "MANUAL" = "MANUAL"
 ): Promise<ActionResult> {
@@ -98,6 +107,8 @@ export async function addMoneyToPot(
     const userId = authUser.id;
     const pot = await prisma.savingsPot.findFirst({ where: { id: potId, userId } });
     if (!pot) return { success: false, error: "Not found" };
+    const currency = await prisma.currency.findUnique({ where: { id: currencyId } });
+    if (!currency) return { success: false, error: "Currency not found" };
 
     const amountInUnits = toPaisas(amount);
     const { month, year } = getCurrentPeriod(authUser.currentBudgetMonth as number | null, authUser.currentBudgetYear as number | null);
@@ -108,7 +119,7 @@ export async function addMoneyToPot(
       const [monthIncomeTx, incomeFundedExpenses, existingPotDeposits] = await Promise.all([
         prisma.transaction.findMany({
           where: { userId, type: "INCOME", budgetMonth: month, budgetYear: year },
-          select: { amount: true, originalCurrency: true, originalAmount: true },
+          select: { amount: true, nativeCurrencyId: true, nativeAmount: true },
         }),
         prisma.transaction.aggregate({
           where: { userId, type: "EXPENSE", fundingSource: "INCOME", budgetMonth: month, budgetYear: year },
@@ -116,32 +127,29 @@ export async function addMoneyToPot(
         }),
         prisma.savingsPotEntry.findMany({
           where: { potId: { in: userPotIds }, sourceType: "INCOME", budgetMonth: month, budgetYear: year },
-          select: { amount: true, amountUsd: true, currency: true },
+          select: { amount: true, currencyId: true },
         }),
       ]);
 
-      if (currency === "PKR") {
-        const totalPkrIncome = monthIncomeTx.reduce((s, t) => s + t.amount, 0);
-        const pkrExpenses = incomeFundedExpenses._sum.amount ?? 0;
-        const pkrPotDeposits = existingPotDeposits.filter((e) => e.currency === "PKR").reduce((s, e) => s + e.amount, 0);
-        const available = totalPkrIncome - pkrExpenses - pkrPotDeposits;
+      const deposits = existingPotDeposits.filter((e) => e.currencyId === currencyId).reduce((s, e) => s + e.amount, 0);
+      if (currency.isBase) {
+        const totalIncome = monthIncomeTx.reduce((s, t) => s + t.amount, 0);
+        const expenses = incomeFundedExpenses._sum.amount ?? 0;
+        const available = totalIncome - expenses - deposits;
         if (available < amountInUnits) {
-          return { success: false, error: `Insufficient income available this month: Rs ${(Math.max(0, available) / 100).toLocaleString()}` };
+          return { success: false, error: `Insufficient income available this month: ${currency.symbol} ${(Math.max(0, available) / 100).toLocaleString()}` };
         }
       } else {
-        const totalUsdIncome = monthIncomeTx
-          .filter((t) => t.originalCurrency === "USD")
-          .reduce((s, t) => s + (t.originalAmount ?? 0), 0);
-        const usdPotDeposits = existingPotDeposits.filter((e) => e.currency === "USD").reduce((s, e) => s + e.amountUsd, 0);
-        const available = totalUsdIncome - usdPotDeposits;
+        const nativeIncome = monthIncomeTx.filter((t) => t.nativeCurrencyId === currencyId).reduce((s, t) => s + (t.nativeAmount ?? 0), 0);
+        const available = nativeIncome - deposits;
         if (available < amountInUnits) {
-          return { success: false, error: `Insufficient USD income available this month: $${(Math.max(0, available) / 100).toFixed(2)}` };
+          return { success: false, error: `Insufficient ${currency.code} income available this month: ${currency.symbol} ${(Math.max(0, available) / 100).toLocaleString()}` };
         }
       }
     }
 
     await prisma.$transaction(async (tx) => {
-      await creditPot(tx, potId, amountInUnits, currency, description ?? "Deposit", sourceType, { budgetMonth: month, budgetYear: year });
+      await creditPot(tx, potId, amountInUnits, currencyId, description ?? "Deposit", sourceType, { budgetMonth: month, budgetYear: year });
     });
 
     revalidatePath("/savings");
@@ -157,30 +165,30 @@ export async function transferBetweenPots(
   fromPotId: string,
   toPotId: string,
   amount: number,
-  currency: "PKR" | "USD" = "PKR"
+  currencyId: string
 ): Promise<ActionResult> {
   try {
     const authUser = await getAuthenticatedUser({ currentBudgetMonth: true, currentBudgetYear: true });
     const userId = authUser.id;
     const { month, year } = getCurrentPeriod(authUser.currentBudgetMonth as number | null, authUser.currentBudgetYear as number | null);
-    const [fromPot, toPot] = await Promise.all([
+    const [fromPot, toPot, fromBalance, currency] = await Promise.all([
       prisma.savingsPot.findFirst({ where: { id: fromPotId, userId } }),
       prisma.savingsPot.findFirst({ where: { id: toPotId, userId } }),
+      prisma.savingsPotBalance.findUnique({ where: { potId_currencyId: { potId: fromPotId, currencyId } } }),
+      prisma.currency.findUnique({ where: { id: currencyId } }),
     ]);
     if (!fromPot || !toPot) return { success: false, error: "Pot not found" };
+    if (!currency) return { success: false, error: "Currency not found" };
 
     const amountInUnits = toPaisas(amount);
 
-    if (currency === "USD" && fromPot.currentAmountUsd < amountInUnits) {
-      return { success: false, error: "Insufficient USD balance" };
-    }
-    if (currency === "PKR" && fromPot.currentAmount < amountInUnits) {
-      return { success: false, error: "Insufficient PKR balance" };
+    if ((fromBalance?.amount ?? 0) < amountInUnits) {
+      return { success: false, error: `Insufficient ${currency.code} balance` };
     }
 
     await prisma.$transaction(async (tx) => {
-      await debitPot(tx, fromPotId, amountInUnits, currency, `Transfer to ${toPot.name}`, "POT_TRANSFER", { budgetMonth: month, budgetYear: year });
-      await creditPot(tx, toPotId, amountInUnits, currency, `Transfer from ${fromPot.name}`, "POT_TRANSFER", { budgetMonth: month, budgetYear: year });
+      await debitPot(tx, fromPotId, amountInUnits, currencyId, `Transfer to ${toPot.name}`, "POT_TRANSFER", { budgetMonth: month, budgetYear: year });
+      await creditPot(tx, toPotId, amountInUnits, currencyId, `Transfer from ${fromPot.name}`, "POT_TRANSFER", { budgetMonth: month, budgetYear: year });
     });
 
     revalidatePath("/savings");
@@ -195,29 +203,31 @@ export async function transferBetweenPots(
 export async function withdrawFromPot(
   potId: string,
   amount: number,
-  currency: "PKR" | "USD" = "PKR",
+  currencyId: string,
   description?: string
 ): Promise<ActionResult> {
   try {
     const authUser = await getAuthenticatedUser({ currentBudgetMonth: true, currentBudgetYear: true });
     const userId = authUser.id;
     const { month, year } = getCurrentPeriod(authUser.currentBudgetMonth as number | null, authUser.currentBudgetYear as number | null);
-    const pot = await prisma.savingsPot.findFirst({ where: { id: potId, userId } });
+    const [pot, balance, currency] = await Promise.all([
+      prisma.savingsPot.findFirst({ where: { id: potId, userId } }),
+      prisma.savingsPotBalance.findUnique({ where: { potId_currencyId: { potId, currencyId } } }),
+      prisma.currency.findUnique({ where: { id: currencyId } }),
+    ]);
     if (!pot) return { success: false, error: "Not found" };
+    if (!currency) return { success: false, error: "Currency not found" };
 
     const amountInUnits = toPaisas(amount);
 
-    if (currency === "USD" && pot.currentAmountUsd < amountInUnits) {
-      return { success: false, error: "Insufficient USD balance" };
-    }
-    if (currency === "PKR" && pot.currentAmount < amountInUnits) {
-      return { success: false, error: "Insufficient PKR balance" };
+    if ((balance?.amount ?? 0) < amountInUnits) {
+      return { success: false, error: `Insufficient ${currency.code} balance` };
     }
 
     await prisma.$transaction(async (tx) => {
       // sourceType INCOME so the signed-negative entry nets against income deposits,
       // freeing the income pool for re-assignment (YNAB: correction returns to Ready to Assign)
-      await debitPot(tx, potId, amountInUnits, currency, description ?? "Correction", "INCOME", { budgetMonth: month, budgetYear: year });
+      await debitPot(tx, potId, amountInUnits, currencyId, description ?? "Correction", "INCOME", { budgetMonth: month, budgetYear: year });
     });
 
     revalidatePath("/savings");
@@ -349,22 +359,18 @@ export async function getAverageMonthlyExpenses(): Promise<number> {
 export async function getFinancialPosition() {
   const userId = await getUserId();
 
-  const [user, transactions, savingsPots, investments, loans] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { usdTopkrRate: true } }),
+  const [transactions, savingsPotsTotal, investments, loans] = await Promise.all([
     prisma.transaction.findMany({ where: { userId }, select: { amount: true, type: true } }),
-    prisma.savingsPot.findMany({ where: { userId }, select: { currentAmount: true, currentAmountUsd: true } }),
+    getPotBalancesInBase(userId),
     prisma.investment.findMany({ where: { userId }, select: { currentValue: true } }),
     prisma.loan.findMany({ where: { userId, status: { not: "PAID" } }, select: { remainingAmount: true, type: true } }),
   ]);
 
-  const rate = user?.usdTopkrRate ?? 278;
   const totalIncome = transactions.filter((t) => t.type === "INCOME").reduce((s, t) => s + t.amount, 0);
   const totalExpenses = transactions.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0);
+  // Income minus expenses only - pot deposits never create a Transaction row
+  // (see pot-helpers.ts), so this already includes whatever's sitting in pots.
   const accumulatedSavings = totalIncome - totalExpenses;
-
-  const savingsPotsTotal = savingsPots.reduce((s, p) => {
-    return s + p.currentAmount + Math.round(p.currentAmountUsd * rate);
-  }, 0);
 
   const investmentsTotal = investments.reduce((s, i) => s + i.currentValue, 0);
   const loansOwed = loans.filter((l) => l.type === "RECEIVED").reduce((s, l) => s + l.remainingAmount, 0);
@@ -376,8 +382,10 @@ export async function getFinancialPosition() {
     investmentsTotal,
     loansOwed,
     loansReceivable,
-    liquidAvailable: accumulatedSavings + savingsPotsTotal,
-    netWorth: accumulatedSavings + savingsPotsTotal + investmentsTotal - loansOwed + loansReceivable,
+    // Cash on hand, not already committed to a savings pot - what Liquid
+    // Savings used to represent, now computed live instead of being a pot.
+    liquidAvailable: accumulatedSavings - savingsPotsTotal,
+    netWorth: accumulatedSavings + investmentsTotal - loansOwed + loansReceivable,
   };
 }
 

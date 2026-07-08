@@ -12,6 +12,7 @@ const patchSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
   dueDate: z.string().nullable().optional(),
   order: z.number().int().optional(),
+  tagIds: z.array(z.string()).optional(),
 });
 
 export async function PATCH(
@@ -37,18 +38,31 @@ export async function PATCH(
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { title, description, status, priority, dueDate, order } = parsed.data;
+    const { title, description, status, priority, dueDate, order, tagIds } = parsed.data;
 
-    await prisma.projectTask.update({
-      where: { id: taskId },
-      data: {
-        ...(title !== undefined && { title }),
-        ...(description !== undefined && { description }),
-        ...(status !== undefined && { status }),
-        ...(priority !== undefined && { priority }),
-        ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
-        ...(order !== undefined && { order }),
-      },
+    if (tagIds) {
+      const owned = await prisma.tag.count({ where: { id: { in: tagIds }, userId: auth.id } });
+      if (owned !== tagIds.length) return NextResponse.json({ error: "Invalid tag" }, { status: 400 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.projectTask.update({
+        where: { id: taskId },
+        data: {
+          ...(title !== undefined && { title }),
+          ...(description !== undefined && { description }),
+          ...(status !== undefined && { status }),
+          ...(priority !== undefined && { priority }),
+          ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+          ...(order !== undefined && { order }),
+        },
+      });
+      if (tagIds !== undefined) {
+        await tx.projectTaskTag.deleteMany({ where: { taskId } });
+        if (tagIds.length > 0) {
+          await tx.projectTaskTag.createMany({ data: tagIds.map((tagId) => ({ taskId, tagId })) });
+        }
+      }
     });
     await prisma.project.update({ where: { id }, data: { updatedAt: new Date() } });
 

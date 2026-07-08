@@ -2,9 +2,9 @@
 
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { WeddingPlan, EVENT_TYPES, VENDOR_CATEGORIES, fmt, fmtUsd, fmtSource, getEventInfo, getCategoryLabel } from "./wedding-types";
+import { WeddingPlan, CurrencyLite, EVENT_TYPES, VENDOR_CATEGORIES, fmt, fmtSource, getEventInfo, getCategoryLabel } from "./wedding-types";
 
-export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
+export function WeddingBudgetTab({ plan, baseSymbol = "Rs" }: { plan: WeddingPlan; baseSymbol?: string }) {
   const totalBudget = plan.totalBudget;
 
   // Vendor costs (selected vendors only for "committed" view)
@@ -17,19 +17,23 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
     .filter((v) => v.paymentStatus === "DEPOSIT_PAID")
     .reduce((s, v) => s + (v.depositPaid ?? 0), 0);
 
-  // Expense costs - PKR and USD tracked separately (can't add across currencies)
-  const totalExpensePkr = plan.expenses
-    .filter((e) => e.source1Currency === "PKR").reduce((s, e) => s + e.source1Amount, 0)
-    + plan.expenses
-    .filter((e) => e.source2Currency === "PKR").reduce((s, e) => s + (e.source2Amount ?? 0), 0);
-  const totalExpenseUsd = plan.expenses
-    .filter((e) => e.source1Currency === "USD").reduce((s, e) => s + e.source1Amount, 0)
-    + plan.expenses
-    .filter((e) => e.source2Currency === "USD").reduce((s, e) => s + (e.source2Amount ?? 0), 0);
+  // Expense costs grouped by currency (can't add across currencies)
+  const expenseTotalsByCurrency = new Map<string, { currency: CurrencyLite; amount: number }>();
+  const addExpenseTotal = (currency: CurrencyLite, amount: number) => {
+    const entry = expenseTotalsByCurrency.get(currency.id) ?? { currency, amount: 0 };
+    entry.amount += amount;
+    expenseTotalsByCurrency.set(currency.id, entry);
+  };
+  for (const e of plan.expenses) {
+    addExpenseTotal(e.source1Currency, e.source1Amount);
+    if (e.source2Currency && e.source2Amount) addExpenseTotal(e.source2Currency, e.source2Amount);
+  }
+  const totalExpenseBase = [...expenseTotalsByCurrency.values()].find((t) => t.currency.isBase)?.amount ?? 0;
+  const otherExpenseTotals = [...expenseTotalsByCurrency.values()].filter((t) => !t.currency.isBase);
   const totalExpensePaidCount = plan.expenses.filter((e) => e.isPaid).length;
 
-  // Combined PKR committed (vendors + pkr expenses); USD shown separately
-  const totalSelected = totalVendorCommitted + totalExpensePkr;
+  // Combined base-currency committed (vendors + base-currency expenses); other currencies shown separately
+  const totalSelected = totalVendorCommitted + totalExpenseBase;
   const totalPaid = totalVendorPaid;
   const remaining = totalBudget - totalSelected;
   const budgetPct = totalBudget > 0 ? Math.min(100, Math.round((totalSelected / totalBudget) * 100)) : 0;
@@ -62,21 +66,23 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs text-muted-foreground mb-1">Total Budget</p>
-          <p className="text-xl font-bold">{fmt(totalBudget)}</p>
+          <p className="text-xl font-bold">{fmt(totalBudget, baseSymbol)}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Committed PKR</p>
+          <p className="text-xs text-muted-foreground mb-1">Committed ({baseSymbol})</p>
           <p className={cn("text-xl font-bold", totalSelected > totalBudget ? "text-rose-500" : "text-foreground")}>
-            {fmt(totalSelected)}
+            {fmt(totalSelected, baseSymbol)}
           </p>
           {totalBudget > 0 && <p className="text-xs text-muted-foreground mt-0.5">{budgetPct}% of budget</p>}
-          {totalExpenseUsd > 0 && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">+ {fmtUsd(totalExpenseUsd)} USD</p>
-          )}
+          {otherExpenseTotals.map(({ currency, amount }) => (
+            <p key={currency.id} className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+              + {fmt(amount, currency.symbol)} {currency.code}
+            </p>
+          ))}
         </div>
         <div className="rounded-xl border border-border bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 p-4">
           <p className="text-xs text-muted-foreground mb-1">Paid So Far</p>
-          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{fmt(totalPaid)}</p>
+          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{fmt(totalPaid, baseSymbol)}</p>
           {totalSelected > 0 && <p className="text-xs text-muted-foreground mt-0.5">{paidPct}% of committed</p>}
         </div>
         <div className={cn("rounded-xl border p-4", remaining < 0 ? "border-rose-200 bg-rose-50 dark:bg-rose-950/30" : "border-border bg-card")}>
@@ -84,7 +90,7 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
           <div className="flex items-center gap-1">
             {remaining < 0 ? <TrendingDown className="h-4 w-4 text-rose-500" /> : <TrendingUp className="h-4 w-4 text-emerald-500" />}
             <p className={cn("text-xl font-bold", remaining < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400")}>
-              {fmt(Math.abs(remaining))}
+              {fmt(Math.abs(remaining), baseSymbol)}
             </p>
           </div>
         </div>
@@ -137,11 +143,11 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
                 </div>
                 <div className="text-right shrink-0 space-y-0.5">
                   {committed > 0 ? (
-                    <p className="font-semibold">{fmt(committed)}</p>
+                    <p className="font-semibold">{fmt(committed, baseSymbol)}</p>
                   ) : (
                     <p className="text-muted-foreground text-xs">No selection</p>
                   )}
-                  {paid > 0 && <p className="text-xs text-emerald-600 dark:text-emerald-400">{fmt(paid)} paid</p>}
+                  {paid > 0 && <p className="text-xs text-emerald-600 dark:text-emerald-400">{fmt(paid, baseSymbol)} paid</p>}
                 </div>
               </div>
             ))}
@@ -173,8 +179,11 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
             <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/40 text-sm font-semibold">
               <span>Misc Total</span>
               <span className="space-x-2">
-                {totalExpensePkr > 0 && <span>{fmt(totalExpensePkr)}</span>}
-                {totalExpenseUsd > 0 && <span className="text-blue-600 dark:text-blue-400">{fmtUsd(totalExpenseUsd)}</span>}
+                {[...expenseTotalsByCurrency.values()].map(({ currency, amount }) => (
+                  <span key={currency.id} className={currency.isBase ? "" : "text-blue-600 dark:text-blue-400"}>
+                    {fmt(amount, currency.symbol)}
+                  </span>
+                ))}
               </span>
             </div>
           </div>
@@ -201,7 +210,7 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
                   </div>
                   <div className="text-right shrink-0">
                     {event.budgetAllocated > 0 ? (
-                      <p className="font-semibold">{fmt(event.budgetAllocated)}</p>
+                      <p className="font-semibold">{fmt(event.budgetAllocated, baseSymbol)}</p>
                     ) : (
                       <p className="text-muted-foreground text-xs">No budget set</p>
                     )}
@@ -212,7 +221,7 @@ export function WeddingBudgetTab({ plan }: { plan: WeddingPlan }) {
             })}
             <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/40 text-sm font-semibold">
               <span>Total Event Budgets</span>
-              <span>{fmt(totalEventBudget)}</span>
+              <span>{fmt(totalEventBudget, baseSymbol)}</span>
             </div>
           </div>
         </div>

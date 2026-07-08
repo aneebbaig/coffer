@@ -2,14 +2,16 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPlanner } from "@/actions/planner";
 import { getFinancialPosition } from "@/actions/savings";
+import { getCurrencies } from "@/lib/currency-helpers";
 import { PlannerDetailClient } from "@/components/planner/planner-detail-client";
 
 export const metadata: Metadata = { title: "Planner Detail" };
 
 export default async function PlannerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [planner, financialPosition] = await Promise.all([getPlanner(id), getFinancialPosition()]);
+  const [planner, financialPosition, currencies] = await Promise.all([getPlanner(id), getFinancialPosition(), getCurrencies()]);
   if (!planner) notFound();
+  const baseSymbol = currencies.find((c) => c.isBase)?.symbol ?? "Rs";
 
-  return <PlannerDetailClient planner={planner} financialPosition={financialPosition} />;
+  return <PlannerDetailClient planner={planner} financialPosition={financialPosition} baseSymbol={baseSymbol} />;
 }

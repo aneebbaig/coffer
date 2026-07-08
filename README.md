@@ -1,11 +1,11 @@
 <div align="center">
 
-# Coffer
+# Align
 
 Personal finance app I built to run our household money. Self-hosted, so the data lives in a database you own. Comes with a web app and an Android app that share one backend.
 
-[![Web CI](https://github.com/aneebbaig/coffer/actions/workflows/web-ci.yml/badge.svg)](../../actions/workflows/web-ci.yml)
-[![Mobile CI](https://github.com/aneebbaig/coffer/actions/workflows/mobile-ci.yml/badge.svg)](../../actions/workflows/mobile-ci.yml)
+[![Web CI](https://github.com/aneebbaig/align/actions/workflows/web-ci.yml/badge.svg)](../../actions/workflows/web-ci.yml)
+[![Mobile CI](https://github.com/aneebbaig/align/actions/workflows/mobile-ci.yml/badge.svg)](../../actions/workflows/mobile-ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -28,7 +28,7 @@ The exchange rate between PKR and USD syncs once a day. There are two roles: sup
 ## How it's laid out
 
 ```
-coffer/
+align/
   apps/
     web/      Next.js + Prisma + Postgres. The app, plus the REST API.
     mobile/   Flutter Android client. Talks to /api/v1.
@@ -53,7 +53,7 @@ npm run dev                    # http://localhost:3000
 
 Longer version in [apps/web/README.md](apps/web/README.md). Deploying to Vercel is in [apps/web/DEPLOYMENT.md](apps/web/DEPLOYMENT.md).
 
-Want to call it something other than "Coffer"? Set `NEXT_PUBLIC_APP_NAME` and it changes everywhere in the UI.
+Want to call it something other than "Align"? Set `NEXT_PUBLIC_APP_NAME` and it changes everywhere in the UI.
 
 ## Running the mobile app
 

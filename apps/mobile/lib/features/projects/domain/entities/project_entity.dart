@@ -105,6 +105,7 @@ class ProjectTaskEntity {
     required this.order,
     this.description,
     this.dueDate,
+    this.tags = const [],
   });
 
   final String id;
@@ -114,10 +115,11 @@ class ProjectTaskEntity {
   final String priority; // LOW | MEDIUM | HIGH | URGENT
   final DateTime? dueDate;
   final int order;
+  final List<TagEntity> tags;
 
   bool get isDone => status == 'DONE';
 
-  ProjectTaskEntity copyWith({String? status, int? order}) => ProjectTaskEntity(
+  ProjectTaskEntity copyWith({String? status, int? order, List<TagEntity>? tags}) => ProjectTaskEntity(
         id: id,
         title: title,
         description: description,
@@ -125,6 +127,7 @@ class ProjectTaskEntity {
         priority: priority,
         dueDate: dueDate,
         order: order ?? this.order,
+        tags: tags ?? this.tags,
       );
 
   factory ProjectTaskEntity.fromJson(Map<String, dynamic> m) => ProjectTaskEntity(
@@ -135,5 +138,22 @@ class ProjectTaskEntity {
         priority: m['priority'] as String? ?? 'MEDIUM',
         dueDate: m['dueDate'] != null ? DateTime.parse(m['dueDate'] as String) : null,
         order: m['order'] as int? ?? 0,
+        tags: (m['tags'] as List<dynamic>? ?? [])
+            .map((t) => TagEntity.fromJson(t as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+class TagEntity {
+  const TagEntity({required this.id, required this.name, required this.color});
+
+  final String id;
+  final String name;
+  final String color; // hex string e.g. "#6366f1"
+
+  factory TagEntity.fromJson(Map<String, dynamic> m) => TagEntity(
+        id: m['id'] as String,
+        name: m['name'] as String,
+        color: m['color'] as String? ?? '#6366f1',
       );
 }

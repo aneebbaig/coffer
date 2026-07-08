@@ -8,6 +8,7 @@ class ExpenseEntity {
     required this.date,
     required this.category,
     this.notes,
+    this.isRegretPurchase = false,
   });
 
   final String id;
@@ -16,6 +17,7 @@ class ExpenseEntity {
   final String? notes;
   final DateTime date;
   final CategoryEntity category;
+  final bool isRegretPurchase;
 }
 
 class ExpenseListPage {

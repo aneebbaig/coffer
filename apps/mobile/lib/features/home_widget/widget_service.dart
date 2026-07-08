@@ -6,7 +6,7 @@ import '../../core/extensions/currency_ext.dart';
 part 'widget_service.g.dart';
 
 const _qualifiedWidgetName =
-    'com.coffer.app.QuickExpenseWidgetProvider';
+    'com.anhib.align.QuickExpenseWidgetProvider';
 
 @Riverpod(keepAlive: true)
 WidgetService widgetService(Ref ref) => WidgetService();

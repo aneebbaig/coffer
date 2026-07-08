@@ -124,7 +124,7 @@ function statTable(rows: string): string {
 
 // ─── Alert emails ─────────────────────────────────────────────────────────────
 
-export function budgetWarningEmail(categoryName: string, pct: number, spent: number, allocated: number) {
+export function budgetWarningEmail(categoryName: string, pct: number, spent: number, allocated: number, symbol = "Rs") {
   const AMBER = "#B45309";
   const body = `
     <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.5px;color:${TEXT};margin:0 0 4px">Budget Warning</p>
@@ -135,35 +135,35 @@ export function budgetWarningEmail(categoryName: string, pct: number, spent: num
         Your <strong>${categoryName}</strong> category has reached <strong>${pct}%</strong> of the monthly budget.
       </p>
       ${statTable(
-        row("Spent",     `Rs ${(spent / 100).toLocaleString()}`) +
-        row("Budget",    `Rs ${(allocated / 100).toLocaleString()}`) +
-        row("Remaining", `Rs ${((allocated - spent) / 100).toLocaleString()}`, AMBER)
+        row("Spent",     `${symbol} ${(spent / 100).toLocaleString()}`) +
+        row("Budget",    `${symbol} ${(allocated / 100).toLocaleString()}`) +
+        row("Remaining", `${symbol} ${((allocated - spent) / 100).toLocaleString()}`, AMBER)
       )}
     `)}`;
   return shell(`${categoryName} is at ${pct}% of budget this month.`, body);
 }
 
-export function budgetExceededEmail(categoryName: string, spent: number, allocated: number) {
+export function budgetExceededEmail(categoryName: string, spent: number, allocated: number, symbol = "Rs") {
   const RED = "#DC2626";
   const over = spent - allocated;
   const body = `
     <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.5px;color:${TEXT};margin:0 0 4px">Budget Exceeded</p>
-    <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:${MUTED};margin:0 0 20px">${categoryName} · over by Rs ${(over / 100).toLocaleString()}</p>
+    <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:${MUTED};margin:0 0 20px">${categoryName} · over by ${symbol} ${(over / 100).toLocaleString()}</p>
     ${card(RED, `
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:10px;font-weight:600;color:${RED};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.06em">🚨 Over Budget</p>
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:${TEXT};margin:0 0 14px;line-height:1.5">
         You've exceeded the <strong>${categoryName}</strong> budget. Consider pausing spending in this category or adjusting the budget.
       </p>
       ${statTable(
-        row("Spent",   `Rs ${(spent / 100).toLocaleString()}`,     RED) +
-        row("Budget",  `Rs ${(allocated / 100).toLocaleString()}`) +
-        row("Over by", `Rs ${(over / 100).toLocaleString()}`,      RED)
+        row("Spent",   `${symbol} ${(spent / 100).toLocaleString()}`,     RED) +
+        row("Budget",  `${symbol} ${(allocated / 100).toLocaleString()}`) +
+        row("Over by", `${symbol} ${(over / 100).toLocaleString()}`,      RED)
       )}
     `)}`;
-  return shell(`${categoryName} budget exceeded by Rs ${(over / 100).toLocaleString()}.`, body);
+  return shell(`${categoryName} budget exceeded by ${symbol} ${(over / 100).toLocaleString()}.`, body);
 }
 
-export function doomSpendingEmail(count: number, total: number) {
+export function doomSpendingEmail(count: number, total: number, symbol = "Rs") {
   const RED = "#DC2626";
   const body = `
     <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.5px;color:${TEXT};margin:0 0 4px">Doom Spending Alert</p>
@@ -171,16 +171,16 @@ export function doomSpendingEmail(count: number, total: number) {
     ${card(RED, `
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:10px;font-weight:600;color:${RED};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.06em">🛑 Rapid Spending Detected</p>
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:${TEXT};margin:0 0 14px;line-height:1.5">
-        You've added <strong>${count} expense transactions</strong> in the last 2 hours, totalling <strong>Rs ${(total / 100).toLocaleString()}</strong>.
+        You've added <strong>${count} expense transactions</strong> in the last 2 hours, totalling <strong>${symbol} ${(total / 100).toLocaleString()}</strong>.
       </p>
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:${MUTED};margin:0;line-height:1.6">
         This pattern often signals stress or boredom spending. Take a breath before the next purchase.
       </p>
     `)}`;
-  return shell(`${count} expenses in 2 hours - Rs ${(total / 100).toLocaleString()} total.`, body);
+  return shell(`${count} expenses in 2 hours - ${symbol} ${(total / 100).toLocaleString()} total.`, body);
 }
 
-export function loanDueEmail(personName: string, amount: number, dueDate: Date) {
+export function loanDueEmail(personName: string, amount: number, dueDate: Date, symbol = "Rs") {
   const AMBER = "#B45309";
   const dueDateStr = dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const body = `
@@ -189,13 +189,13 @@ export function loanDueEmail(personName: string, amount: number, dueDate: Date) 
     ${card(AMBER, `
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:10px;font-weight:600;color:${AMBER};margin:0 0 12px;text-transform:uppercase;letter-spacing:0.06em">💰 Repayment Due</p>
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px;color:${TEXT};margin:0 0 14px;line-height:1.5">
-        <strong>${personName}</strong> owes you <strong>Rs ${(amount / 100).toLocaleString()}</strong>, due on <strong>${dueDateStr}</strong>.
+        <strong>${personName}</strong> owes you <strong>${symbol} ${(amount / 100).toLocaleString()}</strong>, due on <strong>${dueDateStr}</strong>.
       </p>
       <p style="font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:${MUTED};margin:0">
         Follow up soon to keep things on track.
       </p>
     `)}`;
-  return shell(`${personName} owes you Rs ${(amount / 100).toLocaleString()} - due ${dueDateStr}.`, body);
+  return shell(`${personName} owes you ${symbol} ${(amount / 100).toLocaleString()} - due ${dueDateStr}.`, body);
 }
 
 // ─── Daily digest ─────────────────────────────────────────────────────────────
@@ -214,8 +214,10 @@ export function dailyDigestEmail(data: {
   monthExpenses: number;
   noIncomeRecorded: boolean;
   autoReconciledSurplus?: number;
+  symbol?: string;
 }) {
-  const fmt = (n: number) => `Rs&nbsp;${(n / 100).toLocaleString("en-PK")}`;
+  const symbol = data.symbol ?? "Rs";
+  const fmt = (n: number) => `${symbol}&nbsp;${(n / 100).toLocaleString("en-PK")}`;
   const dateLabel = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   const RED   = "#DC2626";
   const AMBER = "#B45309";

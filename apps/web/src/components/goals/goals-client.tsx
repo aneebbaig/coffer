@@ -42,7 +42,7 @@ interface Goal {
   goalType?: string;
 }
 
-function SortableGoalCard({ goal, onEdit }: { goal: Goal; onEdit: (goal: Goal) => void }) {
+function SortableGoalCard({ goal, onEdit, baseSymbol }: { goal: Goal; onEdit: (goal: Goal) => void; baseSymbol: string }) {
   const {
     attributes,
     listeners,
@@ -62,6 +62,7 @@ function SortableGoalCard({ goal, onEdit }: { goal: Goal; onEdit: (goal: Goal) =
     <div ref={setNodeRef} style={style}>
       <GoalCard
         goal={goal}
+        baseSymbol={baseSymbol}
         actions={
           <>
             <button
@@ -90,10 +91,12 @@ function SortableGoalGrid({
   goals,
   onReorder,
   onEdit,
+  baseSymbol,
 }: {
   goals: Goal[];
   onReorder: (goals: Goal[]) => void;
   onEdit: (goal: Goal) => void;
+  baseSymbol: string;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -112,7 +115,7 @@ function SortableGoalGrid({
       <SortableContext items={goals.map((g) => g.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 stagger">
           {goals.map((goal) => (
-            <SortableGoalCard key={goal.id} goal={goal} onEdit={onEdit} />
+            <SortableGoalCard key={goal.id} goal={goal} onEdit={onEdit} baseSymbol={baseSymbol} />
           ))}
         </div>
       </SortableContext>
@@ -120,7 +123,7 @@ function SortableGoalGrid({
   );
 }
 
-export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
+export function GoalsClient({ goals: initialGoals, baseSymbol = "Rs" }: { goals: Goal[]; baseSymbol?: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [goals, setGoals] = useState(initialGoals);
@@ -182,7 +185,7 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
           ) : (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground px-1">Drag cards to set priority - first card is highest priority</p>
-              <SortableGoalGrid goals={active} onReorder={handleReorder} onEdit={handleEditGoal} />
+              <SortableGoalGrid goals={active} onReorder={handleReorder} onEdit={handleEditGoal} baseSymbol={baseSymbol} />
             </div>
           )}
         </TabsContent>
@@ -195,6 +198,7 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
               {completed.map((goal) => (
                 <GoalCard
                   key={goal.id}
+                  baseSymbol={baseSymbol}
                   goal={goal}
                   actions={
                     <button
@@ -219,6 +223,7 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
               {paused.map((goal) => (
                 <GoalCard
                   key={goal.id}
+                  baseSymbol={baseSymbol}
                   goal={goal}
                   actions={
                     <button
@@ -241,7 +246,7 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
           <DialogHeader>
             <DialogTitle>Create Goal</DialogTitle>
           </DialogHeader>
-          <GoalForm onSuccess={() => { setOpen(false); router.refresh(); }} />
+          <GoalForm onSuccess={() => { setOpen(false); router.refresh(); }} baseSymbol={baseSymbol} />
         </DialogContent>
       </Dialog>
 
@@ -254,6 +259,7 @@ export function GoalsClient({ goals: initialGoals }: { goals: Goal[] }) {
             <GoalForm
               goal={editGoal}
               onSuccess={() => { setEditOpen(false); router.refresh(); }}
+              baseSymbol={baseSymbol}
             />
           )}
         </DialogContent>

@@ -9,7 +9,7 @@ import {
   FlaskConical, ClipboardList, FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CofferLogo } from "@/components/shared/coffer-logo";
+import { AlignLogo } from "@/components/shared/align-logo";
 import { APP_NAME } from "@/lib/brand";
 import { useState } from "react";
 
@@ -69,7 +69,7 @@ export function Sidebar({ role }: { role?: string }) {
         "flex items-center h-14 px-4 border-b border-sidebar-border shrink-0",
         collapsed && "justify-center px-0"
       )}>
-        <CofferLogo size={collapsed ? 26 : 28} />
+        <AlignLogo size={collapsed ? 26 : 28} />
         {!collapsed && (
           <span className="ml-2.5 font-semibold text-sidebar-foreground tracking-tight text-[14px]">
             {APP_NAME}

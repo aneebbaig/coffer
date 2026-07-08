@@ -11,21 +11,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Sync USD→PKR rate from open.er-api.com (free, no key, 1500 req/month)
+  // Sync the USD currency's rate from open.er-api.com (free, no key, 1500 req/month).
+  // Only covers a household that has USD configured as a (non-base) currency - other
+  // currency pairs aren't auto-synced by this free, USD-anchored API.
   let syncedRate: number | null = null;
   try {
-    const rateRes = await fetch("https://open.er-api.com/v6/latest/USD", { cache: "no-store" });
-    if (rateRes.ok) {
-      const rateData = await rateRes.json();
-      const pkr = rateData?.rates?.PKR;
-      if (typeof pkr === "number" && pkr > 0) {
-        syncedRate = Math.round(pkr);
-        await prisma.user.updateMany({ data: { usdTopkrRate: syncedRate } });
+    const [usdCurrency, base] = await Promise.all([
+      prisma.currency.findUnique({ where: { code: "USD" } }),
+      prisma.currency.findFirst({ where: { isBase: true } }),
+    ]);
+    if (usdCurrency && !usdCurrency.isBase && base) {
+      const rateRes = await fetch("https://open.er-api.com/v6/latest/USD", { cache: "no-store" });
+      if (rateRes.ok) {
+        const rateData = await rateRes.json();
+        const rate = rateData?.rates?.[base.code];
+        if (typeof rate === "number" && rate > 0) {
+          syncedRate = Math.round(rate);
+          await prisma.currency.update({ where: { id: usdCurrency.id }, data: { rateToBase: syncedRate } });
+        }
       }
     }
   } catch {
     // Non-fatal - continue with existing stored rate
   }
+
+  const baseCurrency = await prisma.currency.findFirst({ where: { isBase: true } });
+  const baseSymbol = baseCurrency?.symbol ?? "Rs";
 
   const now = new Date();
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
@@ -87,7 +98,7 @@ export async function GET(req: NextRequest) {
     }),
     prisma.savingsPot.findMany({
       where: { type: "EMERGENCY" },
-      select: { currentAmount: true },
+      select: { balances: { include: { currency: true } } },
     }),
     // Last 3 full months of expenses for avg monthly expenses calculation
     prisma.transaction.findMany({
@@ -126,7 +137,10 @@ export async function GET(req: NextRequest) {
     .filter((a) => a.pct >= 80)
     .sort((a, b) => b.pct - a.pct);
 
-  const emergencyBalance = emergencyPots.reduce((s, p) => s + p.currentAmount, 0);
+  const emergencyBalance = emergencyPots.reduce(
+    (s, p) => s + p.balances.reduce((bs, b) => bs + Math.round(b.amount * b.currency.rateToBase), 0),
+    0,
+  );
   const avgMonthlyExpenses = last3MonthsExpenses.length > 0
     ? last3MonthsExpenses.reduce((s, t) => s + t.amount, 0) / 3
     : 0;
@@ -199,7 +213,7 @@ export async function GET(req: NextRequest) {
     await sendEmail(
       user.email,
       `🌅 Daily digest - ${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`,
-      dailyDigestEmail({ name: firstName, ...userPayload })
+      dailyDigestEmail({ name: firstName, ...userPayload, symbol: baseSymbol })
     );
     sent++;
   }

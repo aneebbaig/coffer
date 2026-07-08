@@ -23,11 +23,12 @@ interface GoalFormValues {
 interface Props {
   goal?: { id: string; name: string; description?: string | null; targetAmount: number; priority: string; color: string; goalType?: string };
   onSuccess: () => void;
+  baseSymbol?: string;
 }
 
 const COLORS = ["#6366f1", "#8b5cf6", "#ec4899", "#f97316", "#22c55e", "#3b82f6", "#14b8a6"];
 
-export function GoalForm({ goal, onSuccess }: Props) {
+export function GoalForm({ goal, onSuccess, baseSymbol = "Rs" }: Props) {
   const [loading, setLoading] = useState(false);
   const [selectedColor, setSelectedColor] = useState(goal?.color ?? "#6366f1");
   const [goalType, setGoalType] = useState(goal?.goalType ?? "FIXED");
@@ -105,7 +106,7 @@ export function GoalForm({ goal, onSuccess }: Props) {
 
       {goalType === "FIXED" && (
         <div className="space-y-1">
-          <Label>Target Amount (Rs)</Label>
+          <Label>Target Amount ({baseSymbol})</Label>
           <Input type="number" step="0.01" placeholder="0.00" {...register("targetAmount", { required: goalType === "FIXED" })} />
         </div>
       )}

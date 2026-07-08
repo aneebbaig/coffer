@@ -1,13 +1,15 @@
 import { Metadata } from "next";
 import { getServerUser } from "@/lib/session";
 import { getCurrentPeriod } from "@/lib/month";
-import { getMonthlySummary, getSpendingByCategory, getMonthlyTrend, getTransactions } from "@/actions/expenses";
+import { getMonthlySummary, getSpendingByCategory, getMonthlyTrend, getTransactions, getRegretPurchaseStats } from "@/actions/expenses";
 import { getBudgetWithSpending } from "@/actions/budget";
 import { getGoals } from "@/actions/goals";
 import { getTodaysTasks } from "@/actions/tasks";
 import { getTodaysEvents } from "@/actions/calendar";
 import { getSavingsPots, getCumulativeSavings, getAverageMonthlyExpenses } from "@/actions/savings";
 import { getUserSettings } from "@/actions/settings";
+import { getCurrencies } from "@/lib/currency-helpers";
+import { potBaseBalance } from "@/lib/currency-utils";
 import { OverviewCards } from "@/components/dashboard/overview-cards";
 import { SpendingChart } from "@/components/dashboard/spending-chart";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
@@ -16,6 +18,7 @@ import { GoalsSummary } from "@/components/dashboard/goals-summary";
 import { TodayTasks } from "@/components/dashboard/today-tasks";
 import { TodaySchedule } from "@/components/dashboard/today-schedule";
 import { TrendChart } from "@/components/dashboard/trend-chart";
+import { RegretBuyCard } from "@/components/dashboard/regret-buy-card";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -25,7 +28,7 @@ export default async function DashboardPage() {
   const { month, year } = getCurrentPeriod(userSettings?.currentBudgetMonth, userSettings?.currentBudgetYear);
   const now = new Date();
 
-  const [summary, spendingByCategory, trend, budgetData, goals, todaysTasks, todaysEvents, savingsPots, recentTransactions, cumulativeSavings, avgMonthlyExpenses] =
+  const [summary, spendingByCategory, trend, budgetData, goals, todaysTasks, todaysEvents, savingsPots, recentTransactions, cumulativeSavings, avgMonthlyExpenses, regretStats, currencies] =
     await Promise.all([
       getMonthlySummary(month, year),
       getSpendingByCategory(month, year),
@@ -38,9 +41,12 @@ export default async function DashboardPage() {
       getTransactions({ month, year }),
       getCumulativeSavings(),
       getAverageMonthlyExpenses(),
+      getRegretPurchaseStats(month, year),
+      getCurrencies(),
     ]);
 
-  const totalSavings = savingsPots.reduce((sum, p) => sum + p.currentAmount, 0);
+  const baseSymbol = currencies.find((c) => c.isBase)?.symbol ?? "Rs";
+  const totalSavings = savingsPots.reduce((sum, p) => sum + potBaseBalance(p.balances), 0);
   const remainingBudget = budgetData.budget
     ? budgetData.budget.totalBudget - budgetData.totalSpent
     : 0;
@@ -48,7 +54,7 @@ export default async function DashboardPage() {
   const emergencyPot = savingsPots.find(
     (p) => p.type === "EMERGENCY" || p.name.toLowerCase().includes("emergency")
   );
-  const emergencyBalance = emergencyPot?.currentAmount ?? 0;
+  const emergencyBalance = emergencyPot ? potBaseBalance(emergencyPot.balances) : 0;
   const emergencyMonthsCovered = avgMonthlyExpenses > 0 ? emergencyBalance / avgMonthlyExpenses : 0;
 
   return (
@@ -69,23 +75,24 @@ export default async function DashboardPage() {
         totalExpenses={summary.totalExpenses}
         remainingBudget={remainingBudget}
         netSavings={summary.netSavings}
+        baseSymbol={baseSymbol}
       />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SpendingChart data={spendingByCategory} />
-        <TrendChart data={trend} />
+        <SpendingChart data={spendingByCategory} baseSymbol={baseSymbol} />
+        <TrendChart data={trend} baseSymbol={baseSymbol} />
       </div>
 
       {/* Budget + Transactions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <BudgetProgress categories={budgetData.categories.slice(0, 5)} totalBudget={budgetData.budget?.totalBudget ?? 0} totalSpent={budgetData.totalSpent} />
-        <RecentTransactions transactions={recentTransactions.slice(0, 10)} />
+        <BudgetProgress categories={budgetData.categories.slice(0, 5)} totalBudget={budgetData.budget?.totalBudget ?? 0} totalSpent={budgetData.totalSpent} baseSymbol={baseSymbol} />
+        <RecentTransactions transactions={recentTransactions.slice(0, 10)} baseSymbol={baseSymbol} />
       </div>
 
       {/* Goals + Savings overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GoalsSummary goals={goals.filter((g) => g.status === "ACTIVE").slice(0, 3)} />
+        <GoalsSummary goals={goals.filter((g) => g.status === "ACTIVE").slice(0, 3)} baseSymbol={baseSymbol} />
 
         <div className="bg-card border border-border rounded-xl p-5 space-y-5">
           <h3 className="font-semibold text-foreground">Savings</h3>
@@ -107,7 +114,7 @@ export default async function DashboardPage() {
                   <div className={`${barColor} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
                 </div>
                 <p className="text-[11px] text-muted-foreground/70 mt-1 tabnum">
-                  Goal: 9 months · Rs {(target9 / 100).toLocaleString()}
+                  Goal: 9 months · {baseSymbol} {(target9 / 100).toLocaleString()}
                 </p>
               </div>
             );
@@ -119,7 +126,10 @@ export default async function DashboardPage() {
               All-time accumulated
             </p>
             <p className={`text-2xl font-bold tabnum leading-none ${cumulativeSavings.totalAccumulated >= 0 ? "text-foreground" : "text-red-500"}`}>
-              {cumulativeSavings.totalAccumulated < 0 ? "-" : ""}Rs {(Math.abs(cumulativeSavings.totalAccumulated) / 100).toLocaleString()}
+              {cumulativeSavings.totalAccumulated < 0 ? "-" : ""}{baseSymbol} {(Math.abs(cumulativeSavings.totalAccumulated) / 100).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-muted-foreground/70 mt-1 tabnum">
+              {baseSymbol} {(Math.max(0, cumulativeSavings.totalAccumulated - totalSavings) / 100).toLocaleString()} leftover, not in any pot
             </p>
           </div>
 
@@ -127,7 +137,7 @@ export default async function DashboardPage() {
           {savingsPots.length > 0 && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70 mb-2.5">
-                In pots · Rs {(totalSavings / 100).toLocaleString()}
+                In pots · {baseSymbol} {(totalSavings / 100).toLocaleString()}
               </p>
               <div className="divide-y divide-border/40">
                 {savingsPots.slice(0, 3).map((pot) => (
@@ -136,7 +146,7 @@ export default async function DashboardPage() {
                       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: pot.color }} />
                       <span className="text-sm text-foreground/80">{pot.name}</span>
                     </div>
-                    <span className="text-sm font-medium tabnum">Rs {(pot.currentAmount / 100).toLocaleString()}</span>
+                    <span className="text-sm font-medium tabnum">{baseSymbol} {(potBaseBalance(pot.balances) / 100).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
@@ -144,6 +154,9 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Regret buys */}
+      <RegretBuyCard stats={regretStats} baseSymbol={baseSymbol} />
 
       {/* Tasks + Schedule */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

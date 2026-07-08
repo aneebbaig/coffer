@@ -27,9 +27,11 @@ interface UnbudgetedExpense {
   category: { name: string; color: string };
 }
 
+interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
+interface PotBalance { amount: number; currency: CurrencyLite; }
 interface Pot {
   id: string; name: string; type: string;
-  currentAmount: number; currentAmountUsd: number;
+  balances: PotBalance[];
 }
 
 interface SavingsAllocation { potId: string; potName: string; potType: string; amount: number; }
@@ -52,6 +54,7 @@ interface BudgetData {
 interface Props {
   budgetData: BudgetData;
   categories: Category[];
+  currencies: CurrencyLite[];
   month: number;
   year: number;
 }
@@ -70,10 +73,11 @@ function useDebouncedSave(callback: () => Promise<void>, deps: unknown[], delay 
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export function BudgetClient({ budgetData, categories, month, year }: Props) {
+export function BudgetClient({ budgetData, categories, currencies, month, year }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isSaving, setIsSaving] = useState(false);
+  const baseSymbol = currencies.find((c) => c.isBase)?.symbol ?? "Rs";
 
   const [allocations, setAllocations] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -139,7 +143,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
         const surplus = result.reconciledSurplus ?? 0;
         toast.success(
           `Started ${getMonthName(result.period.month)} ${result.period.year}` +
-          (surplus > 0 ? ` · Rs ${fmt(surplus)} surplus swept to Liquid savings` : ""),
+          (surplus > 0 ? ` · ${baseSymbol} ${fmt(surplus)} leftover, now counted as accumulated savings` : ""),
         );
         setConfirmNewMonth(false);
         router.push(`/budget?month=${result.period.month}&year=${result.period.year}`);
@@ -194,13 +198,13 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
               <div className={cn("text-3xl font-bold",
                 rtaNegative ? "text-red-600 dark:text-red-400" : rtaZero ? "text-blue-600 dark:text-blue-400" : "text-emerald-700 dark:text-emerald-300"
               )}>
-                {rtaNegative ? "-" : ""}Rs {fmt(Math.abs(liveReadyToAssign))}
+                {rtaNegative ? "-" : ""}{baseSymbol} {fmt(Math.abs(liveReadyToAssign))}
               </div>
               <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-2">
-                <span>Income Rs {fmt(budgetData.totalIncome)}</span>
+                <span>Income {baseSymbol} {fmt(budgetData.totalIncome)}</span>
                 <span>·</span>
-                <span>Categories Rs {fmt(liveAssigned)}</span>
-                {liveSavings > 0 && <><span>·</span><span>Savings Rs {fmt(liveSavings)}</span></>}
+                <span>Categories {baseSymbol} {fmt(liveAssigned)}</span>
+                {liveSavings > 0 && <><span>·</span><span>Savings {baseSymbol} {fmt(liveSavings)}</span></>}
               </div>
             </div>
             {rtaZero && <CheckCircle2 className="h-8 w-8 text-blue-500 shrink-0" />}
@@ -221,27 +225,27 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
             <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-1">
               <TrendingUp className="h-3.5 w-3.5" />Income
             </div>
-            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">Rs {fmt(budgetData.totalIncome)}</div>
+            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{baseSymbol} {fmt(budgetData.totalIncome)}</div>
           </div>
           <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-3">
             <div className="flex items-center gap-1.5 text-xs text-primary font-medium mb-1">
               <PiggyBank className="h-3.5 w-3.5" />Budgeted
             </div>
-            <div className="text-xl font-bold text-primary">Rs {fmt(liveAssigned)}</div>
+            <div className="text-xl font-bold text-primary">{baseSymbol} {fmt(liveAssigned)}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{expenseCategories.filter((c) => (parseFloat(allocations[c.id] ?? "0") || 0) > 0).length} categories</div>
           </div>
           <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
             <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-medium mb-1">
               <TrendingDown className="h-3.5 w-3.5" />Spent
             </div>
-            <div className="text-xl font-bold text-red-700 dark:text-red-300">Rs {fmt(budgetData.totalSpent)}</div>
+            <div className="text-xl font-bold text-red-700 dark:text-red-300">{baseSymbol} {fmt(budgetData.totalSpent)}</div>
           </div>
           {budgetData.unbudgetedTotal > 0 && (
             <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
               <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium mb-1">
                 <AlertTriangle className="h-3.5 w-3.5" />Unplanned
               </div>
-              <div className="text-xl font-bold text-amber-700 dark:text-amber-300">Rs {fmt(budgetData.unbudgetedTotal)}</div>
+              <div className="text-xl font-bold text-amber-700 dark:text-amber-300">{baseSymbol} {fmt(budgetData.unbudgetedTotal)}</div>
             </div>
           )}
         </div>
@@ -262,15 +266,14 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
           <div className="mt-4 space-y-2">
             {budgetData.pots.map((pot) => {
               const allocVal = parseFloat(savingsAllocs[pot.id] ?? "0") || 0;
-              const pkrBalance = pot.currentAmount / 100;
-              const usdBalance = pot.currentAmountUsd / 100;
-              const typeLabel = pot.type === "EMERGENCY" ? "Emergency" : pot.type === "LIQUID" ? "Liquid" : pot.type === "GOAL_LINKED" ? "Goal" : pot.type;
+              const nonBaseBalances = pot.balances.filter((b) => !b.currency.isBase && b.amount > 0);
+              const baseBalance = pot.balances.find((b) => b.currency.isBase)?.amount ?? 0;
+              const pkrBalance = baseBalance / 100;
+              const typeLabel = pot.type === "GOAL_LINKED" ? "Goal" : pot.type;
 
               return (
                 <div key={pot.id} className={cn(
                   "flex items-center gap-3 rounded-lg border px-3 py-2.5",
-                  pot.type === "EMERGENCY" ? "border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/30" :
-                  pot.type === "LIQUID" ? "border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30" :
                   "border-border bg-muted/30"
                 )}>
                   <div className="flex-1 min-w-0">
@@ -279,15 +282,17 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{typeLabel}</span>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {usdBalance > 0 ? (
-                        <span>$ {fmtUsd(pot.currentAmountUsd)} + Rs {pkrBalance.toLocaleString()} saved</span>
+                      {nonBaseBalances.length > 0 ? (
+                        <span>
+                          {nonBaseBalances.map((b) => `${b.currency.symbol} ${fmtUsd(b.amount)}`).join(" + ")} + {baseSymbol} {pkrBalance.toLocaleString()} saved
+                        </span>
                       ) : (
-                        <span>Rs {pkrBalance.toLocaleString()} saved</span>
+                        <span>{baseSymbol} {pkrBalance.toLocaleString()} saved</span>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-muted-foreground">Rs</span>
+                    <span className="text-xs text-muted-foreground">{baseSymbol}</span>
                     <Input
                       type="number"
                       value={savingsAllocs[pot.id] ?? ""}
@@ -315,7 +320,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
         {liveAssigned > 0 && (
           <div className="flex items-center justify-between bg-primary/5 border border-primary/15 rounded-lg px-4 py-2.5 mb-4">
             <span className="text-sm font-medium text-foreground">Total budgeted across all categories</span>
-            <span className="text-sm font-bold text-primary">Rs {fmt(liveAssigned)}</span>
+            <span className="text-sm font-bold text-primary">{baseSymbol} {fmt(liveAssigned)}</span>
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -354,7 +359,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
                       )}
                     />
                     <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Rs {(spentPaisas / 100).toLocaleString()} spent</span>
+                      <span className="text-muted-foreground">{baseSymbol} {(spentPaisas / 100).toLocaleString()} spent</span>
                       <span className={cn("font-medium",
                         pct > 100 ? "text-red-500" : pct === 100 ? "text-blue-500" : pct >= 75 ? "text-amber-500" : "text-muted-foreground"
                       )}>{pct}%</span>
@@ -364,14 +369,14 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
                       available > 0 ? "text-emerald-600 dark:text-emerald-400" :
                       available === 0 ? "text-muted-foreground" : "text-red-500"
                     )}>
-                      {available > 0 ? `Rs ${fmt(available)} available` :
+                      {available > 0 ? `${baseSymbol} ${fmt(available)} available` :
                        available === 0 ? "Fully spent" :
-                       `Rs ${fmt(Math.abs(available))} overspent`}
+                       `${baseSymbol} ${fmt(Math.abs(available))} overspent`}
                     </div>
                   </div>
                 ) : spentPaisas > 0 ? (
                   <span className="text-xs text-amber-600 font-medium block">
-                    Rs {(spentPaisas / 100).toLocaleString()} unbudgeted
+                    {baseSymbol} {(spentPaisas / 100).toLocaleString()} unbudgeted
                   </span>
                 ) : null}
               </div>
@@ -393,7 +398,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
               </p>
             </div>
             <div className="text-right shrink-0 ml-4">
-              <div className="text-lg font-bold text-amber-600">-Rs {fmt(budgetData.unbudgetedTotal)}</div>
+              <div className="text-lg font-bold text-amber-600">-{baseSymbol} {fmt(budgetData.unbudgetedTotal)}</div>
               <div className="text-xs text-muted-foreground">from savings</div>
             </div>
           </div>
@@ -403,7 +408,7 @@ export function BudgetClient({ budgetData, categories, month, year }: Props) {
                 <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tx.category.color }} />
                 <span className="text-sm text-foreground flex-1">{tx.description}</span>
                 <span className="text-xs text-muted-foreground">{tx.category.name}</span>
-                <span className="text-sm font-semibold text-red-600">-Rs {fmt(tx.amount)}</span>
+                <span className="text-sm font-semibold text-red-600">-{baseSymbol} {fmt(tx.amount)}</span>
               </div>
             ))}
           </div>

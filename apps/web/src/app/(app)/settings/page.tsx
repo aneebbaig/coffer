@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { getServerUser } from "@/lib/session";
 import { getUserSettings, getCategories, getRecurringTransactions } from "@/actions/settings";
 import { getUsers } from "@/actions/users";
+import { getCurrencies } from "@/lib/currency-helpers";
 import { SettingsClient } from "@/components/settings/settings-client";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -10,9 +11,10 @@ export default async function SettingsPage() {
   const session = await getServerUser();
   const isSuperAdmin = session?.role === "SUPER_ADMIN";
 
-  const [settings, categories, recurringTransactions, users] = await Promise.all([
+  const [settings, categories, currencies, recurringTransactions, users] = await Promise.all([
     getUserSettings(),
     getCategories(),
+    getCurrencies(),
     getRecurringTransactions(),
     isSuperAdmin ? getUsers() : Promise.resolve([]),
   ]);
@@ -26,6 +28,7 @@ export default async function SettingsPage() {
       <SettingsClient
         settings={settings}
         categories={categories}
+        currencies={currencies}
         recurringTransactions={recurringTransactions}
         users={users}
         role={session?.role ?? "ADMIN"}

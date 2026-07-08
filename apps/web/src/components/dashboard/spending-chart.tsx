@@ -8,7 +8,7 @@ interface SpendingData {
   amount: number;
 }
 
-export function SpendingChart({ data }: { data: SpendingData[] }) {
+export function SpendingChart({ data, baseSymbol = "Rs" }: { data: SpendingData[]; baseSymbol?: string }) {
   const chartData = data.slice(0, 8).map((d) => ({
     name: d.name,
     value: d.amount,
@@ -48,7 +48,7 @@ export function SpendingChart({ data }: { data: SpendingData[] }) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value) => [`Rs ${(Number(value) / 100).toLocaleString()}`, ""]}
+              formatter={(value) => [`${baseSymbol} ${(Number(value) / 100).toLocaleString()}`, ""]}
               contentStyle={{ borderRadius: "8px", fontSize: "12px" }}
             />
             <Legend
@@ -60,7 +60,7 @@ export function SpendingChart({ data }: { data: SpendingData[] }) {
       </div>
       <div className="text-center mt-1">
         <div className="text-xs text-muted-foreground">Total Spending</div>
-        <div className="text-lg font-bold text-foreground">Rs {(total / 100).toLocaleString()}</div>
+        <div className="text-lg font-bold text-foreground">{baseSymbol} {(total / 100).toLocaleString()}</div>
       </div>
     </div>
   );
