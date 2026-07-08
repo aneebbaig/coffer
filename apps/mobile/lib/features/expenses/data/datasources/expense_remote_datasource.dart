@@ -30,6 +30,9 @@ class ExpenseRemoteDatasource {
     String? notes,
     required DateTime date,
     bool isRegretPurchase = false,
+    int? budgetMonth,
+    int? budgetYear,
+    String? fundingPotId,
   }) async {
     try {
       final res = await _dio.post(
@@ -41,6 +44,10 @@ class ExpenseRemoteDatasource {
           if (notes != null && notes.isNotEmpty) 'notes': notes,
           'date': date.toIso8601String(),
           'isRegretPurchase': isRegretPurchase,
+          if (budgetMonth != null) 'budgetMonth': budgetMonth,
+          if (budgetYear != null) 'budgetYear': budgetYear,
+          if (fundingPotId != null) 'fundingSource': 'SAVINGS_POT',
+          if (fundingPotId != null) 'fundingPotId': fundingPotId,
         },
       );
       return (res.data['data'] as Map<String, dynamic>)['id'] as String;

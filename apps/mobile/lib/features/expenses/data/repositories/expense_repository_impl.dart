@@ -24,6 +24,9 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
     String? notes,
     required DateTime date,
     bool isRegretPurchase = false,
+    int? budgetMonth,
+    int? budgetYear,
+    String? fundingPotId,
   }) =>
       _datasource.createExpense(
         amountPaisas: amountPaisas,
@@ -32,5 +35,8 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
         notes: notes,
         date: date,
         isRegretPurchase: isRegretPurchase,
+        budgetMonth: budgetMonth,
+        budgetYear: budgetYear,
+        fundingPotId: fundingPotId,
       );
 }
