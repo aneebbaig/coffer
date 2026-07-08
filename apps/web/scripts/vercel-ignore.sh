@@ -11,6 +11,12 @@
 # Vercel convention: exit 0 => skip build, exit 1 => build.
 set -u
 
+# Personal project, no preview deployments - only main ever deploys.
+if [ "${VERCEL_GIT_COMMIT_REF:-}" != "main" ]; then
+  echo "Branch '${VERCEL_GIT_COMMIT_REF:-unknown}' is not main — skipping build."
+  exit 0
+fi
+
 # No known previous deploy (first build, or the var isn't available): build.
 [ -z "${VERCEL_GIT_PREVIOUS_SHA:-}" ] && exit 1
 
