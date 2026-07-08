@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to Coffer! -->
+<!-- Thanks for contributing to Align! -->
 
 ## What does this PR do?
 

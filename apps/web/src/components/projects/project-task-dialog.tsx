@@ -15,14 +15,17 @@ import {
   PROJECT_TASK_PRIORITIES,
 } from "@/lib/constants";
 import type { ProjectTaskData } from "@/components/projects/project-task-card";
+import { TagPicker, type TagOption } from "@/components/projects/tag-picker";
 
 export function ProjectTaskDialog({
-  task, open, onOpenChange, onSaved,
+  task, open, onOpenChange, onSaved, allTags = [], onTagsChanged = () => {},
 }: {
   task: ProjectTaskData;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSaved: () => void;
+  allTags?: TagOption[];
+  onTagsChanged?: (tags: TagOption[]) => void;
 }) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
@@ -31,6 +34,7 @@ export function ProjectTaskDialog({
   const [dueDate, setDueDate] = useState(
     task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""
   );
+  const [tagIds, setTagIds] = useState<string[]>(task.tags?.map((t) => t.id) ?? []);
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -42,6 +46,7 @@ export function ProjectTaskDialog({
       status,
       priority,
       dueDate: dueDate || null,
+      tagIds,
     });
     setSaving(false);
     if (result.success) {
@@ -104,6 +109,11 @@ export function ProjectTaskDialog({
           <div className="space-y-1">
             <Label>Due date</Label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Tags</Label>
+            <TagPicker allTags={allTags} selectedIds={tagIds} onChange={setTagIds} onTagsChanged={onTagsChanged} />
           </div>
 
           <Button onClick={save} className="w-full" disabled={saving || !title.trim()}>

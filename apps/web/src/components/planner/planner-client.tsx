@@ -46,7 +46,7 @@ function getTypeInfo(type: string) {
   return PLANNER_TYPES.find((t) => t.value === type) ?? PLANNER_TYPES[0];
 }
 
-export function PlannerClient({ planners }: { planners: Planner[] }) {
+export function PlannerClient({ planners, baseSymbol = "Rs" }: { planners: Planner[]; baseSymbol?: string }) {
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -108,11 +108,11 @@ export function PlannerClient({ planners }: { planners: Planner[] }) {
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Estimated</span>
-              <span className="font-medium">Rs {(total / 100).toLocaleString()}</span>
+              <span className="font-medium">{baseSymbol} {(total / 100).toLocaleString()}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Paid so far</span>
-              <span className="font-medium text-emerald-600">Rs {(paid / 100).toLocaleString()}</span>
+              <span className="font-medium text-emerald-600">{baseSymbol} {(paid / 100).toLocaleString()}</span>
             </div>
             {plan.targetDate && (
               <div className="flex justify-between">

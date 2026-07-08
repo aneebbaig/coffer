@@ -8,27 +8,26 @@ export interface PotEntryPeriod {
   budgetYear: number;
 }
 
+/** Credit `amount` (in `currencyId`'s smallest unit) into a pot's balance for that currency. */
 export async function creditPot(
   tx: PrismaTx,
   potId: string,
   amount: number,
-  currency: "PKR" | "USD",
+  currencyId: string,
   description: string,
   sourceType = "MANUAL",
   period?: PotEntryPeriod,
 ): Promise<void> {
-  await tx.savingsPot.update({
-    where: { id: potId },
-    data: currency === "USD"
-      ? { currentAmountUsd: { increment: amount } }
-      : { currentAmount: { increment: amount } },
+  await tx.savingsPotBalance.upsert({
+    where: { potId_currencyId: { potId, currencyId } },
+    create: { potId, currencyId, amount },
+    update: { amount: { increment: amount } },
   });
   await tx.savingsPotEntry.create({
     data: {
       potId,
-      amount: currency === "PKR" ? amount : 0,
-      amountUsd: currency === "USD" ? amount : 0,
-      currency,
+      amount,
+      currencyId,
       sourceType,
       description,
       budgetMonth: period?.budgetMonth ?? null,
@@ -37,27 +36,26 @@ export async function creditPot(
   });
 }
 
+/** Debit `amount` (in `currencyId`'s smallest unit) from a pot's balance for that currency. */
 export async function debitPot(
   tx: PrismaTx,
   potId: string,
   amount: number,
-  currency: "PKR" | "USD",
+  currencyId: string,
   description: string,
   sourceType = "MANUAL",
   period?: PotEntryPeriod,
 ): Promise<void> {
-  await tx.savingsPot.update({
-    where: { id: potId },
-    data: currency === "USD"
-      ? { currentAmountUsd: { decrement: amount } }
-      : { currentAmount: { decrement: amount } },
+  await tx.savingsPotBalance.upsert({
+    where: { potId_currencyId: { potId, currencyId } },
+    create: { potId, currencyId, amount: -amount },
+    update: { amount: { decrement: amount } },
   });
   await tx.savingsPotEntry.create({
     data: {
       potId,
-      amount: currency === "PKR" ? -amount : 0,
-      amountUsd: currency === "USD" ? -amount : 0,
-      currency,
+      amount: -amount,
+      currencyId,
       sourceType,
       description,
       budgetMonth: period?.budgetMonth ?? null,

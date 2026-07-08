@@ -25,12 +25,22 @@ interface LoanPayment { id: string; amount: number; date: Date; notes: string | 
 interface Loan {
   id: string; personName: string; description: string | null; type: string;
   principalAmount: number; remainingAmount: number; date: Date; dueDate: Date | null;
-  notes: string | null; status: string; sourcePotId: string | null; payments: LoanPayment[];
+  notes: string | null; status: string; payments: LoanPayment[];
 }
 interface Summary { totalGiven: number; totalReceived: number; netPosition: number; }
-interface SavingsPot { id: string; name: string; currentAmount: number; color: string; }
-interface FundingPot { id: string; name: string; type: string; currentAmount: number; currentAmountUsd: number; }
-interface FundingContext { monthlyIncomeAvailable: number; usdTopkrRate: number; pots: FundingPot[]; }
+interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
+interface PotBalance { amount: number; currency: CurrencyLite; }
+interface FundingPot { id: string; name: string; type: string; balances: PotBalance[]; }
+interface FundingContext { monthlyIncomeAvailable: number; currencies: CurrencyLite[]; pots: FundingPot[]; }
+
+// Loans record their principal directly as an income/expense transaction -
+// no pot involved. Repaying a borrowed (RECEIVED) loan can still draw from a
+// pot, same as any other expense; getting repaid on a lent (GIVEN) loan is
+// plain income. Loans only ever move money in the household's base currency
+// (out of scope for per-loan currency selection - only pots/income support multiple).
+function baseBalance(pot: { balances: PotBalance[] }): number {
+  return pot.balances.find((b) => b.currency.isBase)?.amount ?? 0;
+}
 
 const STATUS_BADGE: Record<string, string> = {
   ACTIVE: "bg-blue-100 text-blue-700",
@@ -38,23 +48,25 @@ const STATUS_BADGE: Record<string, string> = {
   PAID: "bg-emerald-100 text-emerald-700",
 };
 
-export function LoansClient({ loans, summary, savingsPots, fundingContext, openPeriod }: { loans: Loan[]; summary: Summary; savingsPots: SavingsPot[]; fundingContext: FundingContext; openPeriod: { month: number; year: number } }) {
+export function LoansClient({ loans, summary, fundingContext, openPeriod }: { loans: Loan[]; summary: Summary; fundingContext: FundingContext; openPeriod: { month: number; year: number } }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [periodOverride, setPeriodOverride] = useState<PeriodOverride>({ enabled: false, month: openPeriod.month, year: openPeriod.year });
   const [payOpen, setPayOpen] = useState<string | null>(null);
-  const [deleteLoanData, setDeleteLoanData] = useState<{ id: string; personName: string; remainingAmount: number; sourcePotId: string | null } | null>(null);
+  const [deleteLoanData, setDeleteLoanData] = useState<{ id: string; personName: string } | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [form, setForm] = useState({ personName: "", description: "", type: "GIVEN", principalAmount: "", date: format(new Date(), "yyyy-MM-dd"), dueDate: "", notes: "", deductFromPotId: "", depositToPotId: "" });
-  const [payForm, setPayForm] = useState({ amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "", fundingSource: "INCOME", fundingPotId: "", depositPotId: "" });
+  const [form, setForm] = useState({ personName: "", description: "", type: "GIVEN", principalAmount: "", date: format(new Date(), "yyyy-MM-dd"), dueDate: "", notes: "" });
+  const [payForm, setPayForm] = useState({ amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "", fundingSource: "INCOME", fundingPotId: "" });
   const [useSplit, setUseSplit] = useState(false);
   const [splitRows, setSplitRows] = useState([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
+  const baseSymbol = fundingContext.currencies.find((c) => c.isBase)?.symbol ?? "Rs";
+  const baseCurrencyId = fundingContext.currencies.find((c) => c.isBase)?.id;
   const loanFundingOptions: FundingOption[] = [
-    { value: "INCOME", label: `Monthly income · Rs ${(fundingContext.monthlyIncomeAvailable / 100).toLocaleString()} available` },
-    ...fundingContext.pots.filter((p) => p.currentAmount > 0).map((pot) => ({
+    { value: "INCOME", label: `Monthly income · ${baseSymbol} ${(fundingContext.monthlyIncomeAvailable / 100).toLocaleString()} available` },
+    ...fundingContext.pots.filter((p) => baseBalance(p) > 0).map((pot) => ({
       value: pot.id,
-      label: `${pot.name} (${pot.type}) · Rs ${(pot.currentAmount / 100).toLocaleString()}`,
+      label: `${pot.name} (${pot.type}) · ${baseSymbol} ${(baseBalance(pot) / 100).toLocaleString()}`,
     })),
   ];
 
@@ -63,25 +75,15 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
 
   async function handleCreate() {
     if (!form.personName || !form.principalAmount) return;
-    if (form.type === "GIVEN" && !form.deductFromPotId) {
-      toast.error("Select a savings pot to deduct the loan from");
-      return;
-    }
-    if (form.type === "RECEIVED" && !form.depositToPotId) {
-      toast.error("Select a savings pot to deposit the loan funds");
-      return;
-    }
     setLoading(true);
     const result = await createLoan({
       ...form,
       principalAmount: parseFloat(form.principalAmount),
-      deductFromPotId: form.deductFromPotId || undefined,
-      depositToPotId: form.depositToPotId || undefined,
     });
     if (result.success) {
-      toast.success(form.type === "GIVEN" ? "Loan added & deducted from savings!" : "Loan added & deposited to savings!");
+      toast.success(form.type === "GIVEN" ? "Loan added - recorded as an expense" : "Loan added - recorded as income");
       setCreateOpen(false);
-      setForm({ personName: "", description: "", type: "GIVEN", principalAmount: "", date: format(new Date(), "yyyy-MM-dd"), dueDate: "", notes: "", deductFromPotId: "", depositToPotId: "" });
+      setForm({ personName: "", description: "", type: "GIVEN", principalAmount: "", date: format(new Date(), "yyyy-MM-dd"), dueDate: "", notes: "" });
     } else toast.error(result.error ?? "Failed");
     setLoading(false);
   }
@@ -90,14 +92,10 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
 
   async function handlePayment() {
     if (!payOpen || !payForm.amount) return;
-    if (payLoan?.type === "GIVEN" && !payForm.depositPotId) {
-      toast.error("Select a savings pot to credit the returned money");
-      return;
-    }
     setLoading(true);
     const isReceived = payLoan?.type === "RECEIVED";
 
-    let splitSources: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currency?: "PKR"; pkrAmount: number }[] | undefined;
+    let splitSources: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currencyId?: string; pkrAmount: number }[] | undefined;
     if (isReceived && useSplit) {
       const totalPaisas = Math.round(parseFloat(payForm.amount) * 100);
       const primaryTotal = splitRows.slice(0, -1).reduce((s, r) => s + (Math.round(parseFloat(r.pkrAmount || "0") * 100) || 0), 0);
@@ -111,7 +109,7 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
         const isLast = idx === splitRows.length - 1;
         const pkrAmount = isLast ? lastAmount : (Math.round(parseFloat(row.pkrAmount || "0") * 100) || 0);
         if (row.value === "INCOME") return { source: "INCOME" as const, pkrAmount };
-        return { source: "SAVINGS_POT" as const, potId: row.value, currency: "PKR" as const, pkrAmount };
+        return { source: "SAVINGS_POT" as const, potId: row.value, currencyId: baseCurrencyId, pkrAmount };
       });
     }
 
@@ -124,13 +122,12 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
         fundingPotId: payForm.fundingSource === "SAVINGS_POT" ? payForm.fundingPotId : undefined,
       } : {}),
       splitSources: isReceived && useSplit ? splitSources : undefined,
-      depositToPotId: !isReceived ? payForm.depositPotId : undefined,
-      ...(isReceived && periodOverride.enabled ? { budgetMonth: periodOverride.month, budgetYear: periodOverride.year } : {}),
+      ...(periodOverride.enabled ? { budgetMonth: periodOverride.month, budgetYear: periodOverride.year } : {}),
     });
     if (result.success) {
-      toast.success(isReceived ? "Payment recorded & expense created!" : "Payment recorded & credited to savings!");
+      toast.success(isReceived ? "Payment recorded & expense created!" : "Payment recorded & added to income!");
       setPayOpen(null);
-      setPayForm({ amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "", fundingSource: "INCOME", fundingPotId: "", depositPotId: "" });
+      setPayForm({ amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "", fundingSource: "INCOME", fundingPotId: "" });
       setUseSplit(false);
       setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
     } else toast.error(result.error ?? "Failed");
@@ -138,7 +135,7 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
   }
 
   async function handleMarkPaid(loan: Loan) {
-    setPayForm((p) => ({ ...p, amount: String(loan.remainingAmount / 100), fundingSource: "INCOME", fundingPotId: "", depositPotId: "" }));
+    setPayForm((p) => ({ ...p, amount: String(loan.remainingAmount / 100), fundingSource: "INCOME", fundingPotId: "" }));
     setUseSplit(false);
     setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
     setPayOpen(loan.id);
@@ -147,14 +144,8 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
   async function handleDelete() {
     if (!deleteLoanData) return;
     const result = await deleteLoan(deleteLoanData.id);
-    if (result.success) {
-      const potName = deleteLoanData.sourcePotId ? savingsPots.find((p) => p.id === deleteLoanData.sourcePotId)?.name : null;
-      toast.success(potName && deleteLoanData.remainingAmount > 0
-        ? `Loan deleted · Rs ${(deleteLoanData.remainingAmount / 100).toLocaleString()} returned to ${potName}`
-        : "Loan deleted");
-    } else {
-      toast.error(result.error ?? "Failed to delete");
-    }
+    if (result.success) toast.success("Loan deleted");
+    else toast.error(result.error ?? "Failed to delete");
     setDeleteLoanData(null);
   }
 
@@ -184,12 +175,12 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
                 <div>
                   <span className="text-muted-foreground text-xs">Remaining </span>
                   <span className={cn("font-bold", isGiven ? "text-emerald-600" : "text-red-600")}>
-                    Rs {(loan.remainingAmount / 100).toLocaleString()}
+                    {baseSymbol} {(loan.remainingAmount / 100).toLocaleString()}
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-foreground text-xs">of </span>
-                  <span className="text-muted-foreground">Rs {(loan.principalAmount / 100).toLocaleString()}</span>
+                  <span className="text-muted-foreground">{baseSymbol} {(loan.principalAmount / 100).toLocaleString()}</span>
                 </div>
                 {loan.dueDate && (
                   <div className="text-xs text-muted-foreground">Due: {format(new Date(loan.dueDate), "d MMM yyyy")}</div>
@@ -218,7 +209,7 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
                 History
               </Button>
               <button
-                onClick={() => setDeleteLoanData({ id: loan.id, personName: loan.personName, remainingAmount: loan.remainingAmount, sourcePotId: loan.sourcePotId })}
+                onClick={() => setDeleteLoanData({ id: loan.id, personName: loan.personName })}
                 className="text-muted-foreground hover:text-red-500 transition-colors p-1"
                 title="Delete loan"
               >
@@ -243,7 +234,7 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
                       <span className="text-muted-foreground text-xs">{format(new Date(p.date), "d MMM yyyy")}</span>
                       {p.notes && <span className="text-muted-foreground text-xs ml-2">· {p.notes}</span>}
                     </div>
-                    <span className="font-medium text-emerald-600">+Rs {(p.amount / 100).toLocaleString()}</span>
+                    <span className="font-medium text-emerald-600">+{baseSymbol} {(p.amount / 100).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
@@ -275,16 +266,16 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
       <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border mb-6">
         <div className="bg-background px-5 py-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">Owed to me</p>
-          <p className="text-xl font-bold text-emerald-500 tabnum">Rs {(summary.totalGiven / 100).toLocaleString()}</p>
+          <p className="text-xl font-bold text-emerald-500 tabnum">{baseSymbol} {(summary.totalGiven / 100).toLocaleString()}</p>
         </div>
         <div className="bg-background px-5 py-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">I owe</p>
-          <p className="text-xl font-bold text-red-500 tabnum">Rs {(summary.totalReceived / 100).toLocaleString()}</p>
+          <p className="text-xl font-bold text-red-500 tabnum">{baseSymbol} {(summary.totalReceived / 100).toLocaleString()}</p>
         </div>
         <div className="bg-background px-5 py-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">Net</p>
           <p className={cn("text-xl font-bold tabnum", summary.netPosition >= 0 ? "text-foreground" : "text-red-500")}>
-            {summary.netPosition >= 0 ? "+" : ""}Rs {(Math.abs(summary.netPosition) / 100).toLocaleString()}
+            {summary.netPosition >= 0 ? "+" : ""}{baseSymbol} {(Math.abs(summary.netPosition) / 100).toLocaleString()}
           </p>
         </div>
       </div>
@@ -334,7 +325,7 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
               <Input value={form.personName} onChange={(e) => setForm((p) => ({ ...p, personName: e.target.value }))} placeholder="e.g. Ahmed, Uncle Tariq" />
             </div>
             <div>
-              <Label>Amount (Rs )</Label>
+              <Label>Amount ({baseSymbol})</Label>
               <Input type="number" value={form.principalAmount} onChange={(e) => setForm((p) => ({ ...p, principalAmount: e.target.value }))} placeholder="0" />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -355,56 +346,11 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
               <Label>Notes (optional)</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Any extra details..." />
             </div>
-            {form.type === "GIVEN" && (
-              <div>
-                <Label>Deduct from savings pot</Label>
-                {savingsPots.length === 0 ? (
-                  <p className="text-xs text-muted-foreground mt-1">No savings pots found. Create one first.</p>
-                ) : (
-                  <Select value={form.deductFromPotId} onValueChange={(v) => setForm((p) => ({ ...p, deductFromPotId: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select pot to deduct from" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {savingsPots.map((pot) => (
-                        <SelectItem key={pot.id} value={pot.id}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: pot.color }} />
-                            {pot.name} · Rs {(pot.currentAmount / 100).toLocaleString()}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">Money leaves this pot and goes to the person.</p>
-              </div>
-            )}
-            {form.type === "RECEIVED" && (
-              <div>
-                <Label>Deposit to savings pot</Label>
-                {savingsPots.length === 0 ? (
-                  <p className="text-xs text-muted-foreground mt-1">No savings pots found. Create one first.</p>
-                ) : (
-                  <Select value={form.depositToPotId} onValueChange={(v) => setForm((p) => ({ ...p, depositToPotId: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select pot to receive funds" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {savingsPots.map((pot) => (
-                        <SelectItem key={pot.id} value={pot.id}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: pot.color }} />
-                            {pot.name} · Rs {(pot.currentAmount / 100).toLocaleString()}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">Borrowed money lands in this pot.</p>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              {form.type === "GIVEN"
+                ? "Recorded as an expense - the money leaves your available cash."
+                : "Recorded as income - the money becomes available to budget."}
+            </p>
             <Button className="w-full" onClick={handleCreate} disabled={loading}>
               {loading ? "Adding..." : "Add Loan"}
             </Button>
@@ -422,7 +368,7 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Amount (Rs )</Label>
+              <Label>Amount ({baseSymbol})</Label>
               <Input type="number" value={payForm.amount} onChange={(e) => setPayForm((p) => ({ ...p, amount: e.target.value }))} placeholder="0" autoFocus />
             </div>
             <div>
@@ -457,11 +403,11 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="INCOME">
-                          Monthly income · Rs {(fundingContext.monthlyIncomeAvailable / 100).toLocaleString()} available
+                          Monthly income · {baseSymbol} {(fundingContext.monthlyIncomeAvailable / 100).toLocaleString()} available
                         </SelectItem>
-                        {fundingContext.pots.filter((p) => p.currentAmount > 0).map((pot) => (
+                        {fundingContext.pots.filter((p) => baseBalance(p) > 0).map((pot) => (
                           <SelectItem key={pot.id} value={pot.id}>
-                            {pot.name} ({pot.type}) · Rs {(pot.currentAmount / 100).toLocaleString()}
+                            {pot.name} ({pot.type}) · {baseSymbol} {(baseBalance(pot) / 100).toLocaleString()}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -479,37 +425,13 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
               </div>
             )}
             {payLoan?.type === "GIVEN" && (
-              <div>
-                <Label>Credit returned money to pot</Label>
-                {savingsPots.length === 0 ? (
-                  <p className="text-xs text-muted-foreground mt-1">No savings pots found. Create one first.</p>
-                ) : (
-                  <Select value={payForm.depositPotId} onValueChange={(v) => setPayForm((p) => ({ ...p, depositPotId: v }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select pot to receive repayment" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {savingsPots.map((pot) => (
-                        <SelectItem key={pot.id} value={pot.id}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: pot.color }} />
-                            {pot.name} · Rs {(pot.currentAmount / 100).toLocaleString()}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">Repaid money is credited back to this pot.</p>
-              </div>
+              <p className="text-xs text-muted-foreground">Recorded as income - available to budget once received.</p>
             )}
             <div>
               <Label>Notes (optional)</Label>
               <Input value={payForm.notes} onChange={(e) => setPayForm((p) => ({ ...p, notes: e.target.value }))} placeholder="e.g. Cash, bank transfer" />
             </div>
-            {payLoan?.type === "RECEIVED" && (
-              <BudgetPeriodOverride openPeriod={openPeriod} value={periodOverride} onChange={setPeriodOverride} />
-            )}
+            <BudgetPeriodOverride openPeriod={openPeriod} value={periodOverride} onChange={setPeriodOverride} />
             <Button className="w-full" onClick={handlePayment} disabled={loading}>
               {loading ? "Recording..." : payLoan?.type === "RECEIVED" ? "Record Repayment" : "Record Payment"}
             </Button>
@@ -521,14 +443,7 @@ export function LoansClient({ loans, summary, savingsPots, fundingContext, openP
         open={!!deleteLoanData}
         onOpenChange={(o) => !o && setDeleteLoanData(null)}
         title="Delete loan?"
-        description={(() => {
-          if (!deleteLoanData) return "All payment history will be deleted too.";
-          const potName = deleteLoanData.sourcePotId ? savingsPots.find((p) => p.id === deleteLoanData.sourcePotId)?.name : null;
-          if (potName && deleteLoanData.remainingAmount > 0) {
-            return `Rs ${(deleteLoanData.remainingAmount / 100).toLocaleString()} will be returned to "${potName}". Payment history will also be deleted.`;
-          }
-          return "All payment history will be deleted too.";
-        })()}
+        description="This removes the loan and its linked transaction from your ledger, plus all payment history. This cannot be undone."
         onConfirm={handleDelete}
       />
     </>

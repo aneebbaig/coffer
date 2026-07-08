@@ -5,6 +5,7 @@ import { getUserId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { toPaisas } from "@/lib/utils";
 import { ActionResult, GoalItem } from "@/types";
+import { createTransaction } from "@/actions/expenses";
 
 export async function getGoals() {
   const userId = await getUserId();
@@ -133,6 +134,62 @@ export async function updateGoalItems(id: string, items: GoalItem[]): Promise<Ac
   } catch (e) {
     console.error("[updateGoalItems]", e);
     return { success: false, error: "Failed to update items" };
+  }
+}
+
+async function findOrCreateGoalPurchaseCategory(userId: string): Promise<string> {
+  const existing = await prisma.category.findFirst({
+    where: { userId, name: "Goal Purchase", type: "EXPENSE" },
+  });
+  if (existing) return existing.id;
+  const created = await prisma.category.create({
+    data: { userId, name: "Goal Purchase", type: "EXPENSE", color: "#8b5cf6", icon: "🎯" },
+  });
+  return created.id;
+}
+
+/**
+ * One-tap expense logging for a milestone item, shown inline right after it's
+ * marked purchased - no dialog, no category picker. Reuses createTransaction
+ * so it gets the same income-availability check and notifications as any
+ * other expense; auto-provisions a "Goal Purchase" category to keep it a
+ * single click.
+ */
+export async function logGoalItemExpense(goalId: string, itemId: string): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    const goal = await prisma.goal.findFirst({ where: { id: goalId, userId } });
+    if (!goal) return { success: false, error: "Not found" };
+
+    let items: GoalItem[];
+    try { items = JSON.parse(goal.items); } catch { items = []; }
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return { success: false, error: "Item not found" };
+    if (item.expenseLogged) return { success: false, error: "Expense already logged for this item" };
+
+    const amountPaisas = item.actualCost ?? item.estimatedCost;
+    if (!amountPaisas || amountPaisas <= 0) return { success: false, error: "Set a cost for this item first" };
+
+    const categoryId = await findOrCreateGoalPurchaseCategory(userId);
+    const result = await createTransaction({
+      amount: amountPaisas / 100,
+      type: "EXPENSE",
+      categoryId,
+      description: item.name,
+      date: new Date().toISOString().slice(0, 10),
+      isRecurring: false,
+      tags: "",
+      fundingSource: "INCOME",
+    });
+    if (!result.success) return result;
+
+    const updatedItems = items.map((i) => (i.id === itemId ? { ...i, expenseLogged: true } : i));
+    await prisma.goal.update({ where: { id: goalId }, data: { items: JSON.stringify(updatedItems) } });
+    revalidatePath(`/goals/${goalId}`);
+    return { success: true };
+  } catch (e) {
+    console.error("[logGoalItemExpense]", e);
+    return { success: false, error: "Failed to log expense" };
   }
 }
 

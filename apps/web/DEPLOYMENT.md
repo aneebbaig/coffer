@@ -1,6 +1,6 @@
 # Deployment Guide - Vercel + Neon
 
-Deploy Coffer to **Vercel** (hosting) + **Neon** (database). Both free. No servers, no Docker, no SSH. Total cost: **$0**.
+Deploy Align to **Vercel** (hosting) + **Neon** (database). Both free. No servers, no Docker, no SSH. Total cost: **$0**.
 
 ---
 
@@ -17,7 +17,7 @@ Deploy Coffer to **Vercel** (hosting) + **Neon** (database). Both free. No serve
 ## Step 1 - Set up Neon
 
 1. Sign up at [neon.tech](https://neon.tech) (free)
-2. Click **New Project** → name it `coffer`, pick a region close to you
+2. Click **New Project** → name it `align`, pick a region close to you
 3. Your project starts with a `main` branch (production database)
 
 ### Create a dev branch
@@ -97,7 +97,7 @@ git push origin main
 
 1. Go to [vercel.com](https://vercel.com), sign up with your GitHub account
 2. Click **Add New → Project**
-3. Find `coffer-management` → click **Import**
+3. Find your repo → click **Import**
 4. Leave all settings as default
 5. **Stop before clicking Deploy** - add environment variables first
 
@@ -121,6 +121,7 @@ In your Vercel project → **Settings → Environment Variables**, add:
 | `GMAIL_USER` | Your Gmail (optional - enables all email alerts) | All |
 | `GMAIL_APP_PASSWORD` | 16-char Google App Password (optional) | All |
 | `CRON_SECRET` | Random secret for the daily digest cron - generate same as AUTH_SECRET | All |
+| `NEXT_PUBLIC_APP_NAME` | Optional - override the app's display name. Defaults to "Align" | All |
 
 > **`TOTP_ENC_KEY` is required** if any user enables two-factor authentication (Settings → Security). Without it, enabling or verifying 2FA fails. Set it before your first deploy and never change it afterward, or existing 2FA secrets become undecryptable.
 

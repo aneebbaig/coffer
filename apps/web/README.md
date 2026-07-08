@@ -1,4 +1,4 @@
-# Coffer - Personal Finance Manager
+# Align - Personal Finance Manager
 
 A private finance app for two users. Tracks expenses, budgets, goals, savings, investments, loans, tasks, calendar, and a secret gift vault.
 
@@ -31,7 +31,7 @@ A private finance app for two users. Tracks expenses, budgets, goals, savings, i
 
 ## Money Flow
 
-Coffer enforces a strict zero-based budgeting model - money cannot enter or leave any bucket without a declared source.
+Align enforces a strict zero-based budgeting model - money cannot enter or leave any bucket without a declared source.
 
 ### Income
 - Income enters the system only through the **Income page**.
@@ -143,3 +143,4 @@ See **[DEPLOYMENT.md](DEPLOYMENT.md)** - Vercel + Neon, completely free, ~10 min
 | `GMAIL_USER` | Optional - Gmail for email alerts and daily digest |
 | `GMAIL_APP_PASSWORD` | Optional - 16-char Google App Password |
 | `CRON_SECRET` | Random secret that authenticates the daily email digest cron - generate same as AUTH_SECRET |
+| `NEXT_PUBLIC_APP_NAME` | Optional - override the app's display name (title, sidebar, login, PWA manifest). Defaults to "Align" |

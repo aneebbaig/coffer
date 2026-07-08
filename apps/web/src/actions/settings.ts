@@ -53,10 +53,13 @@ export async function updateCategory(id: string, data: {
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    await prisma.category.updateMany({
-      where: { id, userId },
+    // Default categories are shared (userId: null) - any household member can
+    // edit them. Custom categories are only editable by their owner.
+    const { count } = await prisma.category.updateMany({
+      where: { id, OR: [{ userId }, { isDefault: true }] },
       data,
     });
+    if (count === 0) return { success: false, error: "Category not found" };
     revalidatePath("/settings");
     return { success: true };
   } catch (e) {
@@ -78,7 +81,14 @@ export async function hideCategory(id: string): Promise<ActionResult> {
 
 export async function deleteCategory(id: string): Promise<ActionResult> {
   try {
-    await getUserId();
+    const userId = await getUserId();
+    const category = await prisma.category.findUnique({ where: { id } });
+    if (!category) return { success: false, error: "Category not found" };
+    // Default categories are shared and deletable by anyone; custom categories
+    // only by their owner.
+    if (!category.isDefault && category.userId !== userId) {
+      return { success: false, error: "Not authorized to delete this category" };
+    }
     try {
       await prisma.category.delete({ where: { id } });
     } catch {
@@ -95,7 +105,6 @@ export async function deleteCategory(id: string): Promise<ActionResult> {
 
 export async function updateUserSettings(data: {
   name: string;
-  currency: string;
   dateFormat: string;
   firstDayOfWeek: number;
   emergencyFundMonths: number;
@@ -151,30 +160,16 @@ export async function updateEmergencyFundMonths(months: number): Promise<ActionR
   }
 }
 
-export async function updateUsdTopkrRate(rate: number): Promise<ActionResult> {
-  try {
-    await getUserId();
-    await prisma.user.updateMany({ data: { usdTopkrRate: rate } });
-    revalidatePath("/savings");
-    revalidatePath("/income");
-    return { success: true };
-  } catch (e) {
-    console.error(e);
-    return { success: false, error: "Failed to update exchange rate" };
-  }
-}
-
 export async function getUserSettings() {
   const userId = await getUserId();
   return prisma.user.findUnique({
     where: { id: userId },
     select: {
-      name: true, email: true, currency: true, dateFormat: true,
+      name: true, email: true, dateFormat: true,
       firstDayOfWeek: true, currentBudgetMonth: true, currentBudgetYear: true, emergencyFundMonths: true,
       notifyBudgetWarning: true, notifyDoomSpending: true, notifyLoanDue: true,
       notifyDailyDigest: true, notifyDigestTasks: true, notifyDigestCalendar: true,
       notifyDigestBudget: true, notifyDigestFinancials: true,
-      usdTopkrRate: true,
     },
   });
 }
@@ -198,7 +193,7 @@ export async function exportUserData(): Promise<{ success: true; data: object } 
         prisma.budget.findMany({ where: { userId }, include: { budgetCategories: true } }),
         prisma.goal.findMany({ where: { userId } }),
         prisma.planner.findMany({ where: { userId }, include: { items: true } }),
-        prisma.savingsPot.findMany({ where: { userId }, include: { history: true } }),
+        prisma.savingsPot.findMany({ where: { userId }, include: { history: true, balances: { include: { currency: true } } } }),
         prisma.investment.findMany({ where: { userId } }),
         prisma.task.findMany({ where: { userId } }),
         prisma.loan.findMany({ where: { userId }, include: { payments: true } }),

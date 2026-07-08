@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { format, isToday, isYesterday } from "date-fns";
-import { Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { Pencil, Trash2, AlertTriangle, Frown } from "lucide-react";
 import { toast } from "sonner";
 import { deleteTransaction } from "@/actions/expenses";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -10,12 +10,14 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { cn } from "@/lib/utils";
 import { ShoppingBag } from "lucide-react";
 
+interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
 interface Transaction {
   id: string; amount: number; type: string; categoryId: string; description: string;
   notes?: string | null; date: Date; budgetMonth: number; budgetYear: number; tags: string; isRecurring: boolean;
-  recurringFrequency?: string | null;
-  originalCurrency?: string | null; originalAmount?: number | null; exchangeRate?: number | null;
-  fundingSource?: string; fundingPotId?: string | null; fundingCurrency?: string | null; fundingAmount?: number | null;
+  recurringFrequency?: string | null; isRegretPurchase?: boolean;
+  nativeCurrencyId?: string | null; nativeAmount?: number | null; nativeCurrency?: CurrencyLite | null;
+  fundingSource?: string; fundingPotId?: string | null; fundingCurrencyId?: string | null; fundingAmount?: number | null;
+  fundingCurrency?: CurrencyLite | null;
   fundingPot?: { id: string; name: string; type: string } | null;
   category: { id: string; name: string; color: string; icon: string };
 }
@@ -38,10 +40,12 @@ function groupByDate(transactions: Transaction[]): Record<string, Transaction[]>
 export function TransactionList({
   transactions,
   budgetByCategoryId = {},
+  baseSymbol = "Rs",
   onEdit,
 }: {
   transactions: Transaction[];
   budgetByCategoryId?: Record<string, { allocated: number; spent: number }>;
+  baseSymbol?: string;
   onEdit: (tx: Transaction) => void;
 }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -107,8 +111,13 @@ export function TransactionList({
                       <div className="text-xs text-muted-foreground/75 flex items-center gap-1 mt-0.5">
                         {tx.category.name}
                         {tx.isRecurring && <span className="text-primary/60">↻</span>}
+                        {tx.isRegretPurchase && (
+                          <span className="flex items-center gap-0.5 text-amber-600/80" title="Marked as a regret buy">
+                            <Frown className="h-2.5 w-2.5" />regret
+                          </span>
+                        )}
                         {tx.type === "EXPENSE" && tx.fundingSource === "SAVINGS_POT" && tx.fundingPot && (
-                          <span>· from {tx.fundingPot.name}{tx.fundingCurrency === "USD" ? " $" : ""}</span>
+                          <span>· from {tx.fundingPot.name}{tx.fundingCurrency && !tx.fundingCurrency.isBase ? ` ${tx.fundingCurrency.symbol}` : ""}</span>
                         )}
                         {isOverBudget && (
                           <span className="flex items-center gap-0.5 text-red-500/70">
@@ -123,11 +132,11 @@ export function TransactionList({
                         "text-sm font-semibold tabnum",
                         tx.type === "INCOME" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
                       )}>
-                        {tx.type === "INCOME" ? "+" : "-"}Rs {(tx.amount / 100).toLocaleString()}
+                        {tx.type === "INCOME" ? "+" : "-"}{baseSymbol} {(tx.amount / 100).toLocaleString()}
                       </div>
-                      {tx.originalCurrency === "USD" && tx.originalAmount && (
+                      {tx.nativeCurrency && tx.nativeAmount && (
                         <div className="text-xs text-muted-foreground/70 tabnum">
-                          ${(tx.originalAmount / 100).toLocaleString()}
+                          {tx.nativeCurrency.symbol}{(tx.nativeAmount / 100).toLocaleString()}
                         </div>
                       )}
                     </div>

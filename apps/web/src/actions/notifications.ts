@@ -9,6 +9,7 @@ import { getTodaysTasks } from "@/actions/tasks";
 import { getTodaysEvents } from "@/actions/calendar";
 import { getSavingsPots, getAverageMonthlyExpenses } from "@/actions/savings";
 import { getTransactions } from "@/actions/expenses";
+import { getBaseCurrency } from "@/lib/currency-helpers";
 import { isOverdue } from "@/lib/utils";
 
 export type AppNotification = {
@@ -24,7 +25,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
   const settings = await getUserSettings();
   const { month, year } = getCurrentPeriod(settings?.currentBudgetMonth, settings?.currentBudgetYear);
 
-  const [budgetData, goals, todaysTasks, todaysEvents, savingsPots, avgMonthlyExpenses, recentTransactions] =
+  const [budgetData, goals, todaysTasks, todaysEvents, savingsPots, avgMonthlyExpenses, recentTransactions, base] =
     await Promise.all([
       getBudgetWithSpending(month, year),
       getGoals(),
@@ -33,6 +34,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
       getSavingsPots(),
       getAverageMonthlyExpenses(),
       getTransactions({ month, year }),
+      getBaseCurrency(),
     ]);
 
   const notifications: AppNotification[] = [];
@@ -47,7 +49,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
     notifications.push({
       id: "doom-spending",
       type: "error",
-      message: `Doom spending alert - ${recentExpenses.length} expenses in the last 2 hours (Rs ${(total / 100).toLocaleString()})`,
+      message: `Doom spending alert - ${recentExpenses.length} expenses in the last 2 hours (${base.symbol} ${(total / 100).toLocaleString()})`,
     });
   }
 
@@ -55,7 +57,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
   const emergencyPot = savingsPots.find(
     (p) => p.type === "EMERGENCY" || p.name.toLowerCase().includes("emergency")
   );
-  const emergencyBalance = emergencyPot?.currentAmount ?? 0;
+  const emergencyBalance = emergencyPot?.balances.reduce((s, b) => s + Math.round(b.amount * b.currency.rateToBase), 0) ?? 0;
   const emergencyMonthsCovered = avgMonthlyExpenses > 0 ? emergencyBalance / avgMonthlyExpenses : 0;
   if (emergencyMonthsCovered < 3) {
     notifications.push({
@@ -72,7 +74,7 @@ export async function getNotifications(): Promise<AppNotification[]> {
       notifications.push({
         id: `budget-exceeded-${cat.id}`,
         type: "error",
-        message: `${cat.category.name} budget exceeded by Rs ${(over / 100).toLocaleString()}`,
+        message: `${cat.category.name} budget exceeded by ${base.symbol} ${(over / 100).toLocaleString()}`,
       });
     } else if (cat.percentage === 100) {
       notifications.push({

@@ -19,7 +19,7 @@ import { createWeddingPlan, deleteWeddingPlan } from "@/actions/wedding";
 import { cn } from "@/lib/utils";
 import { WeddingPlan, PLAN_STATUS_CONFIG, fmt } from "./wedding-types";
 
-export function WeddingClient({ plans: initialPlans }: { plans: WeddingPlan[] }) {
+export function WeddingClient({ plans: initialPlans, baseSymbol = "Rs" }: { plans: WeddingPlan[]; baseSymbol?: string }) {
   const router = useRouter();
   const [plans, setPlans] = useState(initialPlans);
   const [open, setOpen] = useState(false);
@@ -122,24 +122,24 @@ export function WeddingClient({ plans: initialPlans }: { plans: WeddingPlan[] })
                     <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Budget</span>
-                        <span className="font-medium">{fmt(plan.totalBudget)}</span>
+                        <span className="font-medium">{fmt(plan.totalBudget, baseSymbol)}</span>
                       </div>
                       {totalVendorCost > 0 && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Vendors selected</span>
-                          <span className="font-medium">{fmt(totalVendorCost)}</span>
+                          <span className="font-medium">{fmt(totalVendorCost, baseSymbol)}</span>
                         </div>
                       )}
                       {paid > 0 && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Paid so far</span>
-                          <span className="font-medium text-emerald-600">{fmt(paid)}</span>
+                          <span className="font-medium text-emerald-600">{fmt(paid, baseSymbol)}</span>
                         </div>
                       )}
                       {plan.haqMehr && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Haq Mehr</span>
-                          <span className="font-medium text-pink-600">{fmt(plan.haqMehr)}</span>
+                          <span className="font-medium text-pink-600">{fmt(plan.haqMehr, baseSymbol)}</span>
                         </div>
                       )}
                     </div>

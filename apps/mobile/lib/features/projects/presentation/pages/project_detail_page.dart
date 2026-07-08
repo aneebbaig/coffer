@@ -10,8 +10,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../data/datasources/projects_datasource.dart';
+import '../../data/datasources/tags_datasource.dart';
 import '../../domain/entities/project_entity.dart';
 import '../providers/projects_provider.dart';
+import '../providers/tags_provider.dart';
 import '../widgets/kanban_board.dart';
 import '../widgets/project_card.dart';
 import '../widgets/project_details_sheet.dart';
@@ -108,6 +110,7 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     await showTaskEditSheet(
       context,
       task: task,
+      allTags: ref.read(tagsProvider).asData?.value ?? const [],
       onSave: (changes) async {
         try {
           await ref.read(projectsDatasourceProvider).updateTask(widget.projectId, task.id, changes);
@@ -120,6 +123,29 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
         }
       },
       onDelete: () => _deleteTask(task),
+      onCreateTag: (name, color) async {
+        try {
+          final created = await ref.read(tagsDatasourceProvider).createTag(name: name, color: color);
+          ref.invalidate(tagsProvider);
+          return created;
+        } catch (e) {
+          if (!mounted) return null;
+          ref.read(toastServiceProvider).error(
+              context, e is AppException ? e.message : 'Failed to create tag');
+          return null;
+        }
+      },
+      onDeleteTag: (id) async {
+        try {
+          await ref.read(tagsDatasourceProvider).deleteTag(id);
+          ref.invalidate(tagsProvider);
+          if (mounted) _refresh();
+        } catch (e) {
+          if (!mounted) return;
+          ref.read(toastServiceProvider).error(
+              context, e is AppException ? e.message : 'Failed to delete tag');
+        }
+      },
     );
   }
 
@@ -190,6 +216,50 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     }
   }
 
+  Future<void> _editName(ProjectEntity project) async {
+    final controller = TextEditingController(text: project.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: Text('Rename project',
+            style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: AppTextStyles.bodyMedium,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Project name'),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.mutedForeground)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text('Save',
+                style: AppTextStyles.bodySmall
+                    .copyWith(color: AppColors.primary, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (newName == null || newName.isEmpty || newName == project.name) return;
+    try {
+      await ref.read(projectsDatasourceProvider).updateProject(widget.projectId, {'name': newName});
+      if (!mounted) return;
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ref.read(toastServiceProvider).error(
+          context, e is AppException ? e.message : 'Failed to rename project');
+    }
+  }
+
   Future<void> _deleteProject() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -231,6 +301,7 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
   @override
   Widget build(BuildContext context) {
     final projectAsync = ref.watch(projectProvider(widget.projectId));
+    ref.watch(tagsProvider); // keep the tag list warm for the task-edit sheet
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -239,6 +310,13 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
         elevation: 0,
         title: const Text('Project', style: AppTextStyles.headlineSmall),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: AppColors.mutedForeground),
+            tooltip: 'Rename',
+            onPressed: projectAsync.hasValue
+                ? () => _editName(projectAsync.value!)
+                : null,
+          ),
           IconButton(
             icon: const Icon(Icons.notes_outlined, color: AppColors.mutedForeground),
             tooltip: 'Details',

@@ -18,11 +18,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const tasks = await prisma.projectTask.findMany({
       where: { projectId: id },
       orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      include: { tags: { include: { tag: true } } },
     });
 
     return NextResponse.json({
       data: tasks.map((t) => ({
         ...t,
+        tags: t.tags.map((pt) => pt.tag),
         dueDate: t.dueDate ? t.dueDate.toISOString() : null,
         createdAt: t.createdAt.toISOString(),
         updatedAt: t.updatedAt.toISOString(),
@@ -41,6 +43,7 @@ const createSchema = z.object({
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
   status: z.enum(["TODO", "IN_PROGRESS", "REVIEW", "DONE"]).default("TODO"),
   dueDate: z.string().optional(),
+  tagIds: z.array(z.string()).optional(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -60,7 +63,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { title, description, priority, status, dueDate } = parsed.data;
+    const { title, description, priority, status, dueDate, tagIds } = parsed.data;
+
+    if (tagIds?.length) {
+      const owned = await prisma.tag.count({ where: { id: { in: tagIds }, userId: auth.id } });
+      if (owned !== tagIds.length) return NextResponse.json({ error: "Invalid tag" }, { status: 400 });
+    }
 
     const maxOrder = await prisma.projectTask.aggregate({ where: { projectId: id }, _max: { order: true } });
     const order = (maxOrder._max.order ?? 0) + 1;
@@ -74,6 +82,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         dueDate: dueDate ? new Date(dueDate) : null,
         order,
         projectId: id,
+        ...(tagIds?.length ? { tags: { create: tagIds.map((tagId) => ({ tagId })) } } : {}),
       },
       select: { id: true },
     });

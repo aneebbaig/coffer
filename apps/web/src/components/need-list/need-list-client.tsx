@@ -45,6 +45,7 @@ interface Props {
   history: NeedListItem[];
   categories: Category[];
   hideHeader?: boolean;
+  baseSymbol?: string;
 }
 
 const PRIORITY_ORDER = ["HIGH", "MEDIUM", "LOW"];
@@ -67,11 +68,12 @@ const PRIORITY_CONFIG: Record<string, { label: string; badge: string; border: st
   },
 };
 
-function fmt(n: number) {
-  return "Rs " + (n / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 });
+function fmtWith(n: number, symbol: string) {
+  return symbol + " " + (n / 100).toLocaleString("en-PK", { minimumFractionDigits: 0 });
 }
 
-export function NeedListClient({ items, history, categories, hideHeader }: Props) {
+export function NeedListClient({ items, history, categories, hideHeader, baseSymbol = "Rs" }: Props) {
+  const fmt = (n: number) => fmtWith(n, baseSymbol);
   const [addOpen, setAddOpen] = useState(false);
   const [doneItem, setDoneItem] = useState<NeedListItem | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -186,6 +188,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
                       onDone={() => openDone(item)}
                       onSkip={() => handleSkip(item.id)}
                       onDelete={() => setDeleteId(item.id)}
+                      baseSymbol={baseSymbol}
                     />
                   ))}
                 </div>
@@ -208,7 +211,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
           {showHistory && (
             <div className="mt-3 space-y-2">
               {history.map((item) => (
-                <HistoryCard key={item.id} item={item} onDelete={() => setDeleteId(item.id)} />
+                <HistoryCard key={item.id} item={item} onDelete={() => setDeleteId(item.id)} baseSymbol={baseSymbol} />
               ))}
             </div>
           )}
@@ -245,7 +248,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Estimated cost (Rs)</Label>
+                <Label>Estimated cost ({baseSymbol})</Label>
                 <Input
                   type="number"
                   placeholder="0"
@@ -320,7 +323,7 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>
-                      Amount (Rs)
+                      Amount ({baseSymbol})
                       {doneItem?.estimatedCost && (
                         <span className="text-muted-foreground ml-1 font-normal">est. {fmt(doneItem.estimatedCost)}</span>
                       )}
@@ -367,13 +370,15 @@ export function NeedListClient({ items, history, categories, hideHeader }: Props
   );
 }
 
-function NeedCard({ item, cfg, onDone, onSkip, onDelete }: {
+function NeedCard({ item, cfg, onDone, onSkip, onDelete, baseSymbol }: {
   item: NeedListItem;
   cfg: { label: string; badge: string; border: string };
   onDone: () => void;
   onSkip: () => void;
   onDelete: () => void;
+  baseSymbol: string;
 }) {
+  const fmt = (n: number) => fmtWith(n, baseSymbol);
   return (
     <div className={cn("flex items-start gap-3 px-4 py-3 rounded-xl border bg-card", cfg.border)}>
       <div className="flex-1 min-w-0 space-y-1.5">
@@ -418,7 +423,8 @@ function NeedCard({ item, cfg, onDone, onSkip, onDelete }: {
   );
 }
 
-function HistoryCard({ item, onDelete }: { item: NeedListItem; onDelete: () => void }) {
+function HistoryCard({ item, onDelete, baseSymbol }: { item: NeedListItem; onDelete: () => void; baseSymbol: string }) {
+  const fmt = (n: number) => fmtWith(n, baseSymbol);
   const isDone = item.status === "DONE";
   return (
     <div className={cn(

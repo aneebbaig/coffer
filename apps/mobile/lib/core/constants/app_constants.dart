@@ -9,5 +9,5 @@ class AppConstants {
   static const int recentCategoriesCount = 3;
   static const String currencySymbol = 'PKR';
   // override per build with --dart-define=APP_NAME=YourName
-  static const String appName = String.fromEnvironment('APP_NAME', defaultValue: 'Coffer');
+  static const String appName = String.fromEnvironment('APP_NAME', defaultValue: 'Align');
 }

@@ -56,7 +56,7 @@ const PLANNER_STATUS_LABELS: Record<string, string> = {
 const WEDDING_GROUPS = ["Nikkah", "Mehndi", "Barat", "Valima", "Dholki", "General"];
 const GENERIC_GROUPS = ["Phase 1", "Phase 2", "Phase 3", "Venue", "Catering", "Decor", "Transport", "Other"];
 
-export function PlannerDetailClient({ planner, financialPosition }: { planner: Planner; financialPosition: FinancialPosition }) {
+export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "Rs" }: { planner: Planner; financialPosition: FinancialPosition; baseSymbol?: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
@@ -168,9 +168,9 @@ export function PlannerDetailClient({ planner, financialPosition }: { planner: P
               )}
             </div>
             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-              <span>Est: Rs {(item.estimatedCost / 100).toLocaleString()}</span>
+              <span>Est: {baseSymbol} {(item.estimatedCost / 100).toLocaleString()}</span>
               {item.actualCost !== null && (
-                <span className="text-emerald-600 font-medium">Paid: Rs {(item.actualCost / 100).toLocaleString()}</span>
+                <span className="text-emerald-600 font-medium">Paid: {baseSymbol} {(item.actualCost / 100).toLocaleString()}</span>
               )}
               {item.dueDate && (
                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{format(new Date(item.dueDate), "d MMM yyyy")}</span>
@@ -287,11 +287,11 @@ export function PlannerDetailClient({ planner, financialPosition }: { planner: P
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="text-xs text-muted-foreground mb-1">Estimated Total</div>
-          <div className="text-xl font-bold text-foreground">Rs {(totalEstimated / 100).toLocaleString()}</div>
+          <div className="text-xl font-bold text-foreground">{baseSymbol} {(totalEstimated / 100).toLocaleString()}</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="text-xs text-muted-foreground mb-1">Actually Paid</div>
-          <div className="text-xl font-bold text-emerald-600">Rs {(totalActual / 100).toLocaleString()}</div>
+          <div className="text-xl font-bold text-emerald-600">{baseSymbol} {(totalActual / 100).toLocaleString()}</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="text-xs text-muted-foreground mb-1">Progress</div>
@@ -332,26 +332,26 @@ export function PlannerDetailClient({ planner, financialPosition }: { planner: P
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
               <div>
                 <div className="text-xs text-muted-foreground">Still to pay</div>
-                <div className="text-base font-bold text-foreground">Rs {(remaining / 100).toLocaleString()}</div>
+                <div className="text-base font-bold text-foreground">{baseSymbol} {(remaining / 100).toLocaleString()}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Available (liquid)</div>
-                <div className="text-base font-bold text-foreground">Rs {(financialPosition.liquidAvailable / 100).toLocaleString()}</div>
+                <div className="text-base font-bold text-foreground">{baseSymbol} {(financialPosition.liquidAvailable / 100).toLocaleString()}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Investments</div>
-                <div className="text-base font-bold text-foreground">Rs {(financialPosition.investmentsTotal / 100).toLocaleString()}</div>
+                <div className="text-base font-bold text-foreground">{baseSymbol} {(financialPosition.investmentsTotal / 100).toLocaleString()}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Net worth</div>
-                <div className="text-base font-bold text-foreground">Rs {(financialPosition.netWorth / 100).toLocaleString()}</div>
+                <div className="text-base font-bold text-foreground">{baseSymbol} {(financialPosition.netWorth / 100).toLocaleString()}</div>
               </div>
             </div>
             {!canAfford && remaining > financialPosition.liquidAvailable && (
               <div className="flex items-start gap-2 text-xs text-muted-foreground border-t border-border pt-3">
                 <TrendingUp className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>
-                  Shortfall: Rs {((remaining - financialPosition.liquidAvailable) / 100).toLocaleString()}.
+                  Shortfall: {baseSymbol} {((remaining - financialPosition.liquidAvailable) / 100).toLocaleString()}.
                   {financialPosition.investmentsTotal >= (remaining - financialPosition.liquidAvailable)
                     ? " Your investments can cover the gap if liquidated."
                     : " Build your savings before committing to this expense."}
@@ -385,7 +385,7 @@ export function PlannerDetailClient({ planner, financialPosition }: { planner: P
                 <div className="flex items-center gap-2 mb-2">
                   <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group}</span>
-                  <span className="text-xs text-muted-foreground">· Rs {(items.reduce((s, i) => s + i.estimatedCost, 0) / 100).toLocaleString()} est.</span>
+                  <span className="text-xs text-muted-foreground">· {baseSymbol} {(items.reduce((s, i) => s + i.estimatedCost, 0) / 100).toLocaleString()} est.</span>
                 </div>
                 <div className="space-y-2 pl-2 border-l-2 border-muted">
                   {items.map((item) => <ItemRow key={item.id} item={item} />)}
@@ -421,7 +421,7 @@ export function PlannerDetailClient({ planner, financialPosition }: { planner: P
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Estimated Cost (Rs )</Label>
+                <Label>Estimated Cost ({baseSymbol})</Label>
                 <Input type="number" value={newItem.estimatedCost} onChange={(e) => setNewItem((p) => ({ ...p, estimatedCost: e.target.value }))} placeholder="0" />
               </div>
               <div>

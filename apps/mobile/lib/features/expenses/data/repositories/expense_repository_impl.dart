@@ -23,6 +23,7 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
     required String description,
     String? notes,
     required DateTime date,
+    bool isRegretPurchase = false,
   }) =>
       _datasource.createExpense(
         amountPaisas: amountPaisas,
@@ -30,5 +31,6 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
         description: description,
         notes: notes,
         date: date,
+        isRegretPurchase: isRegretPurchase,
       );
 }

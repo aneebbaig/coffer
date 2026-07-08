@@ -28,5 +28,5 @@ void main() async {
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
-  runApp(const ProviderScope(child: CofferApp()));
+  runApp(const ProviderScope(child: AlignApp()));
 }

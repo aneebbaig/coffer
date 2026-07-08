@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { ActionResult } from "@/types";
 import { getCurrentPeriod, nextPeriod } from "@/lib/month";
 import { toPaisas } from "@/lib/utils";
-import { creditPot } from "@/lib/pot-helpers";
 
 export async function getBudget(month: number, year: number) {
   await getUserId();
@@ -149,7 +148,7 @@ export async function getBudgetWithSpending(month: number, year: number) {
         budgetCategories: { include: { category: true } },
         savingsAllocations: {
           include: {
-            pot: { select: { id: true, name: true, type: true, currentAmount: true, currentAmountUsd: true } },
+            pot: { select: { id: true, name: true, type: true, balances: { include: { currency: true } } } },
           },
         },
       },
@@ -164,8 +163,8 @@ export async function getBudgetWithSpending(month: number, year: number) {
       select: { amount: true },
     }),
     prisma.savingsPot.findMany({
-      where: { userId: user.id, type: { notIn: ["EMERGENCY", "LIQUID"] } },
-      select: { id: true, name: true, type: true, currentAmount: true, currentAmountUsd: true },
+      where: { userId: user.id, type: { not: "EMERGENCY" } },
+      select: { id: true, name: true, type: true, balances: { include: { currency: true } } },
       orderBy: [{ type: "asc" }, { createdAt: "asc" }],
     }),
   ]);
@@ -230,32 +229,15 @@ export async function getOpenBudgetPeriod(): Promise<{ month: number; year: numb
  * current open one - the typical "my salary arrived, start next month" action.
  */
 /**
- * Move a closed period's surplus (income − expenses, both by budgetMonth/budgetYear) into the
- * Liquid savings pot, once. Idempotent via Budget.surplusReconciled. Returns the surplus moved.
+ * Read-only: a closed period's surplus (income − expenses, both by budgetMonth/budgetYear).
+ * Nothing is moved anywhere - leftover savings live in `getFinancialPosition()`'s
+ * `liquidAvailable`, computed live from the ledger every time it's read.
  */
-async function reconcilePeriodSurplus(userId: string, month: number, year: number): Promise<number> {
-  const [budget, txns, liquidPot] = await Promise.all([
-    prisma.budget.findUnique({ where: { month_year: { month, year } } }),
-    prisma.transaction.findMany({ where: { budgetMonth: month, budgetYear: year }, select: { amount: true, type: true } }),
-    prisma.savingsPot.findFirst({ where: { type: "LIQUID" }, orderBy: { createdAt: "asc" } }),
-  ]);
-  if (budget?.surplusReconciled || !liquidPot) return 0;
-
+async function computePeriodSurplus(month: number, year: number): Promise<number> {
+  const txns = await prisma.transaction.findMany({ where: { budgetMonth: month, budgetYear: year }, select: { amount: true, type: true } });
   const income = txns.filter((t) => t.type === "INCOME").reduce((s, t) => s + t.amount, 0);
   const expenses = txns.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0);
-  const surplus = Math.max(0, income - expenses);
-  if (surplus <= 0) return 0;
-
-  const label = new Date(year, month - 1).toLocaleString("default", { month: "long", year: "numeric" });
-  await prisma.$transaction(async (tx) => {
-    await creditPot(tx, liquidPot.id, surplus, "PKR", `Auto surplus from ${label}`, "MANUAL", { budgetMonth: month, budgetYear: year });
-    await tx.budget.upsert({
-      where: { month_year: { month, year } },
-      update: { surplusReconciled: true },
-      create: { userId, month, year, totalBudget: 0, surplusReconciled: true },
-    });
-  });
-  return surplus;
+  return Math.max(0, income - expenses);
 }
 
 export async function startNewBudgetPeriod(
@@ -266,8 +248,9 @@ export async function startNewBudgetPeriod(
     const current = getCurrentPeriod(user.currentBudgetMonth as number | null, user.currentBudgetYear as number | null);
     const next = target ?? nextPeriod(current.month, current.year);
 
-    // Close the period being left: sweep its surplus into Liquid savings (once).
-    const reconciledSurplus = await reconcilePeriodSurplus(user.id, current.month, current.year);
+    // Informational only - the closed period's leftover isn't moved anywhere,
+    // it's just counted from here on as part of accumulated (liquid) savings.
+    const reconciledSurplus = await computePeriodSurplus(current.month, current.year);
 
     await prisma.user.update({
       where: { id: user.id },

@@ -15,7 +15,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const project = await prisma.project.findFirst({
       where: { id, userId: auth.id },
       include: {
-        tasks: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+        tasks: {
+          orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+          include: { tags: { include: { tag: true } } },
+        },
       },
     });
     if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -30,6 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         updatedAt: rest.updatedAt.toISOString(),
         tasks: tasks.map((t) => ({
           ...t,
+          tags: t.tags.map((pt) => pt.tag),
           dueDate: t.dueDate ? t.dueDate.toISOString() : null,
           createdAt: t.createdAt.toISOString(),
           updatedAt: t.updatedAt.toISOString(),

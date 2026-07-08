@@ -16,9 +16,10 @@ interface Goal {
 interface Props {
   goal: Goal;
   actions?: React.ReactNode;
+  baseSymbol?: string;
 }
 
-export function GoalCard({ goal, actions }: Props) {
+export function GoalCard({ goal, actions, baseSymbol = "Rs" }: Props) {
   const pct = goal.targetAmount > 0 ? Math.min(Math.round((goal.savedAmount / goal.targetAmount) * 100), 100) : 0;
   const daysLeft = getDaysUntil(goal.deadline);
 
@@ -53,13 +54,13 @@ export function GoalCard({ goal, actions }: Props) {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Saved</span>
             <span className="font-semibold text-foreground tabnum">
-              Rs {(goal.savedAmount / 100).toLocaleString()}
+              {baseSymbol} {(goal.savedAmount / 100).toLocaleString()}
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Target</span>
             <span className="text-muted-foreground tabnum">
-              Rs {(goal.targetAmount / 100).toLocaleString()}
+              {baseSymbol} {(goal.targetAmount / 100).toLocaleString()}
             </span>
           </div>
         </div>

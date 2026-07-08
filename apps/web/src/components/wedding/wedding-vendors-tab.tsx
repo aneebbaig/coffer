@@ -29,6 +29,7 @@ function VendorForm({
   defaultEventId,
   onDone,
   editId,
+  baseSymbol = "Rs",
 }: {
   initial?: Partial<WeddingVendor>;
   weddingPlanId: string;
@@ -36,6 +37,7 @@ function VendorForm({
   defaultEventId?: string | null;
   onDone: () => void;
   editId?: string;
+  baseSymbol?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -126,17 +128,17 @@ function VendorForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Quoted Amount - Rs</Label>
+          <Label>Quoted Amount - {baseSymbol}</Label>
           <Input type="number" placeholder="e.g. 80000" value={form.quotedAmount} onChange={(e) => setForm((p) => ({ ...p, quotedAmount: e.target.value }))} />
         </div>
         <div>
-          <Label>Final/Negotiated - Rs</Label>
+          <Label>Final/Negotiated - {baseSymbol}</Label>
           <Input type="number" placeholder="e.g. 70000" value={form.finalAmount} onChange={(e) => setForm((p) => ({ ...p, finalAmount: e.target.value }))} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Deposit Paid - Rs</Label>
+          <Label>Deposit Paid - {baseSymbol}</Label>
           <Input type="number" value={form.depositPaid} onChange={(e) => setForm((p) => ({ ...p, depositPaid: e.target.value }))} />
         </div>
         <div>
@@ -168,11 +170,13 @@ function VendorCard({
   weddingPlanId,
   onEdit,
   onDelete,
+  baseSymbol = "Rs",
 }: {
   vendor: WeddingVendor;
   weddingPlanId: string;
   onEdit: (v: WeddingVendor) => void;
   onDelete: (id: string) => void;
+  baseSymbol?: string;
 }) {
   const [toggling, setToggling] = useState(false);
   const paymentCfg = PAYMENT_STATUS_CONFIG[vendor.paymentStatus] ?? PAYMENT_STATUS_CONFIG.UNPAID;
@@ -207,11 +211,11 @@ function VendorCard({
           </div>
           <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
             <div className="flex items-center gap-4 flex-wrap">
-              <span>Quote: <span className="font-medium text-foreground">{fmt(vendor.quotedAmount)}</span></span>
+              <span>Quote: <span className="font-medium text-foreground">{fmt(vendor.quotedAmount, baseSymbol)}</span></span>
               {vendor.finalAmount && vendor.finalAmount !== vendor.quotedAmount && (
-                <span>Final: <span className="font-medium text-foreground">{fmt(vendor.finalAmount)}</span></span>
+                <span>Final: <span className="font-medium text-foreground">{fmt(vendor.finalAmount, baseSymbol)}</span></span>
               )}
-              {vendor.depositPaid ? <span>Deposit: {fmt(vendor.depositPaid)}</span> : null}
+              {vendor.depositPaid ? <span>Deposit: {fmt(vendor.depositPaid, baseSymbol)}</span> : null}
             </div>
             {(vendor.phone || vendor.instagram) && (
               <div className="flex items-center gap-3">
@@ -258,6 +262,7 @@ function EventVendorSection({
   onEdit,
   onDelete,
   onAddVendor,
+  baseSymbol = "Rs",
 }: {
   title: string;
   emoji: string;
@@ -268,6 +273,7 @@ function EventVendorSection({
   onEdit: (v: WeddingVendor) => void;
   onDelete: (id: string) => void;
   onAddVendor: (eventId: string | null) => void;
+  baseSymbol?: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -309,7 +315,7 @@ function EventVendorSection({
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{getCategoryLabel(catValue)}</span>
                   {selected && (
                     <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                      ✓ {selected.name} - {fmt(selected.finalAmount ?? selected.quotedAmount)}
+                      ✓ {selected.name} - {fmt(selected.finalAmount ?? selected.quotedAmount, baseSymbol)}
                     </span>
                   )}
                 </div>
@@ -321,6 +327,7 @@ function EventVendorSection({
                       weddingPlanId={weddingPlanId}
                       onEdit={onEdit}
                       onDelete={onDelete}
+                      baseSymbol={baseSymbol}
                     />
                   ))}
                 </div>
@@ -336,7 +343,7 @@ function EventVendorSection({
   );
 }
 
-export function WeddingVendorsTab({ plan }: { plan: WeddingPlan }) {
+export function WeddingVendorsTab({ plan, baseSymbol = "Rs" }: { plan: WeddingPlan; baseSymbol?: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [addDefaultEventId, setAddDefaultEventId] = useState<string | null>(null);
   const [editVendor, setEditVendor] = useState<WeddingVendor | null>(null);
@@ -404,6 +411,7 @@ export function WeddingVendorsTab({ plan }: { plan: WeddingPlan }) {
               onEdit={setEditVendor}
               onDelete={setDeleteId}
               onAddVendor={openAddFor}
+              baseSymbol={baseSymbol}
             />
           );
         })}
@@ -419,6 +427,7 @@ export function WeddingVendorsTab({ plan }: { plan: WeddingPlan }) {
           onEdit={setEditVendor}
           onDelete={setDeleteId}
           onAddVendor={openAddFor}
+          baseSymbol={baseSymbol}
         />
       </div>
 
@@ -430,6 +439,7 @@ export function WeddingVendorsTab({ plan }: { plan: WeddingPlan }) {
             events={plan.events}
             defaultEventId={addDefaultEventId}
             onDone={() => { setAddOpen(false); setAddDefaultEventId(null); }}
+            baseSymbol={baseSymbol}
           />
         </DialogContent>
       </Dialog>
@@ -444,6 +454,7 @@ export function WeddingVendorsTab({ plan }: { plan: WeddingPlan }) {
               events={plan.events}
               editId={editVendor.id}
               onDone={() => setEditVendor(null)}
+              baseSymbol={baseSymbol}
             />
           )}
         </DialogContent>
