@@ -11,6 +11,8 @@ import '../../../../core/extensions/lucide_ext.dart';
 import '../../../../core/services/toast_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/budget_period_field.dart';
+import '../../../../core/widgets/funding_source_field.dart';
 import '../../../home_widget/widget_service.dart';
 import '../../data/repositories/expense_repository_impl.dart';
 import '../providers/categories_provider.dart';
@@ -33,6 +35,9 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
   final _amountFocus = FocusNode();
   String? _selectedCategoryId;
   DateTime _date = DateTime.now();
+  int? _budgetMonth;
+  int? _budgetYear;
+  String? _fundingPotId;
   bool _loading = false;
   bool _isRegretPurchase = false;
 
@@ -112,6 +117,9 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
             notes: notes,
             date: _date,
             isRegretPurchase: _isRegretPurchase,
+            budgetMonth: _budgetMonth,
+            budgetYear: _budgetYear,
+            fundingPotId: _fundingPotId,
           );
 
       if (!mounted) return;
@@ -335,6 +343,28 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
                   ],
                 ),
               ),
+            ),
+
+            const SizedBox(height: 16),
+            Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
+            const SizedBox(height: 8),
+
+            FundingSourceField(
+              potId: _fundingPotId,
+              onChanged: (potId) => setState(() => _fundingPotId = potId),
+            ),
+
+            const SizedBox(height: 16),
+            Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
+            const SizedBox(height: 8),
+
+            BudgetPeriodField(
+              month: _budgetMonth,
+              year: _budgetYear,
+              onChanged: (m, y) => setState(() {
+                _budgetMonth = m;
+                _budgetYear = y;
+              }),
             ),
           ],
         ),

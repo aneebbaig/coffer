@@ -9,6 +9,7 @@ import '../../../../core/extensions/lucide_ext.dart';
 import '../../../../core/services/toast_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/budget_period_field.dart';
 import '../../../expenses/presentation/providers/categories_provider.dart';
 import '../../../expenses/presentation/widgets/category_chip_list.dart';
 import '../../data/datasources/income_datasource.dart';
@@ -27,6 +28,8 @@ class _QuickAddIncomePageState extends ConsumerState<QuickAddIncomePage> {
   final _amountFocus = FocusNode();
   String? _selectedCategoryId;
   DateTime _date = DateTime.now();
+  int? _budgetMonth;
+  int? _budgetYear;
   bool _loading = false;
 
   @override
@@ -101,6 +104,8 @@ class _QuickAddIncomePageState extends ConsumerState<QuickAddIncomePage> {
             categoryId: _selectedCategoryId!,
             description: description,
             date: _date,
+            budgetMonth: _budgetMonth,
+            budgetYear: _budgetYear,
           );
 
       if (!mounted) return;
@@ -290,6 +295,19 @@ class _QuickAddIncomePageState extends ConsumerState<QuickAddIncomePage> {
                   ],
                 ),
               ),
+            ),
+
+            const SizedBox(height: 16),
+            Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
+            const SizedBox(height: 8),
+
+            BudgetPeriodField(
+              month: _budgetMonth,
+              year: _budgetYear,
+              onChanged: (m, y) => setState(() {
+                _budgetMonth = m;
+                _budgetYear = y;
+              }),
             ),
           ],
         ),

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireBearerAuth } from "@/lib/v1-auth";
 import { getCurrentPeriod } from "@/lib/month";
 import { getBaseCurrency } from "@/lib/currency-helpers";
+import { debitPot } from "@/lib/pot-helpers";
+import { validateFundingSources } from "@/lib/expenses/funding";
 
 // ── GET /api/v1/expenses ──────────────────────────────────────────────────────
 
@@ -88,6 +90,12 @@ const createExpenseSchema = z.object({
   notes: z.string().max(1000).optional(),
   date: z.string().min(1),
   isRegretPurchase: z.boolean().optional(),
+  // Optional budget-period override. When omitted, the user's open period is used.
+  budgetMonth: z.number().int().min(1).max(12).optional(),
+  budgetYear: z.number().int().min(2000).optional(),
+  // Optional funding source. When omitted, funded from income (existing behavior).
+  fundingSource: z.enum(["INCOME", "SAVINGS_POT"]).optional(),
+  fundingPotId: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -102,7 +110,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { amountPaisas, categoryId, description, notes, date, isRegretPurchase } = parsed.data;
+    const { amountPaisas, categoryId, description, notes, date, isRegretPurchase, budgetMonth, budgetYear, fundingPotId } = parsed.data;
+    const fundingSource = parsed.data.fundingSource ?? "INCOME";
 
     const user = await prisma.user.findUnique({
       where: { id: auth.id },
@@ -110,51 +119,49 @@ export async function POST(req: NextRequest) {
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    const period = getCurrentPeriod(user.currentBudgetMonth, user.currentBudgetYear);
+    const period = (budgetMonth && budgetYear)
+      ? { month: budgetMonth, year: budgetYear }
+      : getCurrentPeriod(user.currentBudgetMonth, user.currentBudgetYear);
 
-    const [incomeAgg, expenseTxns] = await Promise.all([
-      prisma.transaction.aggregate({
-        where: { userId: auth.id, type: "INCOME", budgetMonth: period.month, budgetYear: period.year },
-        _sum: { amount: true },
-      }),
-      prisma.transaction.findMany({
-        where: { userId: auth.id, type: "EXPENSE", budgetMonth: period.month, budgetYear: period.year },
-        select: { amount: true, fundingSource: true },
-      }),
-    ]);
+    const base = await getBaseCurrency();
+    const fundingCurrencyId = fundingSource === "SAVINGS_POT" ? base.id : undefined;
 
-    const totalIncome = incomeAgg._sum.amount ?? 0;
-    const incomeFundedExpenses = expenseTxns
-      .filter((t) => t.fundingSource !== "SAVINGS_POT")
-      .reduce((sum, t) => sum + t.amount, 0);
-    const available = totalIncome - incomeFundedExpenses;
+    const fundingErr = await validateFundingSources(
+      auth.id,
+      [{ source: fundingSource, potId: fundingPotId, currencyId: fundingCurrencyId, pkrAmount: amountPaisas }],
+      period.month,
+      period.year,
+    );
+    if (fundingErr) return NextResponse.json({ error: fundingErr }, { status: 422 });
 
-    if (available < amountPaisas) {
-      const base = await getBaseCurrency();
-      const availableFmt = (available / 100).toLocaleString("en-PK");
-      return NextResponse.json(
-        { error: `Insufficient income. Available: ${base.symbol} ${availableFmt}` },
-        { status: 422 },
-      );
-    }
+    const created = await prisma.$transaction(async (tx) => {
+      const t = await tx.transaction.create({
+        data: {
+          amount: amountPaisas,
+          type: "EXPENSE",
+          categoryId,
+          description,
+          notes: notes ?? null,
+          date: new Date(date),
+          budgetMonth: period.month,
+          budgetYear: period.year,
+          isRecurring: false,
+          tags: "",
+          isRegretPurchase: isRegretPurchase ?? false,
+          fundingSource,
+          fundingPotId: fundingSource === "SAVINGS_POT" ? fundingPotId : null,
+          fundingCurrencyId: fundingSource === "SAVINGS_POT" ? fundingCurrencyId : null,
+          fundingAmount: fundingSource === "SAVINGS_POT" ? amountPaisas : null,
+          userId: auth.id,
+        },
+        select: { id: true },
+      });
 
-    const created = await prisma.transaction.create({
-      data: {
-        amount: amountPaisas,
-        type: "EXPENSE",
-        categoryId,
-        description,
-        notes: notes ?? null,
-        date: new Date(date),
-        budgetMonth: period.month,
-        budgetYear: period.year,
-        isRecurring: false,
-        tags: "",
-        isRegretPurchase: isRegretPurchase ?? false,
-        fundingSource: "INCOME",
-        userId: auth.id,
-      },
-      select: { id: true },
+      if (fundingSource === "SAVINGS_POT" && fundingPotId && fundingCurrencyId) {
+        await debitPot(tx, fundingPotId, amountPaisas, fundingCurrencyId, `Expense: ${description}`, "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
+      }
+
+      return t;
     });
 
     return NextResponse.json({ data: { id: created.id } }, { status: 201 });

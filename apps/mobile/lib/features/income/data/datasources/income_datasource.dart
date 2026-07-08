@@ -23,6 +23,8 @@ class IncomeDatasource {
     required String description,
     String? notes,
     required DateTime date,
+    int? budgetMonth,
+    int? budgetYear,
   }) async {
     try {
       final res = await _dio.post(
@@ -33,6 +35,8 @@ class IncomeDatasource {
           'description': description,
           if (notes != null && notes.isNotEmpty) 'notes': notes,
           'date': date.toIso8601String(),
+          if (budgetMonth != null) 'budgetMonth': budgetMonth,
+          if (budgetYear != null) 'budgetYear': budgetYear,
         },
       );
       return (res.data['data'] as Map<String, dynamic>)['id'] as String;

@@ -49,6 +49,9 @@ class LoansDatasource {
     required int amountPaisas,
     required DateTime date,
     String? notes,
+    int? budgetMonth,
+    int? budgetYear,
+    String? fundingPotId,
   }) async {
     try {
       await _dio.post(
@@ -57,6 +60,10 @@ class LoansDatasource {
           'amountPaisas': amountPaisas,
           'date': date.toIso8601String(),
           if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (budgetMonth != null) 'budgetMonth': budgetMonth,
+          if (budgetYear != null) 'budgetYear': budgetYear,
+          if (fundingPotId != null) 'fundingSource': 'SAVINGS_POT',
+          if (fundingPotId != null) 'fundingPotId': fundingPotId,
         },
       );
     } catch (e) {
