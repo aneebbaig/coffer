@@ -17,7 +17,7 @@ jobs:
         run: |
           if grep -rIniE 'cla[u]de|anthrop[i]c|aneebbaig123|bbaig0425' . \
                --exclude-dir=node_modules --exclude-dir=.git \
-               --exclude='*.lock' --exclude='package-lock.json' \
+               --exclude='*.lock' --exclude='pnpm-lock.yaml' \
                --exclude='guard.yml' --exclude='.gitignore'; then
             echo "::error::Forbidden term found (AI reference / personal data). Remove before merging."
             exit 1

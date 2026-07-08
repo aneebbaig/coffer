@@ -76,9 +76,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 Then create the tables and seed your users:
 ```bash
-npx prisma migrate dev --name init
-npm run seed
-npm run dev
+pnpm exec prisma migrate dev --name init
+pnpm seed
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) - done.
@@ -139,7 +139,7 @@ Takes 2-3 minutes. Check the build logs if anything fails.
 After the first successful deploy, create your user accounts in the production database:
 
 ```powershell
-$env:DATABASE_URL="postgresql://...your-main-branch-url..."; npm run seed
+$env:DATABASE_URL="postgresql://...your-main-branch-url..."; pnpm seed
 ```
 
 ---
