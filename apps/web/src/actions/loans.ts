@@ -53,12 +53,17 @@ export async function createLoan(data: {
   date: string;
   dueDate?: string;
   notes?: string;
+  // Optional budget-period override. When omitted, the user's open period is used.
+  budgetMonth?: number;
+  budgetYear?: number;
 }): Promise<ActionResult> {
   try {
     const user = await getAuthenticatedUser({ currentBudgetMonth: true, currentBudgetYear: true });
     const userId = user.id;
     const amount = toPaisas(data.principalAmount);
-    const period = getCurrentPeriod(user.currentBudgetMonth as number | null, user.currentBudgetYear as number | null);
+    const period = (data.budgetMonth && data.budgetYear)
+      ? { month: data.budgetMonth, year: data.budgetYear }
+      : getCurrentPeriod(user.currentBudgetMonth as number | null, user.currentBudgetYear as number | null);
     const categoryId = await findOrCreateLoanCategory(userId);
 
     const loanDate = toLocalDate(data.date);

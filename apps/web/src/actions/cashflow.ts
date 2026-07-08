@@ -6,60 +6,11 @@ import { getAuthenticatedUser, getUserId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { toPaisas, toLocalDate } from "@/lib/utils";
 import { ActionResult } from "@/types";
-import { buildProjectionInput, daysUntilEndOfMonth, listUpcomingDue, type AdapterInput } from "@/lib/cashflow/adapter";
+import { buildProjectionInput, daysUntilEndOfMonth, listUpcomingDue } from "@/lib/cashflow/adapter";
+import { loadAdapterInput } from "@/lib/cashflow/data-loader";
 import { projectCashflow } from "@/lib/cashflow/scheduler";
 import type { MonthProjection } from "@/lib/cashflow/types";
 import type { UpcomingDue } from "@/lib/cashflow/adapter";
-
-// ─── Shared data loading ────────────────────────────────────────────────────
-
-async function loadAdapterInput(userId: string): Promise<AdapterInput> {
-  const [loanSchedules, recurringIncomes, plannedExpenses] = await Promise.all([
-    prisma.loanSchedule.findMany({
-      where: { userId, loan: { status: { not: "PAID" } } },
-      include: { loan: { select: { personName: true } } },
-    }),
-    prisma.recurringIncome.findMany({ where: { userId, active: true } }),
-    prisma.plannedExpense.findMany({ where: { userId, status: "PLANNED" } }),
-  ]);
-
-  return {
-    loanSchedules: loanSchedules.map((s) => ({
-      id: s.id,
-      loanId: s.loanId,
-      kind: s.kind,
-      amount: s.amount,
-      startDate: s.startDate,
-      endDate: s.endDate,
-      flexibility: s.flexibility,
-      priority: s.priority,
-      slideWindowMonths: s.slideWindowMonths,
-      interestRate: s.interestRate,
-      payee: s.loan.personName,
-    })),
-    recurringIncomes: recurringIncomes.map((i) => ({
-      id: i.id,
-      label: i.label,
-      kind: i.kind,
-      amount: i.amount,
-      variable: i.variable,
-      countsTowardFloor: i.countsTowardFloor,
-      startDate: i.startDate,
-      endDate: i.endDate,
-      active: i.active,
-    })),
-    plannedExpenses: plannedExpenses.map((p) => ({
-      id: p.id,
-      name: p.name,
-      amount: p.amount,
-      dueDate: p.dueDate,
-      flexibility: p.flexibility,
-      priority: p.priority,
-      slideWindowMonths: p.slideWindowMonths,
-      status: p.status,
-    })),
-  };
-}
 
 // ─── Checkpoint 1: projection ───────────────────────────────────────────────
 
