@@ -12,6 +12,9 @@ const createIncomeSchema = z.object({
   description: z.string().min(1).max(200),
   notes: z.string().max(1000).optional(),
   date: z.string().min(1),
+  // Optional budget-period override. When omitted, the user's open period is used.
+  budgetMonth: z.number().int().min(1).max(12).optional(),
+  budgetYear: z.number().int().min(2000).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { amountPaisas, categoryId, description, notes, date } = parsed.data;
+    const { amountPaisas, categoryId, description, notes, date, budgetMonth, budgetYear } = parsed.data;
 
     const user = await prisma.user.findUnique({
       where: { id: auth.id },
@@ -34,7 +37,9 @@ export async function POST(req: NextRequest) {
     });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    const period = getCurrentPeriod(user.currentBudgetMonth, user.currentBudgetYear);
+    const period = (budgetMonth && budgetYear)
+      ? { month: budgetMonth, year: budgetYear }
+      : getCurrentPeriod(user.currentBudgetMonth, user.currentBudgetYear);
 
     const created = await prisma.transaction.create({
       data: {

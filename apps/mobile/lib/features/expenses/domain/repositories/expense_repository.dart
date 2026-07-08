@@ -7,5 +7,8 @@ abstract interface class ExpenseRepository {
     String? notes,
     required DateTime date,
     bool isRegretPurchase = false,
+    int? budgetMonth,
+    int? budgetYear,
+    String? fundingPotId,
   });
 }
