@@ -6,15 +6,15 @@ Thanks for taking a look. This is a monorepo with two apps that share one backen
 
 ## Getting the web app running
 
-You need Node 20 or newer and a Postgres database. A free Neon branch is the easiest way to get one.
+You need Node 20 or newer, [pnpm](https://pnpm.io) (the pinned version is in `apps/web/package.json`'s `packageManager` field), and a Postgres database. A free Neon branch is the easiest way to get one.
 
 ```bash
 cd apps/web
 cp .env.example .env.local     # fill in DATABASE_URL, AUTH_SECRET, etc.
-npm install
-npx prisma migrate dev
-npm run seed
-npm run dev
+pnpm install
+pnpm exec prisma migrate dev
+pnpm seed
+pnpm dev
 ```
 
 One thing to watch out for: this targets a recent Next.js where route handler `params` are async. So handlers look like `{ params }: { params: Promise<{ id: string }> }` and you have to `await params`. If something about routing surprises you, copy an existing handler in `src/app/api/v1/` instead of guessing, and check the docs bundled under `node_modules/next/dist/docs/`.
@@ -22,9 +22,10 @@ One thing to watch out for: this targets a recent Next.js where route handler `p
 Before you push, run the same checks CI runs:
 
 ```bash
-npx tsc --noEmit
-npm run build
-npx eslint .
+pnpm exec tsc --noEmit
+pnpm run lint
+pnpm test
+pnpm run build
 ```
 
 ## Getting the mobile app running
