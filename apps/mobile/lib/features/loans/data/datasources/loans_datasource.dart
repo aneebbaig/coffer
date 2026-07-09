@@ -24,6 +24,8 @@ class LoansDatasource {
     String? description,
     DateTime? dueDate,
     String? notes,
+    int? budgetMonth,
+    int? budgetYear,
   }) async {
     try {
       final res = await _dio.post(
@@ -36,6 +38,8 @@ class LoansDatasource {
           if (description != null && description.isNotEmpty) 'description': description,
           if (dueDate != null) 'dueDate': dueDate.toIso8601String(),
           if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (budgetMonth != null) 'budgetMonth': budgetMonth,
+          if (budgetYear != null) 'budgetYear': budgetYear,
         },
       );
       return (res.data['data'] as Map<String, dynamic>)['id'] as String;
