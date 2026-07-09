@@ -35,8 +35,7 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
   final _amountFocus = FocusNode();
   String? _selectedCategoryId;
   DateTime _date = DateTime.now();
-  int? _budgetMonth;
-  int? _budgetYear;
+  bool _fileUnderDateBudget = false;
   String? _fundingPotId;
   bool _loading = false;
   bool _isRegretPurchase = false;
@@ -117,8 +116,8 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
             notes: notes,
             date: _date,
             isRegretPurchase: _isRegretPurchase,
-            budgetMonth: _budgetMonth,
-            budgetYear: _budgetYear,
+            budgetMonth: _fileUnderDateBudget ? _date.month : null,
+            budgetYear: _fileUnderDateBudget ? _date.year : null,
             fundingPotId: _fundingPotId,
           );
 
@@ -359,12 +358,9 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
             const SizedBox(height: 8),
 
             BudgetPeriodField(
-              month: _budgetMonth,
-              year: _budgetYear,
-              onChanged: (m, y) => setState(() {
-                _budgetMonth = m;
-                _budgetYear = y;
-              }),
+              date: _date,
+              checked: _fileUnderDateBudget,
+              onChanged: (v) => setState(() => _fileUnderDateBudget = v),
             ),
           ],
         ),
