@@ -8,6 +8,7 @@ import '../../../../core/errors/app_exception.dart';
 import '../../../../core/services/toast_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/budget_period_field.dart';
 import '../../data/datasources/loans_datasource.dart';
 import '../providers/loans_provider.dart';
 
@@ -26,6 +27,8 @@ class _QuickAddLoanPageState extends ConsumerState<QuickAddLoanPage> {
   String _type = 'RECEIVED';
   DateTime _date = DateTime.now();
   DateTime? _dueDate;
+  int? _budgetMonth;
+  int? _budgetYear;
   bool _loading = false;
 
   @override
@@ -104,6 +107,8 @@ class _QuickAddLoanPageState extends ConsumerState<QuickAddLoanPage> {
                 ? _descCtrl.text.trim()
                 : null,
             dueDate: _dueDate,
+            budgetMonth: _budgetMonth,
+            budgetYear: _budgetYear,
           );
 
       if (!mounted) return;
@@ -266,6 +271,19 @@ class _QuickAddLoanPageState extends ConsumerState<QuickAddLoanPage> {
                   ),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 16),
+            Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
+            const SizedBox(height: 8),
+
+            BudgetPeriodField(
+              month: _budgetMonth,
+              year: _budgetYear,
+              onChanged: (m, y) => setState(() {
+                _budgetMonth = m;
+                _budgetYear = y;
+              }),
             ),
           ],
         ),
