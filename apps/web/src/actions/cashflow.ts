@@ -170,7 +170,11 @@ export async function deleteLoanSchedule(id: string): Promise<ActionResult> {
 
 export async function getRecurringIncomes() {
   const userId = await getUserId();
-  return prisma.recurringIncome.findMany({ where: { userId }, orderBy: { createdAt: "asc" } });
+  return prisma.recurringIncome.findMany({
+    where: { userId },
+    include: { occurrences: { select: { month: true, year: true } } },
+    orderBy: { createdAt: "asc" },
+  });
 }
 
 export async function createRecurringIncome(data: {
@@ -294,7 +298,10 @@ export async function createPlannedExpense(data: {
   }
 }
 
-export async function updatePlannedExpenseStatus(id: string, status: "PLANNED" | "PAID" | "SKIPPED"): Promise<ActionResult> {
+// "PAID" is no longer settable here - it's only reached via `createTransaction`'s
+// `linkPlannedExpenseId`, which books a real ledger Transaction alongside the
+// status flip. This action only handles PLANNED <-> SKIPPED (no ledger effect).
+export async function updatePlannedExpenseStatus(id: string, status: "PLANNED" | "SKIPPED"): Promise<ActionResult> {
   try {
     const userId = await getUserId();
     await prisma.plannedExpense.updateMany({ where: { id, userId }, data: { status } });

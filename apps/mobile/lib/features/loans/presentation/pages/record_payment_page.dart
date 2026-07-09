@@ -9,14 +9,19 @@ import '../../../../core/services/toast_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/budget_period_field.dart';
+import '../../../../core/widgets/form_section.dart';
 import '../../../../core/widgets/funding_source_field.dart';
 import '../../data/datasources/loans_datasource.dart';
 import '../../domain/entities/loan_entity.dart';
 import '../providers/loans_provider.dart';
 
 class RecordPaymentPage extends ConsumerStatefulWidget {
-  const RecordPaymentPage({required this.loan, super.key});
+  const RecordPaymentPage({required this.loan, this.editPayment, this.linkSchedule, super.key});
   final LoanEntity loan;
+  // When set, the page edits this existing payment instead of recording a new one.
+  final LoanPaymentEntity? editPayment;
+  // When set, the recorded payment fulfills this scheduled installment.
+  final LoanScheduleEntity? linkSchedule;
 
   @override
   ConsumerState<RecordPaymentPage> createState() => _RecordPaymentPageState();
@@ -24,22 +29,25 @@ class RecordPaymentPage extends ConsumerStatefulWidget {
 
 class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
   late final TextEditingController _amountCtrl;
-  final _notesCtrl = TextEditingController();
+  late final _notesCtrl = TextEditingController(text: widget.editPayment?.notes ?? '');
   final _amountFocus = FocusNode();
-  DateTime _date = DateTime.now();
+  late DateTime _date = widget.editPayment?.date ?? widget.linkSchedule?.startDate ?? DateTime.now();
   bool _fileUnderDateBudget = false;
   String? _fundingPotId;
   bool _loading = false;
 
+  bool get _isEditing => widget.editPayment != null;
+
   @override
   void initState() {
     super.initState();
-    // Pre-fill with remaining balance
-    final remaining = widget.loan.remainingPaisas / 100;
+    // Pre-fill with the existing payment amount when editing, the schedule's
+    // amount when fulfilling an installment, else the remaining balance.
+    final prefill = (widget.editPayment?.amountPaisas ?? widget.linkSchedule?.amountPaisas ?? widget.loan.remainingPaisas) / 100;
     _amountCtrl = TextEditingController(
-      text: remaining == remaining.truncateToDouble()
-          ? remaining.toInt().toString()
-          : remaining.toStringAsFixed(2),
+      text: prefill == prefill.truncateToDouble()
+          ? prefill.toInt().toString()
+          : prefill.toStringAsFixed(2),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _amountFocus.requestFocus();
@@ -66,7 +74,8 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
 
   bool get _canSubmit {
     final p = _amountPaisas;
-    return p != null && p <= widget.loan.remainingPaisas;
+    final cap = widget.loan.remainingPaisas + (widget.editPayment?.amountPaisas ?? 0);
+    return p != null && p <= cap;
   }
 
   Future<void> _pickDate() async {
@@ -97,19 +106,33 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
 
     setState(() => _loading = true);
     try {
-      await ref.read(loansDatasourceProvider).recordPayment(
-            loanId: widget.loan.id,
-            amountPaisas: paisas,
-            date: _date,
-            notes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
-            budgetMonth: _fileUnderDateBudget ? _date.month : null,
-            budgetYear: _fileUnderDateBudget ? _date.year : null,
-            fundingPotId: widget.loan.type == 'RECEIVED' ? _fundingPotId : null,
-          );
+      if (_isEditing) {
+        await ref.read(loansDatasourceProvider).updatePayment(
+              loanId: widget.loan.id,
+              paymentId: widget.editPayment!.id,
+              amountPaisas: paisas,
+              date: _date,
+              notes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+              budgetMonth: _fileUnderDateBudget ? _date.month : null,
+              budgetYear: _fileUnderDateBudget ? _date.year : null,
+              fundingPotId: widget.loan.type == 'RECEIVED' ? _fundingPotId : null,
+            );
+      } else {
+        await ref.read(loansDatasourceProvider).recordPayment(
+              loanId: widget.loan.id,
+              amountPaisas: paisas,
+              date: _date,
+              notes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+              budgetMonth: _fileUnderDateBudget ? _date.month : null,
+              budgetYear: _fileUnderDateBudget ? _date.year : null,
+              fundingPotId: widget.loan.type == 'RECEIVED' ? _fundingPotId : null,
+              linkScheduleId: widget.linkSchedule?.id,
+            );
+      }
 
       if (!mounted) return;
       ref.invalidate(loansProvider);
-      ref.read(toastServiceProvider).success(context, 'Payment recorded');
+      ref.read(toastServiceProvider).success(context, _isEditing ? 'Payment updated' : 'Payment recorded');
       HapticFeedback.lightImpact();
       Navigator.of(context).pop();
     } catch (e) {
@@ -135,7 +158,7 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
-          'Pay - ${widget.loan.personName}',
+          _isEditing ? 'Edit Payment' : 'Pay - ${widget.loan.personName}',
           style: AppTextStyles.headlineSmall,
         ),
         leading: IconButton(
@@ -157,7 +180,7 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
                       ),
                     )
                   : Text(
-                      'Record',
+                      _isEditing ? 'Save' : 'Record',
                       style: AppTextStyles.labelLarge.copyWith(
                         color: _canSubmit
                             ? AppColors.primary
@@ -237,80 +260,88 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
             Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
             const SizedBox(height: 16),
 
-            TextField(
-              controller: _notesCtrl,
-              style: AppTextStyles.bodyMedium,
-              maxLines: 1,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                hintText: 'Notes (optional)',
-                hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.mutedForeground),
-                filled: true,
-                fillColor: AppColors.card,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primary.withValues(alpha: 0.6)),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            GestureDetector(
-              onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today_outlined,
-                        size: 16, color: AppColors.mutedForeground),
-                    const SizedBox(width: 10),
-                    Text(
-                      isToday ? 'Today' : dateLabel,
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: isToday ? AppColors.mutedForeground : AppColors.foreground,
-                      ),
+            FormSection(
+              title: 'When',
+              children: [
+                GestureDetector(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
                     ),
-                    const Spacer(),
-                    const Icon(Icons.keyboard_arrow_down,
-                        size: 16, color: AppColors.mutedForeground),
-                  ],
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined,
+                            size: 16, color: AppColors.mutedForeground),
+                        const SizedBox(width: 10),
+                        Text(
+                          isToday ? 'Today' : dateLabel,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: isToday ? AppColors.mutedForeground : AppColors.foreground,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(Icons.keyboard_arrow_down,
+                            size: 16, color: AppColors.mutedForeground),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                BudgetPeriodField(
+                  date: _date,
+                  checked: _fileUnderDateBudget,
+                  onChanged: (v) => setState(() => _fileUnderDateBudget = v),
+                ),
+              ],
             ),
 
             if (widget.loan.type == 'RECEIVED') ...[
               const SizedBox(height: 16),
               Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               FundingSourceField(
                 potId: _fundingPotId,
                 onChanged: (potId) => setState(() => _fundingPotId = potId),
+                month: _fileUnderDateBudget ? _date.month : null,
+                year: _fileUnderDateBudget ? _date.year : null,
               ),
             ],
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
-            BudgetPeriodField(
-              date: _date,
-              checked: _fileUnderDateBudget,
-              onChanged: (v) => setState(() => _fileUnderDateBudget = v),
+            MoreOptions(
+              children: [
+                TextField(
+                  controller: _notesCtrl,
+                  style: AppTextStyles.bodyMedium,
+                  maxLines: 1,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    hintText: 'Notes (optional)',
+                    hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.mutedForeground),
+                    filled: true,
+                    fillColor: AppColors.card,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.5)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.primary.withValues(alpha: 0.6)),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

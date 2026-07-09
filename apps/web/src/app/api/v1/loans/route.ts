@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
         status: true,
         notes: true,
         payments: {
-          select: { id: true, amount: true, date: true, notes: true },
+          select: { id: true, amount: true, date: true, notes: true, transactionId: true },
           orderBy: { date: "desc" },
           take: 5,
         },
@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
           priority: s.priority,
           slideWindowMonths: s.slideWindowMonths,
           interestRate: s.interestRate,
+          fulfilledPaymentId: s.fulfilledPaymentId,
         })),
       })),
     });

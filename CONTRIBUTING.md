@@ -51,6 +51,16 @@ A few conventions the mobile code sticks to:
 - For CRUD mutations in a page, call the datasource directly with a local loading flag rather than going through a mutation notifier. There's an auto-dispose quirk that otherwise fires a false error toast. Existing pages show the pattern.
 - Money is always an `int` in paisas (the currency times 100). Never a double.
 
+## The budget-period pattern
+
+Every transaction (expense, income, loan, loan payment) is filed under a *budget period* (`budgetMonth`/`budgetYear`), not its calendar `date` - a late-month salary and the spending it funds can share next month's budget. New money-moving flows must follow this exactly, in both apps:
+
+- **Support the override.** Accept optional `budgetMonth`/`budgetYear`; when omitted, default to the user's current open period (`getCurrentPeriod()` on web). The UI exposes this as a single checkbox - "File under this date's budget" - that derives month/year from the entry's own date field. Don't add a month/year picker; see `apps/web/src/components/shared/budget-period-override.tsx` (web) and `apps/mobile/lib/core/widgets/budget_period_field.dart` (mobile) for the shared component.
+- **Refetch funding figures for the resolved period, not the page's load-time period.** If your flow shows "income available" or a savings-pot balance next to a funding choice, that figure must be recomputed for whichever period the checkbox currently targets - never left over from the page's initial load. See `getExpenseFundingContext(month, year)` (web action) / `GET /api/v1/expenses/funding-context` (mobile) and how `transaction-form.tsx` and `loans-client.tsx` call it reactively on checkbox/date change.
+- **Reuse `validateFundingSources`** (`apps/web/src/lib/expenses/funding.ts`) for any new expense-like flow that can draw from income or a savings pot - it's shared by the web actions and the v1 API routes so both surfaces enforce the identical rule.
+
+This was a real bug once: `createLoan` filed its transaction under the *current* period regardless of the loan's own date, while every other creation path already supported the override - and separately, the funding-context number shown in a dropdown didn't follow the checkbox, so it displayed a stale figure for a different month. Both are fixed now; don't reintroduce either shape by copy-pasting an older flow that predates this pattern.
+
 ## Sending a change
 
 Branch off `main`, make the change, run the checks above, and open a PR with the template. Keep it to one thing. Update the docs if you changed how something behaves, and don't commit secrets. Only `.env.example` is tracked; the real `.env` files are ignored.
