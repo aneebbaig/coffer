@@ -16,7 +16,8 @@ A private finance app for two users. Tracks expenses, budgets, goals, savings, i
 | **Goals** | Savings goals with progress tracking and item checklists |
 | **Savings** | PKR/USD savings pots (Emergency, Liquid, General); deposits require a declared source (income or pot transfer); spending from a pot creates an expense; USD/PKR rate auto-synced daily |
 | **Investments** | Portfolio tracker |
-| **Loans** | Track money lent/borrowed; marking a received loan paid auto-creates an expense from the chosen funding source |
+| **Loans** | Track money lent/borrowed; repayment schedules (lump sum or fixed installments, flexible/slidable); marking a received loan paid auto-creates an expense from the chosen funding source |
+| **Cash-Flow Planner** | Forward month-by-month projection from loan schedules, recurring income (salary/freelance floor), and planned one-off expenses; dashboard summary card with upcoming-due alerts and shortfall warnings |
 | **Tasks** | Daily habits + one-time tasks with drag-to-reorder priority; milestone tasks for personal multi-step goals |
 | **Projects** | Freelance/client project management - projects → sub-tasks with statuses, priorities, and due dates; separate from personal tasks |
 | **Planner** | Life event planning (weddings, trips, renovations) |

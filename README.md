@@ -18,7 +18,7 @@ The core is a zero-based budget: income comes in, you assign all of it, and mone
 
 - Expenses and income with categories, tags, and recurring entries
 - Savings pots in PKR and USD (emergency, liquid, general), with deposits that have to declare a source
-- Goals, investments, and loans (settling a loan logs the expense for you)
+- Goals, investments, and loans (settling a loan logs the expense for you, with repayment schedules and a forward cash-flow projection)
 - Tasks (daily habits, one-offs, and checklists) and a Projects board for freelance/client work
 - A planner for big life events, a calendar, and want/need lists
 - A private gift planner that only the super admin can see
