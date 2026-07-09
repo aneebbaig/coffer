@@ -22,3 +22,10 @@ npm-debug.log*
 CLAUDE.md
 docs/PRIVATE-SETUP.md
 .env*
+
+# Personal financial data / DB snapshots — never commit to this public repo
+backups/
+prompt.md
+
+# Local dev database (Docker) — local convenience only
+docker-compose.yml

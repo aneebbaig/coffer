@@ -252,40 +252,58 @@ export async function deleteSavingsPot(id: string): Promise<ActionResult> {
   }
 }
 
+// SIPs (Investment rows) ordered newest-activity-first, each with its full
+// contribution history so the UI can show accumulation over time per SIP.
 export async function getInvestments() {
   const userId = await getUserId();
   return prisma.investment.findMany({
     where: { userId },
+    include: { contributions: { orderBy: { date: "desc" } } },
     orderBy: { purchaseDate: "desc" },
   });
 }
 
+// Creates a SIP and logs its first contribution in one transaction - a SIP
+// can't exist with a zero/undefined invested amount, so the two are inseparable.
 export async function createInvestment(data: {
   name: string;
   type: string;
   platform: string;
-  investedAmount: number;
-  currentValue: number;
+  investedAmount: number; // first contribution, in rupees
+  currentValue?: number; // defaults to investedAmount if omitted
   units?: number;
-  purchaseDate: string;
+  purchaseDate: string; // date of the first contribution
   notes?: string;
   customFields?: string;
+  planCategoryId?: string | null;
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    await prisma.investment.create({
-      data: {
-        name: data.name,
-        type: data.type,
-        platform: data.platform,
-        investedAmount: toPaisas(data.investedAmount),
-        currentValue: toPaisas(data.currentValue),
-        units: data.units,
-        purchaseDate: new Date(data.purchaseDate),
-        notes: data.notes,
-        customFields: data.customFields,
-        userId,
-      },
+    const firstAmount = toPaisas(data.investedAmount);
+    await prisma.$transaction(async (tx) => {
+      const investment = await tx.investment.create({
+        data: {
+          name: data.name,
+          type: data.type,
+          platform: data.platform,
+          investedAmount: firstAmount,
+          currentValue: data.currentValue != null ? toPaisas(data.currentValue) : firstAmount,
+          units: data.units,
+          purchaseDate: new Date(data.purchaseDate),
+          notes: data.notes,
+          customFields: data.customFields,
+          planCategoryId: data.planCategoryId ?? null,
+          userId,
+        },
+      });
+      await tx.investmentContribution.create({
+        data: {
+          investmentId: investment.id,
+          amount: firstAmount,
+          date: new Date(data.purchaseDate),
+          notes: "Initial contribution",
+        },
+      });
     });
     revalidatePath("/savings");
     revalidatePath("/investments");
@@ -296,11 +314,66 @@ export async function createInvestment(data: {
   }
 }
 
+// Logs a top-up against an existing SIP, any amount, any time - and keeps
+// Investment.investedAmount (the cached total) in sync in the same transaction.
+export async function addInvestmentContribution(
+  investmentId: string,
+  data: { amount: number; date: string; notes?: string },
+): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    const amountPaisas = toPaisas(data.amount);
+    await prisma.$transaction(async (tx) => {
+      const investment = await tx.investment.findFirst({ where: { id: investmentId, userId }, select: { id: true } });
+      if (!investment) throw new Error("Investment not found");
+      await tx.investmentContribution.create({
+        data: { investmentId, amount: amountPaisas, date: new Date(data.date), notes: data.notes },
+      });
+      await tx.investment.update({
+        where: { id: investmentId },
+        data: { investedAmount: { increment: amountPaisas }, lastUpdated: new Date() },
+      });
+    });
+    revalidatePath("/savings");
+    revalidatePath("/investments");
+    return { success: true };
+  } catch (e) {
+    console.error("[addInvestmentContribution]", e);
+    return { success: false, error: "Failed to log contribution" };
+  }
+}
+
+export async function deleteInvestmentContribution(id: string): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    await prisma.$transaction(async (tx) => {
+      const contribution = await tx.investmentContribution.findFirst({
+        where: { id, investment: { userId } },
+        select: { id: true, investmentId: true, amount: true },
+      });
+      if (!contribution) return;
+      await tx.investmentContribution.delete({ where: { id } });
+      await tx.investment.update({
+        where: { id: contribution.investmentId },
+        data: { investedAmount: { decrement: contribution.amount } },
+      });
+    });
+    revalidatePath("/savings");
+    revalidatePath("/investments");
+    return { success: true };
+  } catch (e) {
+    console.error("[deleteInvestmentContribution]", e);
+    return { success: false, error: "Failed to delete contribution" };
+  }
+}
+
+// Mark-to-market update (current value, units, notes) - not a contribution.
 export async function updateInvestment(id: string, data: {
   currentValue: number;
   units?: number;
   customFields?: string;
   notes?: string;
+  planCategoryId?: string | null;
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
@@ -311,6 +384,7 @@ export async function updateInvestment(id: string, data: {
         units: data.units,
         customFields: data.customFields,
         notes: data.notes,
+        planCategoryId: data.planCategoryId,
         lastUpdated: new Date(),
       },
     });
@@ -578,11 +652,15 @@ export async function getInvestmentSuggestion(): Promise<InvestmentSuggestion> {
   }
 
   const { start, end } = getCalendarMonthRange(month, year);
-  const typesInPlan = plan.categories.map((c) => c.investmentType).filter((t): t is string => !!t);
-  const periodInvestments = typesInPlan.length > 0
-    ? await prisma.investment.findMany({
-        where: { userId, type: { in: typesInPlan }, purchaseDate: { gte: start, lte: end } },
-        select: { type: true, investedAmount: true },
+  const categoryIds = plan.categories.map((c) => c.id);
+  // Matched by explicit SIP -> plan category link (Investment.planCategoryId),
+  // not by investmentType - multiple categories can share a type (e.g. two
+  // "STOCKS" buckets for an index ETF vs. hand-picked names) and only the
+  // explicit link tells them apart.
+  const periodContributions = categoryIds.length > 0
+    ? await prisma.investmentContribution.findMany({
+        where: { date: { gte: start, lte: end }, investment: { userId, planCategoryId: { in: categoryIds } } },
+        select: { amount: true, investment: { select: { planCategoryId: true } } },
       })
     : [];
 
@@ -596,9 +674,9 @@ export async function getInvestmentSuggestion(): Promise<InvestmentSuggestion> {
       name: c.name,
       investmentType: c.investmentType,
       percentage: c.percentage,
-      actualAmount: c.investmentType
-        ? periodInvestments.filter((i) => i.type === c.investmentType).reduce((s, i) => s + i.investedAmount, 0)
-        : 0,
+      actualAmount: periodContributions
+        .filter((ct) => ct.investment.planCategoryId === c.id)
+        .reduce((s, ct) => s + ct.amount, 0),
     })),
   });
 

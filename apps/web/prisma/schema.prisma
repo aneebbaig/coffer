@@ -380,6 +380,11 @@ model Currency {
   @@map("currencies")
 }
 
+// A SIP-style recurring investment vehicle (e.g. "MZNPETF", "Meezan Gold Fund").
+// investedAmount/currentValue are cached totals: investedAmount is the sum of
+// all InvestmentContribution rows (kept in sync transactionally whenever a
+// contribution is logged/edited/deleted); currentValue is a manually-updated
+// mark-to-market figure since it can't be derived from contributions alone.
 model Investment {
   id             String   @id @default(cuid())
   name           String
@@ -397,14 +402,37 @@ model Investment {
   // GOLD: { weightGrams, purity, storageLocation }
   // FIXED_DEPOSIT: { bank, interestRate, maturityDate }
   customFields   String?
+  // Which slice of the InvestmentPlan split this SIP counts toward. Null =
+  // unassigned (still shows in "Invested Savings" but not matched to a target).
+  planCategoryId String?
   userId         String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planCategory  InvestmentPlanCategory?   @relation(fields: [planCategoryId], references: [id], onDelete: SetNull)
+  contributions InvestmentContribution[]
 
   @@index([userId])
+  @@index([planCategoryId])
   @@map("investments")
+}
+
+// Append-only log of top-ups into a SIP. "Log anytime, any amount" — this is
+// what lets Investment.investedAmount accumulate like a savings pot instead of
+// requiring a brand-new Investment row per month.
+model InvestmentContribution {
+  id           String   @id @default(cuid())
+  investmentId String
+  amount       Int // paisas
+  date         DateTime @default(now())
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([investmentId])
+  @@map("investment_contributions")
 }
 
 // Impulse purchase parking lot — add items here instead of buying immediately
@@ -757,7 +785,8 @@ model InvestmentPlanCategory {
   percentage     Int // 0-100; app enforces the split sums to 100
   order          Int     @default(0)
 
-  plan InvestmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  plan        InvestmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  investments Investment[]
 
   @@index([planId])
   @@map("investment_plan_categories")
