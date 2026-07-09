@@ -33,19 +33,20 @@ Mobile companion to the Align web app. All data lives on the server - the app is
 
 | Screen | Purpose |
 |--------|---------|
-| Dashboard | Budget summary, income vs spend bar, recent transactions, "See All" → `/money` |
-| Expenses | Paginated list of current-period expenses with pull-to-refresh |
-| Income | Income transactions for current period |
-| Quick Add (Expense) | `/quick-add` - amount, category, description, notes, date; modal, outside ShellRoute |
-| Quick Add (Income) | `/quick-add-income` - income-category, amount, description, date |
+| Dashboard | Budget summary, income vs spend bar, cash-flow summary card (due this month, coming-up alerts), recent transactions |
+| Money → Expenses tab | Paginated list of current-period expenses, pull-to-refresh; "Planned Expenses" section up top |
+| Money → Income tab | Income transactions for current period; "Recurring Income" section up top |
+| Quick Add (Expense) | `/quick-add` - amount, category, description, notes, date, budget-period override, fund-from (income or a pot); modal, outside ShellRoute |
+| Quick Add (Income) | `/quick-add-income` - income-category, amount, description, date, budget-period override |
 | Quick Add (Task) | `/quick-add-task` - title, priority, due date |
-| Quick Add (Loan) | `/quick-add-loan` - person name, GIVEN/RECEIVED, amount, dates |
+| Quick Add (Loan) | `/quick-add-loan` - person name, GIVEN/RECEIVED, amount, dates, budget-period override |
 | Budget | Per-category budget allocations with progress bars |
-| Savings | Savings pots with targets and progress |
-| Loans | Active loans; explicit "Record Payment" button per card; `RecordPaymentPage` pre-fills remaining balance |
+| Savings | Savings pots with targets and progress (read-only on mobile - pot CRUD is web-only) |
+| Loans | Active loans; "Repayment Plan" section per loan (schedules + add/delete); explicit "Record Payment" button - `RecordPaymentPage` pre-fills remaining balance, supports budget-period override and fund-from-pot for RECEIVED loans |
 | Tasks | Daily / One-Time / Milestone tabs; optimistic toggle + item check; milestone inline checklist with "Add step" |
+| Projects | Freelance/client project list; per-project task board grouped by status |
+| More | Links out to Budget, Loans, Savings, Settings |
 | Settings | App version (matches git tag), logout |
-| Projects *(planned)* | Freelance/client project list and per-project task management - see `## Planned: Projects` below |
 
 **Home screen widget** (4-button, responsive): Expense · Tasks · Loans · Income shortcuts. Row layout at wide widths, 2×2 grid at narrow. Tapping deep-links to the corresponding page or quick-add modal.
 
@@ -134,13 +135,16 @@ lib/
 └── features/                      # One folder per vertical slice
     ├── auth/
     ├── budget/
+    ├── cashflow/                  # Recurring income, planned expenses, dashboard cash-flow summary
     ├── dashboard/
     ├── expenses/
     ├── home_widget/               # Flutter side of Android widget (WidgetService)
     ├── income/
-    ├── loans/
+    ├── loans/                     # Includes loan repayment schedules
+    ├── projects/                  # Freelance/client project + task board
     ├── savings/
-    └── settings/
+    ├── settings/
+    └── tasks/
 
 android/
 ├── app/
@@ -326,14 +330,20 @@ Routes defined in `lib/app.dart`:
 |------|--------|-------|
 | `/splash` | SplashPage | Initial location; shown during auth check |
 | `/login` | LoginPage | |
-| `/dashboard` | DashboardPage | Inside ShellRoute (bottom nav) |
-| `/expenses` | ExpensesListPage | Inside ShellRoute |
-| `/income` | IncomeListPage | Inside ShellRoute |
-| `/budget` | BudgetPage | Inside ShellRoute |
-| `/savings` | SavingsPage | Inside ShellRoute |
-| `/loans` | LoansPage | Inside ShellRoute |
-| `/settings` | SettingsPage | Inside ShellRoute |
+| `/dashboard` | DashboardPage | Bottom-nav tab ("Home") |
+| `/money` | MoneyPage | Bottom-nav tab; tabbed Expenses/Income (`ExpensesListPage`/`IncomeListPage`) |
+| `/tasks` | TasksPage | Bottom-nav tab |
+| `/projects`, `/projects/:id` | ProjectsPage, ProjectDetailPage | Bottom-nav tab |
+| `/more` | MorePage | Bottom-nav tab; links to Budget, Loans, Savings, Settings |
+| `/budget` | BudgetPage | Pushed from More |
+| `/savings` | SavingsPage | Pushed from More |
+| `/loans` | LoansPage | Pushed from More |
+| `/settings` | SettingsPage | Pushed from More |
 | `/quick-add` | QuickAddExpensePage | Top-level modal (outside ShellRoute, no bottom nav) |
+| `/quick-add-income` | QuickAddIncomePage | Top-level modal |
+| `/quick-add-task` | QuickAddTaskPage | Top-level modal |
+| `/quick-add-loan` | QuickAddLoanPage | Top-level modal |
+| `/quick-add-project` | QuickAddProjectPage | Top-level modal |
 
 Auth redirect logic in GoRouter:
 1. If URI scheme is `align://` → strip scheme, convert to path
@@ -595,7 +605,7 @@ CI builds the signed APK, creates a GitHub Release. Obtainium on the Pixel detec
 
 ## CI Pipeline
 
-File: `.github/workflows/release.yml` - triggers on `v*` tags only.
+File: `.github/workflows/mobile-release.yml` - triggers on `v*` tags only.
 
 ```
 Checkout
@@ -641,78 +651,6 @@ Build time: ~5-8 min warm caches, ~12 min cold.
 8. Add bottom-nav entry in `lib/shell/app_scaffold.dart` if it needs a tab
 9. Run codegen: `fvm dart run build_runner build --delete-conflicting-outputs`
 10. If feature has categories with icons, add any new Lucide names to `lucide_ext.dart`
-
----
-
-## Planned: Projects (Freelance PM)
-
-**Status: NOT YET BUILT.** Web app is built first (one migration, one feature branch); mobile follows with its own feature slice.
-
-### Why
-
-Milestone tasks were being used for freelance/client project tracking but are fundamentally wrong for it: items are a JSON blob (no per-item due dates/priority/status), "project" is just a freetext `category` string, and client work is mixed with personal to-dos.
-
-### What to build (mobile)
-
-New feature slice: `lib/features/projects/`
-
-```
-features/projects/
-├── data/
-│   ├── datasources/projects_datasource.dart   # GET /projects, POST /projects, etc.
-│   └── repositories/projects_repository_impl.dart
-├── domain/
-│   └── entities/
-│       ├── project_entity.dart     # id, name, client, color, status, dueDate, taskCount, doneCount
-│       └── project_task_entity.dart # id, title, status (TODO|IN_PROGRESS|REVIEW|DONE), priority, dueDate, order
-└── presentation/
-    ├── pages/
-    │   ├── projects_page.dart       # list of project cards
-    │   ├── project_detail_page.dart # task list grouped by status, push route
-    │   └── quick_add_project_task_page.dart  # modal for new task
-    ├── providers/
-    │   ├── projects_provider.dart
-    │   └── project_detail_provider.dart
-    └── widgets/
-        ├── project_card.dart
-        └── project_task_item.dart
-```
-
-### API endpoints consumed
-
-| Method | Endpoint |
-|---|---|
-| GET | `/api/v1/projects` |
-| POST | `/api/v1/projects` |
-| GET | `/api/v1/projects/:id` |
-| PATCH | `/api/v1/projects/:id` |
-| DELETE | `/api/v1/projects/:id` |
-| GET | `/api/v1/projects/:id/tasks` |
-| POST | `/api/v1/projects/:id/tasks` |
-| PATCH | `/api/v1/projects/:id/tasks/:taskId` |
-| DELETE | `/api/v1/projects/:id/tasks/:taskId` |
-
-Add to `ApiConstants`:
-```dart
-static const projects = '$base/projects';
-static String projectById(String id) => '$base/projects/$id';
-static String projectTasks(String id) => '$base/projects/$id/tasks';
-static String projectTaskById(String pid, String tid) => '$base/projects/$pid/tasks/$tid';
-```
-
-### New routes in `app.dart`
-
-```dart
-GoRoute(path: '/projects', builder: (_, __) => const ProjectsPage()),
-GoRoute(path: '/projects/:id', builder: (_, s) => ProjectDetailPage(id: s.pathParameters['id']!)),
-GoRoute(path: '/projects/:id/add-task', builder: (_, s) => QuickAddProjectTaskPage(projectId: s.pathParameters['id']!)),
-```
-
-Add "Projects" entry to `More` tab in `app_scaffold.dart` (or dedicated bottom-nav tab - decide when building).
-
-### Widget (future)
-
-No widget changes needed for v1. Future: add a "Projects" shortcut button as 5th widget button if the grid supports it.
 
 ---
 
