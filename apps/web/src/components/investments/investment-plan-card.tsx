@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   upsertInvestmentPlan,
@@ -39,6 +38,10 @@ interface Plan {
 }
 
 const fmt = (n: number) => n.toLocaleString();
+
+// Stepped opacity so the shared `primary` hue reads as one deliberate family
+// across allocation segments, instead of a rainbow of competing colors.
+const segOpacity = (i: number) => Math.max(0.28, 1 - i * 0.22);
 
 function blankCategories(): PlanCategory[] {
   return [
@@ -105,11 +108,13 @@ export function InvestmentPlanCard({
 
   return (
     <>
-      <div className="rounded-xl border border-border bg-background p-5 space-y-4">
+      {/* Dashed border = projected/target, distinct from the solid-bordered "actual" cards below it. */}
+      <div className="rounded-xl border border-dashed border-border bg-background p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-foreground">Investment Plan</h3>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">Target</span>
           </div>
           <Button variant="ghost" size="sm" onClick={() => setConfigOpen(true)}>
             <Settings2 className="h-3.5 w-3.5" />
@@ -118,48 +123,55 @@ export function InvestmentPlanCard({
         </div>
 
         {!suggestion.hasPlan ? (
-          <p className="text-sm text-muted-foreground">
-            Set a monthly contribution split (e.g. money-market buffer, equity fund, gold, direct stocks) to see a
-            suggested investment amount each pay cycle and track planned vs. actual per category.
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Set a monthly contribution split (money-market buffer, equity, gold, direct stocks) to get a suggested
+            amount each pay cycle and track planned vs. actual per category.
           </p>
         ) : (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div>
-                <p className="text-muted-foreground">Income this cycle</p>
-                <p className="font-semibold tabnum">{baseSymbol} {fmt(suggestion.monthlyIncome / 100)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Obligations due</p>
-                <p className="font-semibold tabnum">{baseSymbol} {fmt(suggestion.obligationsDue / 100)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Buffer unmet</p>
-                <p className="font-semibold tabnum">{baseSymbol} {fmt(suggestion.bufferUnmet / 100)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Suggested to invest</p>
-                <p className="font-semibold tabnum text-emerald-500">{baseSymbol} {fmt(suggestion.suggestedTotal / 100)}</p>
-              </div>
+          <div className="space-y-5">
+            {/* Hero — the one number worth acting on this cycle */}
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">Suggested to invest this cycle</p>
+              <p className="text-3xl font-bold tabnum text-emerald-500 mt-1">{baseSymbol} {fmt(suggestion.suggestedTotal / 100)}</p>
+              <p className="text-xs text-muted-foreground tabnum mt-1.5">
+                {baseSymbol} {fmt(suggestion.monthlyIncome / 100)} income − {baseSymbol} {fmt(suggestion.obligationsDue / 100)} obligations
+                {suggestion.bufferUnmet > 0 && <> − {baseSymbol} {fmt(suggestion.bufferUnmet / 100)} buffer</>}
+              </p>
             </div>
 
+            {/* Target allocation — one thin segmented bar + a readout, not four stretched bars */}
             <div className="space-y-3">
-              {suggestion.categories.map((c) => {
-                const pct = c.plannedAmount > 0 ? Math.min(100, (c.actualAmount / c.plannedAmount) * 100) : c.actualAmount > 0 ? 100 : 0;
-                return (
-                  <div key={c.id} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-foreground">{c.name} <span className="text-muted-foreground">({c.percentage}%)</span></span>
-                      <span className="tabnum text-muted-foreground">
-                        {baseSymbol} {fmt(c.actualAmount / 100)} / {baseSymbol} {fmt(c.plannedAmount / 100)}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">Target allocation</span>
+                {plan && plan.monthlyTarget > 0 && (
+                  <span className="text-[11px] text-muted-foreground tabnum">{baseSymbol} {fmt(plan.monthlyTarget / 100)}/mo</span>
+                )}
+              </div>
+
+              <div className="flex h-2 gap-0.5 overflow-hidden rounded-full">
+                {suggestion.categories.map((c, i) => (
+                  <div key={c.id} style={{ width: `${c.percentage}%`, backgroundColor: "var(--primary)", opacity: segOpacity(i) }} />
+                ))}
+              </div>
+
+              <div className="space-y-2.5 pt-0.5">
+                {suggestion.categories.map((c, i) => {
+                  const done = c.plannedAmount > 0 && c.actualAmount >= c.plannedAmount;
+                  return (
+                    <div key={c.id} className="flex items-center gap-2.5">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: "var(--primary)", opacity: segOpacity(i) }} />
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground" title={c.name}>{c.name}</span>
+                      <span className="shrink-0 text-[11px] tabnum text-muted-foreground">{c.percentage}%</span>
+                      <span className="shrink-0 text-[11px] tabnum text-right w-28">
+                        <span className={cn(done ? "text-emerald-500 font-medium" : "text-foreground")}>{baseSymbol} {fmt(c.actualAmount / 100)}</span>
+                        <span className="text-muted-foreground/50"> / {fmt(c.plannedAmount / 100)}</span>
                       </span>
                     </div>
-                    <Progress value={pct} className={cn(c.actualAmount >= c.plannedAmount && c.plannedAmount > 0 && "[&>div]:bg-emerald-500")} />
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </>
+          </div>
         )}
       </div>
 

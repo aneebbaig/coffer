@@ -3,10 +3,16 @@ config({ path: ".env.local" });
 
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 
-const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+// PrismaNeon only works against a real Neon endpoint (WebSocket protocol) -
+// use plain pg for local/Docker Postgres so this seed script works in both.
+const dbUrl = process.env.DATABASE_URL ?? "";
+const adapter = dbUrl.includes(".neon.tech")
+  ? new PrismaNeon({ connectionString: dbUrl })
+  : new PrismaPg({ connectionString: dbUrl });
 const prisma = new PrismaClient({ adapter });
 
 const DEFAULT_CATEGORIES = [
@@ -67,7 +73,7 @@ async function ensureUser(opts: {
   const password = resolvePassword(opts.envPassword, opts.email);
   const hashedPassword = await bcrypt.hash(password, 12);
   await prisma.user.create({
-    data: { email: opts.email, name: opts.name, hashedPassword, currency: "PKR", role: opts.role },
+    data: { email: opts.email, name: opts.name, hashedPassword, role: opts.role },
   });
   console.log(`✓ ${opts.role}: ${opts.name} (${opts.email}) — created`);
 }

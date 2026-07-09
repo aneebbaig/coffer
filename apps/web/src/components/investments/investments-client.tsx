@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import {
-  Plus, TrendingUp, TrendingDown, LineChart, RefreshCw, Trash2, Edit2,
+  Plus, LineChart, RefreshCw, Trash2, ChevronDown, ChevronUp, Wallet, MoreHorizontal,
+  Landmark, TrendingUp, Gem, Bitcoin, PiggyBank, Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,12 +14,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { createInvestment, updateInvestment, deleteInvestment, type InvestmentSuggestion } from "@/actions/savings";
+import {
+  createInvestment, updateInvestment, deleteInvestment,
+  addInvestmentContribution, deleteInvestmentContribution,
+  type InvestmentSuggestion,
+} from "@/actions/savings";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { InvestmentPlanCard } from "@/components/investments/investment-plan-card";
+
+interface Contribution {
+  id: string;
+  amount: number;
+  date: Date;
+  notes: string | null;
+}
 
 interface Investment {
   id: string;
@@ -32,6 +45,13 @@ interface Investment {
   lastUpdated: Date;
   notes: string | null;
   customFields?: string | null;
+  planCategoryId: string | null;
+  contributions: Contribution[];
+}
+
+interface PlanCategoryOption {
+  id: string;
+  name: string;
 }
 
 interface CustomFields {
@@ -64,13 +84,16 @@ const TYPES = [
   { value: "OTHER", label: "Other" },
 ];
 
-const TYPE_COLOR: Record<string, string> = {
-  MUTUAL_FUND: "bg-blue-100 text-blue-700",
-  STOCKS: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
-  GOLD: "bg-amber-100 text-amber-700",
-  CRYPTO: "bg-orange-100 text-orange-700",
-  FIXED_DEPOSIT: "bg-emerald-100 text-emerald-700",
-  OTHER: "bg-gray-100 text-gray-700",
+// Monochrome icon per type instead of a colored badge chip — keeps the
+// emerald accent meaningful (gain/loss only) instead of diluted across a
+// rainbow of pastel tags.
+const TYPE_ICON: Record<string, typeof Landmark> = {
+  MUTUAL_FUND: Landmark,
+  STOCKS: TrendingUp,
+  GOLD: Gem,
+  CRYPTO: Bitcoin,
+  FIXED_DEPOSIT: PiggyBank,
+  OTHER: Layers,
 };
 
 function parseCustomFields(raw: string | null): CustomFields {
@@ -179,8 +202,10 @@ function CustomFieldsSummary({ type, raw, baseSymbol }: { type: string; raw: str
 
 const BLANK_FORM = {
   name: "", type: "MUTUAL_FUND", platform: "", investedAmount: "", currentValue: "",
-  purchaseDate: format(new Date(), "yyyy-MM-dd"), notes: "",
+  purchaseDate: format(new Date(), "yyyy-MM-dd"), notes: "", planCategoryId: "",
 };
+
+const BLANK_CONTRIBUTION = { amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "" };
 
 export function InvestmentsClient({
   investments,
@@ -193,24 +218,24 @@ export function InvestmentsClient({
   plan: { monthlyTarget: number; autoFromSurplus: boolean; categories: { id: string; name: string; investmentType: string | null; percentage: number }[] } | null;
   suggestion: InvestmentSuggestion;
 }) {
+  const planCategories: PlanCategoryOption[] = plan?.categories.map((c) => ({ id: c.id, name: c.name })) ?? [];
+  const categoryName = (id: string | null) => planCategories.find((c) => c.id === id)?.name ?? null;
+
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<Investment | null>(null);
+  const [contributeItem, setContributeItem] = useState<Investment | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(BLANK_FORM);
   const [customFields, setCustomFields] = useState<CustomFields>({});
   const [editFields, setEditFields] = useState<CustomFields>({});
   const [editForm, setEditForm] = useState({ currentValue: "", units: "", notes: "" });
+  const [contributionForm, setContributionForm] = useState(BLANK_CONTRIBUTION);
 
   const totalInvested = investments.reduce((s, i) => s + i.investedAmount, 0);
   const totalCurrentValue = investments.reduce((s, i) => s + i.currentValue, 0);
   const totalGain = totalCurrentValue - totalInvested;
-
-  const byType = investments.reduce<Record<string, Investment[]>>((acc, inv) => {
-    if (!acc[inv.type]) acc[inv.type] = [];
-    acc[inv.type].push(inv);
-    return acc;
-  }, {});
 
   async function handleAdd() {
     if (!form.name || !form.investedAmount) return;
@@ -220,13 +245,14 @@ export function InvestmentsClient({
       type: form.type,
       platform: form.platform,
       investedAmount: parseFloat(form.investedAmount),
-      currentValue: parseFloat(form.currentValue) || parseFloat(form.investedAmount),
+      currentValue: form.currentValue ? parseFloat(form.currentValue) : undefined,
       purchaseDate: form.purchaseDate,
       notes: form.notes || undefined,
       customFields: Object.keys(customFields).length > 0 ? JSON.stringify(customFields) : undefined,
+      planCategoryId: form.planCategoryId || null,
     });
     if (result.success) {
-      toast.success("Investment added!");
+      toast.success("SIP created!");
       setAddOpen(false);
       setForm(BLANK_FORM);
       setCustomFields({});
@@ -248,6 +274,27 @@ export function InvestmentsClient({
       setEditItem(null);
     } else toast.error(result.error ?? "Failed");
     setLoading(false);
+  }
+
+  async function handleContribute() {
+    if (!contributeItem || !contributionForm.amount) return;
+    setLoading(true);
+    const result = await addInvestmentContribution(contributeItem.id, {
+      amount: parseFloat(contributionForm.amount),
+      date: contributionForm.date,
+      notes: contributionForm.notes || undefined,
+    });
+    if (result.success) {
+      toast.success("Contribution logged!");
+      setContributeItem(null);
+      setContributionForm(BLANK_CONTRIBUTION);
+    } else toast.error(result.error ?? "Failed");
+    setLoading(false);
+  }
+
+  async function handleDeleteContribution(id: string) {
+    const result = await deleteInvestmentContribution(id);
+    if (!result.success) toast.error(result.error ?? "Failed");
   }
 
   async function handleDelete() {
@@ -276,110 +323,157 @@ export function InvestmentsClient({
         action={
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" />
-            Add Investment
+            New SIP
           </Button>
         }
       />
 
+      <div className="space-y-6">
+      {/* Plan card = target split (what you intend to invest). SIP list below = actual contributions. */}
       <InvestmentPlanCard plan={plan} suggestion={suggestion} baseSymbol={baseSymbol} />
 
-      {/* Summary strip */}
-      {investments.length > 0 && (
-        <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
-          <div className="bg-background px-5 py-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">Invested</p>
-            <p className="text-xl font-bold text-foreground tabnum">{baseSymbol} {(totalInvested / 100).toLocaleString()}</p>
+      <div className="rounded-xl border border-border bg-background p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Invested Savings</h3>
           </div>
-          <div className="bg-background px-5 py-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">Current Value</p>
-            <p className={cn("text-xl font-bold tabnum", totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
-              {baseSymbol} {(totalCurrentValue / 100).toLocaleString()}
-            </p>
-          </div>
-          <div className="bg-background px-5 py-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/50 mb-1.5">
-              {totalGain >= 0 ? "Total Gain" : "Total Loss"}
-            </p>
-            <p className={cn("text-xl font-bold tabnum", totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
-              {totalGain >= 0 ? "+" : ""}{baseSymbol} {(Math.abs(totalGain) / 100).toLocaleString()}
-            </p>
-          </div>
+          {investments.length > 0 && (
+            <div className="text-right">
+              <span className="text-xl font-bold text-foreground tabnum">{baseSymbol} {(totalCurrentValue / 100).toLocaleString()}</span>
+              <span className={cn("ml-2 text-xs font-medium tabnum", totalGain >= 0 ? "text-emerald-500" : "text-red-500")}>
+                {totalGain >= 0 ? "+" : ""}{baseSymbol} {(Math.abs(totalGain) / 100).toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
-      )}
+        {investments.length > 0 && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            {baseSymbol} {(totalInvested / 100).toLocaleString()} invested across {investments.length} SIP{investments.length !== 1 ? "s" : ""}
+          </p>
+        )}
 
-      {investments.length === 0 ? (
-        <EmptyState
-          icon={LineChart}
-          title="No investments yet"
-          description="Track mutual funds, stocks, gold, fixed deposits, and more."
-          action={{ label: "Add Investment", onClick: () => setAddOpen(true) }}
-        />
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(byType).map(([type, items]) => {
-            const typeLabel = TYPES.find((t) => t.value === type)?.label ?? type;
-            const typeTotalInvested = items.reduce((s, i) => s + i.investedAmount, 0);
-            const typeTotalCurrent = items.reduce((s, i) => s + i.currentValue, 0);
-            const typeGain = typeTotalCurrent - typeTotalInvested;
-            return (
-              <div key={type} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge className={cn("text-xs", TYPE_COLOR[type] ?? "bg-gray-100 text-gray-700")}>{typeLabel}</Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {items.length} holding{items.length !== 1 ? "s" : ""} ·
-                    {typeGain >= 0 ? " +" : " "}{baseSymbol} {(Math.abs(typeGain) / 100).toLocaleString()}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {items.map((inv) => {
-                    const gain = inv.currentValue - inv.investedAmount;
-                    const gainPct = inv.investedAmount > 0 ? ((gain / inv.investedAmount) * 100).toFixed(1) : "0.0";
-                    return (
-                      <div key={inv.id} className="bg-card border border-border rounded-xl p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <div className="font-semibold text-foreground">{inv.name}</div>
-                            <div className="text-xs text-muted-foreground">{inv.platform} · {format(inv.purchaseDate, "dd MMM yyyy")}</div>
-                            <CustomFieldsSummary type={inv.type} raw={inv.customFields ?? null} baseSymbol={baseSymbol} />
-                            {inv.notes && <div className="text-xs text-muted-foreground italic">{inv.notes}</div>}
-                          </div>
-                          <div className="text-right shrink-0 space-y-0.5">
-                            <div className="font-bold text-foreground">{baseSymbol} {(inv.currentValue / 100).toLocaleString()}</div>
-                            <div className={cn("text-xs font-medium", gain >= 0 ? "text-emerald-600" : "text-red-500")}>
-                              {gain >= 0 ? "+" : ""}{baseSymbol} {(gain / 100).toLocaleString()} ({gainPct}%)
-                            </div>
-                            <div className="text-xs text-muted-foreground">Invested: {baseSymbol} {(inv.investedAmount / 100).toLocaleString()}</div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 mt-3">
-                          <Button size="sm" variant="outline" onClick={() => openEdit(inv)}>
-                            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                            Update
-                          </Button>
-                          <Button size="sm" variant="ghost" className="text-destructive ml-auto" onClick={() => setDeleteId(inv.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+        {investments.length === 0 ? (
+          <EmptyState
+            icon={LineChart}
+            title="No SIPs yet"
+            description="Set up a recurring investment vehicle (e.g. an ETF or mutual fund) and log a contribution to it any time, any amount."
+            action={{ label: "New SIP", onClick: () => setAddOpen(true) }}
+          />
+        ) : (
+          <div className="divide-y divide-border -mx-5">
+            {investments.map((inv) => {
+              const gain = inv.currentValue - inv.investedAmount;
+              const gainPct = inv.investedAmount > 0 ? ((gain / inv.investedAmount) * 100).toFixed(1) : "0.0";
+              const linkedCategory = categoryName(inv.planCategoryId);
+              const isExpanded = !!expanded[inv.id];
+              const TypeIcon = TYPE_ICON[inv.type] ?? Layers;
+              const typeLabel = TYPES.find((t) => t.value === inv.type)?.label ?? inv.type;
+              const hasCustomFields = Object.keys(parseCustomFields(inv.customFields ?? null)).length > 0;
+              return (
+                <div key={inv.id} className="px-5 py-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                      <TypeIcon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-foreground leading-tight">{inv.name}</span>
+                        {linkedCategory && (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">{linkedCategory}</Badge>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {typeLabel} · {inv.platform} · {baseSymbol} {(inv.investedAmount / 100).toLocaleString()} in · {inv.contributions.length} contribution{inv.contributions.length !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold text-foreground tabnum leading-tight">{baseSymbol} {(inv.currentValue / 100).toLocaleString()}</div>
+                      <div className={cn("text-xs font-medium tabnum mt-0.5", gain >= 0 ? "text-emerald-500" : "text-red-500")}>
+                        {gain >= 0 ? "+" : ""}{baseSymbol} {(gain / 100).toLocaleString()} · {gain >= 0 ? "+" : ""}{gainPct}%
+                      </div>
+                    </div>
+                  </div>
 
-      {/* Add dialog */}
+                  {(inv.notes || hasCustomFields) && (
+                    <div className="mt-2 pl-[3.125rem] space-y-1">
+                      <CustomFieldsSummary type={inv.type} raw={inv.customFields ?? null} baseSymbol={baseSymbol} />
+                      {inv.notes && <div className="text-xs text-muted-foreground italic">{inv.notes}</div>}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-1 mt-3 pl-[3.125rem]">
+                    <Button size="sm" onClick={() => { setContributeItem(inv); setContributionForm(BLANK_CONTRIBUTION); }}>
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Log contribution
+                    </Button>
+                    {inv.contributions.length > 0 && (
+                      <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setExpanded((e) => ({ ...e, [inv.id]: !e[inv.id] }))}>
+                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5 mr-1" /> : <ChevronDown className="h-3.5 w-3.5 mr-1" />}
+                        History
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground" aria-label="More actions">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEdit(inv)}>
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Update value
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteId(inv.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete SIP
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-3 ml-[3.125rem] border-l border-border">
+                      {inv.contributions.map((c) => (
+                        <div key={c.id} className="group/entry relative flex items-center justify-between gap-2 pl-4 py-1.5 text-xs">
+                          <span className="absolute -left-[3.5px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-muted-foreground/40" />
+                          <div className="min-w-0 flex items-baseline gap-2">
+                            <span className="tabnum font-medium text-foreground">{baseSymbol} {(c.amount / 100).toLocaleString()}</span>
+                            {c.notes && <span className="text-muted-foreground truncate">{c.notes}</span>}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-muted-foreground tabnum">{format(c.date, "dd MMM yyyy")}</span>
+                            <button
+                              onClick={() => handleDeleteContribution(c.id)}
+                              className="text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover/entry:opacity-100"
+                              aria-label="Delete contribution"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      </div>
+
+      {/* New SIP dialog */}
       <Dialog open={addOpen} onOpenChange={(o) => { if (!o) { setAddOpen(false); setForm(BLANK_FORM); setCustomFields({}); } }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Investment</DialogTitle>
+            <DialogTitle>New SIP</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Name</Label>
-              <Input placeholder="e.g. Meezan Islamic Fund" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <Input placeholder="e.g. MZNPETF" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -393,12 +487,25 @@ export function InvestmentsClient({
               </div>
               <div className="space-y-1.5">
                 <Label>Platform / Broker</Label>
-                <Input placeholder="e.g. Meezan Bank" value={form.platform} onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))} />
+                <Input placeholder="e.g. KTrade" value={form.platform} onChange={(e) => setForm((f) => ({ ...f, platform: e.target.value }))} />
               </div>
             </div>
+            {planCategories.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Counts toward plan category <span className="text-muted-foreground">(optional)</span></Label>
+                <Select value={form.planCategoryId || "none"} onValueChange={(v) => setForm((f) => ({ ...f, planCategoryId: v === "none" ? "" : v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {planCategories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Links this SIP&apos;s contributions to the target split above, so planned-vs-actual tracks correctly.</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Amount Invested ({baseSymbol})</Label>
+                <Label>First Contribution ({baseSymbol})</Label>
                 <Input type="number" placeholder="0" value={form.investedAmount} onChange={(e) => setForm((f) => ({ ...f, investedAmount: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
@@ -407,7 +514,7 @@ export function InvestmentsClient({
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Purchase Date</Label>
+              <Label>Date</Label>
               <Input type="date" value={form.purchaseDate} onChange={(e) => setForm((f) => ({ ...f, purchaseDate: e.target.value }))} />
             </div>
             <CustomFieldsForm type={form.type} fields={customFields} onChange={setCustomFields} baseSymbol={baseSymbol} />
@@ -416,17 +523,43 @@ export function InvestmentsClient({
               <Textarea placeholder="Any notes" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
             <Button onClick={handleAdd} disabled={loading || !form.name || !form.investedAmount} className="w-full">
-              Add Investment
+              Create SIP
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Update dialog */}
+      {/* Log contribution dialog */}
+      <Dialog open={!!contributeItem} onOpenChange={(o) => { if (!o) { setContributeItem(null); setContributionForm(BLANK_CONTRIBUTION); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log contribution — {contributeItem?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Amount ({baseSymbol})</Label>
+              <Input type="number" placeholder="0" value={contributionForm.amount} onChange={(e) => setContributionForm((f) => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <Input type="date" value={contributionForm.date} onChange={(e) => setContributionForm((f) => ({ ...f, date: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes <span className="text-muted-foreground">(optional)</span></Label>
+              <Textarea rows={2} value={contributionForm.notes} onChange={(e) => setContributionForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <Button onClick={handleContribute} disabled={loading || !contributionForm.amount} className="w-full">
+              Log contribution
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update value dialog */}
       <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Update - {editItem?.name}</DialogTitle>
+            <DialogTitle>Update value — {editItem?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -454,8 +587,8 @@ export function InvestmentsClient({
       <ConfirmDialog
         open={!!deleteId}
         onOpenChange={(o) => !o && setDeleteId(null)}
-        title="Delete investment?"
-        description="This will permanently remove the investment record."
+        title="Delete SIP?"
+        description="This will permanently remove the SIP and its full contribution history."
         onConfirm={handleDelete}
       />
     </>
