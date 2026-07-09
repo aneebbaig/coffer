@@ -28,8 +28,7 @@ class _QuickAddIncomePageState extends ConsumerState<QuickAddIncomePage> {
   final _amountFocus = FocusNode();
   String? _selectedCategoryId;
   DateTime _date = DateTime.now();
-  int? _budgetMonth;
-  int? _budgetYear;
+  bool _fileUnderDateBudget = false;
   bool _loading = false;
 
   @override
@@ -104,8 +103,8 @@ class _QuickAddIncomePageState extends ConsumerState<QuickAddIncomePage> {
             categoryId: _selectedCategoryId!,
             description: description,
             date: _date,
-            budgetMonth: _budgetMonth,
-            budgetYear: _budgetYear,
+            budgetMonth: _fileUnderDateBudget ? _date.month : null,
+            budgetYear: _fileUnderDateBudget ? _date.year : null,
           );
 
       if (!mounted) return;
@@ -302,12 +301,9 @@ class _QuickAddIncomePageState extends ConsumerState<QuickAddIncomePage> {
             const SizedBox(height: 8),
 
             BudgetPeriodField(
-              month: _budgetMonth,
-              year: _budgetYear,
-              onChanged: (m, y) => setState(() {
-                _budgetMonth = m;
-                _budgetYear = y;
-              }),
+              date: _date,
+              checked: _fileUnderDateBudget,
+              onChanged: (v) => setState(() => _fileUnderDateBudget = v),
             ),
           ],
         ),

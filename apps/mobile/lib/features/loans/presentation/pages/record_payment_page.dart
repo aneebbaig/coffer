@@ -27,8 +27,7 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
   final _notesCtrl = TextEditingController();
   final _amountFocus = FocusNode();
   DateTime _date = DateTime.now();
-  int? _budgetMonth;
-  int? _budgetYear;
+  bool _fileUnderDateBudget = false;
   String? _fundingPotId;
   bool _loading = false;
 
@@ -103,8 +102,8 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
             amountPaisas: paisas,
             date: _date,
             notes: _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
-            budgetMonth: _budgetMonth,
-            budgetYear: _budgetYear,
+            budgetMonth: _fileUnderDateBudget ? _date.month : null,
+            budgetYear: _fileUnderDateBudget ? _date.year : null,
             fundingPotId: widget.loan.type == 'RECEIVED' ? _fundingPotId : null,
           );
 
@@ -309,12 +308,9 @@ class _RecordPaymentPageState extends ConsumerState<RecordPaymentPage> {
             const SizedBox(height: 8),
 
             BudgetPeriodField(
-              month: _budgetMonth,
-              year: _budgetYear,
-              onChanged: (m, y) => setState(() {
-                _budgetMonth = m;
-                _budgetYear = y;
-              }),
+              date: _date,
+              checked: _fileUnderDateBudget,
+              onChanged: (v) => setState(() => _fileUnderDateBudget = v),
             ),
           ],
         ),
