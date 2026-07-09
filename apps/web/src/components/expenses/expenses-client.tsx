@@ -240,7 +240,6 @@ export function ExpensesClient({
             currencies={fundingContext.currencies}
             fundingContext={fundingContext}
             dateFormat={dateFormat}
-            openPeriod={currentPeriod}
             onSuccess={() => setOpen(false)}
           />
         </DialogContent>
