@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,19 +15,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { createLoan, recordPayment, deleteLoan } from "@/actions/loans";
+import { createLoan, recordPayment, updateLoanPayment, deleteLoanPayment, deleteLoan } from "@/actions/loans";
 import { createLoanSchedule, deleteLoanSchedule } from "@/actions/cashflow";
+import { getExpenseFundingContext } from "@/actions/expenses";
 import { Switch } from "@/components/ui/switch";
 import { CalendarClock } from "lucide-react";
 import { BudgetPeriodOverride, monthYearFromDateStr } from "@/components/shared/budget-period-override";
-import { SplitFunding, type FundingOption } from "@/components/shared/split-funding";
+import { SplitFunding, FundingSelectContent, type FundingOption } from "@/components/shared/split-funding";
+import { FormSection, MoreOptions } from "@/components/shared/form-section";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 
-interface LoanPayment { id: string; amount: number; date: Date; notes: string | null; }
+interface LoanPayment {
+  id: string; amount: number; date: Date; notes: string | null;
+  transaction: { fundingSource: string; fundingPotId: string | null; budgetMonth: number; budgetYear: number } | null;
+}
 interface LoanSchedule {
   id: string; kind: string; amount: number; startDate: Date; endDate: Date | null;
   flexibility: string; priority: number; slideWindowMonths: number; interestRate: number | null;
+  fulfilledPaymentId: string | null;
 }
 interface Loan {
   id: string; personName: string; description: string | null; type: string;
@@ -55,11 +61,16 @@ const STATUS_BADGE: Record<string, string> = {
   PAID: "bg-emerald-100 text-emerald-700",
 };
 
-export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[]; summary: Summary; fundingContext: FundingContext }) {
+export function LoansClient({
+  loans, summary, fundingContext, currentPeriod,
+}: { loans: Loan[]; summary: Summary; fundingContext: FundingContext; currentPeriod: { month: number; year: number } }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [fileCreateUnderDateBudget, setFileCreateUnderDateBudget] = useState(false);
   const [fileUnderDateBudget, setFileUnderDateBudget] = useState(false);
   const [payOpen, setPayOpen] = useState<string | null>(null);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [linkScheduleId, setLinkScheduleId] = useState<string | null>(null);
+  const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null);
   const [deleteLoanData, setDeleteLoanData] = useState<{ id: string; personName: string } | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,10 +86,31 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
   const [splitRows, setSplitRows] = useState([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
   const baseSymbol = fundingContext.currencies.find((c) => c.isBase)?.symbol ?? "Rs";
   const baseCurrencyId = fundingContext.currencies.find((c) => c.isBase)?.id;
+
+  // Funding figures for the repayment dialog follow whichever period the
+  // payment will actually be filed under - refetch when the date-budget
+  // checkbox targets a different period than the page's load-time period.
+  const [fetchedFundingContext, setFetchedFundingContext] = useState<FundingContext>();
+  const [fundingContextLoading, setFundingContextLoading] = useState(false);
+  const payTargetPeriod = fileUnderDateBudget && payForm.date ? monthYearFromDateStr(payForm.date) : currentPeriod;
+  const isPayCurrentPeriod = payTargetPeriod.month === currentPeriod.month && payTargetPeriod.year === currentPeriod.year;
+  const liveFundingContext = isPayCurrentPeriod ? fundingContext : (fetchedFundingContext ?? fundingContext);
+
+  useEffect(() => {
+    if (!payOpen || isPayCurrentPeriod) return;
+    let cancelled = false;
+    setFundingContextLoading(true);
+    getExpenseFundingContext(payTargetPeriod.month, payTargetPeriod.year)
+      .then((ctx) => { if (!cancelled) setFetchedFundingContext(ctx); })
+      .finally(() => { if (!cancelled) setFundingContextLoading(false); });
+    return () => { cancelled = true; };
+  }, [payOpen, payTargetPeriod.month, payTargetPeriod.year, isPayCurrentPeriod]);
+
   const loanFundingOptions: FundingOption[] = [
-    { value: "INCOME", label: `Monthly income · ${baseSymbol} ${(fundingContext.monthlyIncomeAvailable / 100).toLocaleString()} available` },
-    ...fundingContext.pots.filter((p) => baseBalance(p) > 0).map((pot) => ({
+    { value: "INCOME", group: "income", label: `Monthly income · ${baseSymbol} ${(liveFundingContext.monthlyIncomeAvailable / 100).toLocaleString()} available` },
+    ...liveFundingContext.pots.filter((p) => baseBalance(p) > 0).map((pot) => ({
       value: pot.id,
+      group: "pot" as const,
       label: `${pot.name} (${pot.type}) · ${baseSymbol} ${(baseBalance(pot) / 100).toLocaleString()}`,
     })),
   ];
@@ -130,20 +162,34 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
     }
 
     const payDateOverride = monthYearFromDateStr(payForm.date);
-    const result = await recordPayment(payOpen, {
-      amount: parseFloat(payForm.amount),
-      date: payForm.date,
-      notes: payForm.notes || undefined,
-      ...(isReceived && !useSplit ? {
-        fundingSource: payForm.fundingSource,
-        fundingPotId: payForm.fundingSource === "SAVINGS_POT" ? payForm.fundingPotId : undefined,
-      } : {}),
-      splitSources: isReceived && useSplit ? splitSources : undefined,
-      ...(fileUnderDateBudget ? { budgetMonth: payDateOverride.month, budgetYear: payDateOverride.year } : {}),
-    });
+    const result = editingPaymentId
+      ? await updateLoanPayment(editingPaymentId, {
+          amount: parseFloat(payForm.amount),
+          date: payForm.date,
+          notes: payForm.notes || undefined,
+          ...(isReceived && !useSplit ? {
+            fundingSource: payForm.fundingSource,
+            fundingPotId: payForm.fundingSource === "SAVINGS_POT" ? payForm.fundingPotId : undefined,
+          } : {}),
+          ...(fileUnderDateBudget ? { budgetMonth: payDateOverride.month, budgetYear: payDateOverride.year } : {}),
+        })
+      : await recordPayment(payOpen, {
+          amount: parseFloat(payForm.amount),
+          date: payForm.date,
+          notes: payForm.notes || undefined,
+          ...(isReceived && !useSplit ? {
+            fundingSource: payForm.fundingSource,
+            fundingPotId: payForm.fundingSource === "SAVINGS_POT" ? payForm.fundingPotId : undefined,
+          } : {}),
+          splitSources: isReceived && useSplit ? splitSources : undefined,
+          ...(fileUnderDateBudget ? { budgetMonth: payDateOverride.month, budgetYear: payDateOverride.year } : {}),
+          ...(linkScheduleId ? { linkScheduleId } : {}),
+        });
     if (result.success) {
-      toast.success(isReceived ? "Payment recorded & expense created!" : "Payment recorded & added to income!");
+      toast.success(editingPaymentId ? "Payment updated" : isReceived ? "Payment recorded & expense created!" : "Payment recorded & added to income!");
       setPayOpen(null);
+      setEditingPaymentId(null);
+      setLinkScheduleId(null);
       setPayForm({ amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "", fundingSource: "INCOME", fundingPotId: "" });
       setUseSplit(false);
       setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
@@ -153,10 +199,51 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
   }
 
   async function handleMarkPaid(loan: Loan) {
+    setEditingPaymentId(null);
+    setLinkScheduleId(null);
     setPayForm((p) => ({ ...p, amount: String(loan.remainingAmount / 100), fundingSource: "INCOME", fundingPotId: "" }));
     setUseSplit(false);
     setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
     setPayOpen(loan.id);
+  }
+
+  function openRecordInstallment(loanId: string, schedule: LoanSchedule) {
+    setEditingPaymentId(null);
+    setLinkScheduleId(schedule.id);
+    setPayForm({
+      amount: String(schedule.amount / 100),
+      date: format(new Date(schedule.startDate), "yyyy-MM-dd"),
+      notes: "",
+      fundingSource: "INCOME",
+      fundingPotId: "",
+    });
+    setUseSplit(false);
+    setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
+    setFileUnderDateBudget(false);
+    setPayOpen(loanId);
+  }
+
+  function openEditPayment(loanId: string, payment: LoanPayment) {
+    setEditingPaymentId(payment.id);
+    setPayForm({
+      amount: String(payment.amount / 100),
+      date: format(new Date(payment.date), "yyyy-MM-dd"),
+      notes: payment.notes ?? "",
+      fundingSource: payment.transaction?.fundingSource === "SAVINGS_POT" ? "SAVINGS_POT" : "INCOME",
+      fundingPotId: payment.transaction?.fundingSource === "SAVINGS_POT" ? (payment.transaction.fundingPotId ?? "") : "",
+    });
+    setUseSplit(false);
+    setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
+    setFileUnderDateBudget(false);
+    setPayOpen(loanId);
+  }
+
+  async function handleDeletePayment() {
+    if (!deletePaymentId) return;
+    const result = await deleteLoanPayment(deletePaymentId);
+    if (result.success) toast.success("Payment deleted");
+    else toast.error(result.error ?? "Failed to delete payment");
+    setDeletePaymentId(null);
   }
 
   async function handleDelete() {
@@ -290,7 +377,17 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
                       <span className="text-muted-foreground text-xs">{format(new Date(p.date), "d MMM yyyy")}</span>
                       {p.notes && <span className="text-muted-foreground text-xs ml-2">· {p.notes}</span>}
                     </div>
-                    <span className="font-medium text-emerald-600">+{baseSymbol} {(p.amount / 100).toLocaleString()}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-medium text-emerald-600">+{baseSymbol} {(p.amount / 100).toLocaleString()}</span>
+                      {p.transaction && (
+                        <button onClick={() => openEditPayment(loan.id, p)} className="text-muted-foreground hover:text-foreground transition-colors p-0.5" title="Edit payment">
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      )}
+                      <button onClick={() => setDeletePaymentId(p.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-0.5" title="Delete payment">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -328,9 +425,18 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
                               : `${baseSymbol} ${(s.amount / 100).toLocaleString()}/mo, ${format(new Date(s.startDate), "MMM yyyy")}${s.endDate ? ` – ${format(new Date(s.endDate), "MMM yyyy")}` : ""}`}
                           </span>
                         </div>
-                        <button onClick={() => handleDeleteSchedule(s.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1 shrink-0" title="Remove schedule">
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {s.fulfilledPaymentId ? (
+                            <span className="text-[10px] text-emerald-600 font-medium">Recorded</span>
+                          ) : (
+                            <button onClick={() => openRecordInstallment(loan.id, s)} className="text-xs text-primary hover:underline font-medium" title="Record this installment">
+                              Record
+                            </button>
+                          )}
+                          <button onClick={() => handleDeleteSchedule(s.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1" title="Remove schedule">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -402,50 +508,60 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Add Loan</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Type</Label>
-              <Select onValueChange={(v) => setForm((p) => ({ ...p, type: v }))} defaultValue="GIVEN">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GIVEN">I lent money to someone</SelectItem>
-                  <SelectItem value="RECEIVED">I borrowed money from someone</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Person Name</Label>
-              <Input value={form.personName} onChange={(e) => setForm((p) => ({ ...p, personName: e.target.value }))} placeholder="e.g. Ahmed, Uncle Tariq" />
-            </div>
-            <div>
-              <Label>Amount ({baseSymbol})</Label>
-              <Input type="number" value={form.principalAmount} onChange={(e) => setForm((p) => ({ ...p, principalAmount: e.target.value }))} placeholder="0" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <FormSection title="Who & what">
+              <div>
+                <Label>Type</Label>
+                <Select onValueChange={(v) => setForm((p) => ({ ...p, type: v }))} defaultValue="GIVEN">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GIVEN">I lent money to someone</SelectItem>
+                    <SelectItem value="RECEIVED">I borrowed money from someone</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Person Name</Label>
+                <Input value={form.personName} onChange={(e) => setForm((p) => ({ ...p, personName: e.target.value }))} placeholder="e.g. Ahmed, Uncle Tariq" />
+              </div>
+              <div>
+                <Label>Description (optional)</Label>
+                <Input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="What was it for?" />
+              </div>
+            </FormSection>
+
+            <FormSection title="Amount">
+              <div>
+                <Label>Amount ({baseSymbol})</Label>
+                <Input type="number" value={form.principalAmount} onChange={(e) => setForm((p) => ({ ...p, principalAmount: e.target.value }))} placeholder="0" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {form.type === "GIVEN"
+                  ? "Recorded as an expense - the money leaves your available cash."
+                  : "Recorded as income - the money becomes available to budget."}
+              </p>
+            </FormSection>
+
+            <FormSection title="When">
               <div>
                 <Label>Date</Label>
                 <Input type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
               </div>
+              <BudgetPeriodOverride date={form.date} checked={fileCreateUnderDateBudget} onChange={setFileCreateUnderDateBudget} />
+            </FormSection>
+
+            <MoreOptions>
               <div>
                 <Label>Due Date (optional)</Label>
                 <Input type="date" value={form.dueDate} onChange={(e) => setForm((p) => ({ ...p, dueDate: e.target.value }))} />
               </div>
-            </div>
-            <div>
-              <Label>Description (optional)</Label>
-              <Input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="What was it for?" />
-            </div>
-            <div>
-              <Label>Notes (optional)</Label>
-              <Textarea rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Any extra details..." />
-            </div>
-            <BudgetPeriodOverride date={form.date} checked={fileCreateUnderDateBudget} onChange={setFileCreateUnderDateBudget} />
-            <p className="text-xs text-muted-foreground">
-              {form.type === "GIVEN"
-                ? "Recorded as an expense - the money leaves your available cash."
-                : "Recorded as income - the money becomes available to budget."}
-            </p>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Any extra details..." />
+              </div>
+            </MoreOptions>
+
             <Button className="w-full" onClick={handleCreate} disabled={loading}>
               {loading ? "Adding..." : "Add Loan"}
             </Button>
@@ -454,85 +570,105 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
       </Dialog>
 
       {/* Record payment dialog */}
-      <Dialog open={!!payOpen} onOpenChange={(o) => { if (!o) { setPayOpen(null); setUseSplit(false); setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]); } }}>
+      <Dialog open={!!payOpen} onOpenChange={(o) => { if (!o) { setPayOpen(null); setEditingPaymentId(null); setLinkScheduleId(null); setUseSplit(false); setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              {payLoan?.type === "RECEIVED" ? "Record Repayment" : "Record Payment"}
+              {editingPaymentId ? "Edit Payment" : payLoan?.type === "RECEIVED" ? "Record Repayment" : "Record Payment"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Amount ({baseSymbol})</Label>
+            <FormSection title="Amount">
               <Input type="number" value={payForm.amount} onChange={(e) => setPayForm((p) => ({ ...p, amount: e.target.value }))} placeholder="0" autoFocus />
-            </div>
-            <div>
-              <Label>Date</Label>
-              <Input type="date" value={payForm.date} onChange={(e) => setPayForm((p) => ({ ...p, date: e.target.value }))} />
-            </div>
-            {payLoan?.type === "RECEIVED" && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Pay from</Label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUseSplit(!useSplit);
-                      if (!useSplit) setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
-                    }}
-                    className="text-xs text-primary hover:underline font-medium"
-                  >
-                    {useSplit ? "Single source" : "Split sources"}
-                  </button>
-                </div>
+            </FormSection>
 
-                {!useSplit ? (
-                  <>
-                    <Select
-                      value={payForm.fundingSource === "SAVINGS_POT" ? payForm.fundingPotId : "INCOME"}
-                      onValueChange={(v) => {
-                        if (v === "INCOME") setPayForm((p) => ({ ...p, fundingSource: "INCOME", fundingPotId: "" }));
-                        else setPayForm((p) => ({ ...p, fundingSource: "SAVINGS_POT", fundingPotId: v }));
-                      }}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="INCOME">
-                          Monthly income · {baseSymbol} {(fundingContext.monthlyIncomeAvailable / 100).toLocaleString()} available
-                        </SelectItem>
-                        {fundingContext.pots.filter((p) => baseBalance(p) > 0).map((pot) => (
-                          <SelectItem key={pot.id} value={pot.id}>
-                            {pot.name} ({pot.type}) · {baseSymbol} {(baseBalance(pot) / 100).toLocaleString()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">Choosing a savings pot deducts the amount immediately.</p>
-                  </>
-                ) : (
-                  <SplitFunding
-                    totalAmount={parseFloat(payForm.amount) || 0}
-                    options={loanFundingOptions}
-                    value={splitRows}
-                    onChange={setSplitRows}
-                  />
-                )}
+            <FormSection title="When">
+              <div>
+                <Label>Date</Label>
+                <Input type="date" value={payForm.date} onChange={(e) => setPayForm((p) => ({ ...p, date: e.target.value }))} />
               </div>
+              <BudgetPeriodOverride
+                date={payForm.date}
+                checked={fileUnderDateBudget}
+                onChange={setFileUnderDateBudget}
+                affectsFunding={payLoan?.type === "RECEIVED"}
+              />
+            </FormSection>
+
+            {payLoan?.type === "RECEIVED" && (
+              <FormSection title="Funding">
+                <div className={cn("space-y-3 transition-opacity", fundingContextLoading && "opacity-60")}>
+                  <div className="flex items-center justify-between">
+                    <Label>Pay from</Label>
+                    {!editingPaymentId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUseSplit(!useSplit);
+                          if (!useSplit) setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
+                        }}
+                        className="text-xs text-primary hover:underline font-medium"
+                      >
+                        {useSplit ? "Single source" : "Split sources"}
+                      </button>
+                    )}
+                  </div>
+                  {editingPaymentId && (
+                    <p className="text-xs text-muted-foreground">
+                      Editing only supports a single funding source - delete and re-add for split funding.
+                    </p>
+                  )}
+
+                  {!useSplit ? (
+                    <>
+                      <Select
+                        value={payForm.fundingSource === "SAVINGS_POT" ? payForm.fundingPotId : "INCOME"}
+                        onValueChange={(v) => {
+                          if (v === "INCOME") setPayForm((p) => ({ ...p, fundingSource: "INCOME", fundingPotId: "" }));
+                          else setPayForm((p) => ({ ...p, fundingSource: "SAVINGS_POT", fundingPotId: v }));
+                        }}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <FundingSelectContent options={loanFundingOptions} />
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Choosing a savings pot deducts the amount immediately.</p>
+                    </>
+                  ) : (
+                    <SplitFunding
+                      totalAmount={parseFloat(payForm.amount) || 0}
+                      options={loanFundingOptions}
+                      value={splitRows}
+                      onChange={setSplitRows}
+                    />
+                  )}
+                </div>
+              </FormSection>
             )}
             {payLoan?.type === "GIVEN" && (
               <p className="text-xs text-muted-foreground">Recorded as income - available to budget once received.</p>
             )}
-            <div>
-              <Label>Notes (optional)</Label>
-              <Input value={payForm.notes} onChange={(e) => setPayForm((p) => ({ ...p, notes: e.target.value }))} placeholder="e.g. Cash, bank transfer" />
-            </div>
-            <BudgetPeriodOverride date={payForm.date} checked={fileUnderDateBudget} onChange={setFileUnderDateBudget} />
+
+            <MoreOptions>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Input value={payForm.notes} onChange={(e) => setPayForm((p) => ({ ...p, notes: e.target.value }))} placeholder="e.g. Cash, bank transfer" />
+              </div>
+            </MoreOptions>
+
             <Button className="w-full" onClick={handlePayment} disabled={loading}>
-              {loading ? "Recording..." : payLoan?.type === "RECEIVED" ? "Record Repayment" : "Record Payment"}
+              {loading ? "Saving..." : editingPaymentId ? "Save Changes" : payLoan?.type === "RECEIVED" ? "Record Repayment" : "Record Payment"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deletePaymentId}
+        onOpenChange={(o) => !o && setDeletePaymentId(null)}
+        title="Delete payment?"
+        description="This removes the payment and its linked transaction, and adds the amount back to the loan's remaining balance. This cannot be undone."
+        onConfirm={handleDeletePayment}
+      />
 
       <ConfirmDialog
         open={!!deleteLoanData}
@@ -547,8 +683,7 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Add Repayment Schedule</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Type</Label>
+            <FormSection title="What">
               <Select value={scheduleForm.kind} onValueChange={(v) => setScheduleForm((p) => ({ ...p, kind: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -556,44 +691,54 @@ export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[];
                   <SelectItem value="FIXED_INSTALLMENT">Fixed installments (monthly)</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <Label>{scheduleForm.kind === "LUMP_SUM" ? "Amount" : "Amount per month"} ({baseSymbol})</Label>
-              <Input type="number" value={scheduleForm.amount} onChange={(e) => setScheduleForm((p) => ({ ...p, amount: e.target.value }))} placeholder="0" autoFocus />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            </FormSection>
+
+            <FormSection title="Amount">
               <div>
-                <Label>{scheduleForm.kind === "LUMP_SUM" ? "Due Date" : "Starts"}</Label>
-                <Input type="date" value={scheduleForm.startDate} onChange={(e) => setScheduleForm((p) => ({ ...p, startDate: e.target.value }))} />
+                <Label>{scheduleForm.kind === "LUMP_SUM" ? "Amount" : "Amount per month"} ({baseSymbol})</Label>
+                <Input type="number" value={scheduleForm.amount} onChange={(e) => setScheduleForm((p) => ({ ...p, amount: e.target.value }))} placeholder="0" autoFocus />
               </div>
-              {scheduleForm.kind === "FIXED_INSTALLMENT" && (
+            </FormSection>
+
+            <FormSection title="When">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Ends</Label>
-                  <Input type="date" value={scheduleForm.endDate} onChange={(e) => setScheduleForm((p) => ({ ...p, endDate: e.target.value }))} />
+                  <Label>{scheduleForm.kind === "LUMP_SUM" ? "Due Date" : "Starts"}</Label>
+                  <Input type="date" value={scheduleForm.startDate} onChange={(e) => setScheduleForm((p) => ({ ...p, startDate: e.target.value }))} />
+                </div>
+                {scheduleForm.kind === "FIXED_INSTALLMENT" && (
+                  <div>
+                    <Label>Ends</Label>
+                    <Input type="date" value={scheduleForm.endDate} onChange={(e) => setScheduleForm((p) => ({ ...p, endDate: e.target.value }))} />
+                  </div>
+                )}
+              </div>
+            </FormSection>
+
+            <MoreOptions>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Flexible</Label>
+                  <p className="text-xs text-muted-foreground">Can be slid to a different month in a tight cycle</p>
+                </div>
+                <Switch
+                  checked={scheduleForm.flexibility === "FLEXIBLE"}
+                  onCheckedChange={(v) => setScheduleForm((p) => ({ ...p, flexibility: v ? "FLEXIBLE" : "FIXED" }))}
+                />
+              </div>
+              {scheduleForm.flexibility === "FLEXIBLE" && (
+                <div>
+                  <Label>Slide Window (months)</Label>
+                  <Input type="number" min={1} value={scheduleForm.slideWindowMonths} onChange={(e) => setScheduleForm((p) => ({ ...p, slideWindowMonths: e.target.value }))} />
                 </div>
               )}
-            </div>
-            <div className="flex items-center justify-between">
               <div>
-                <Label>Flexible</Label>
-                <p className="text-xs text-muted-foreground">Can be slid to a different month in a tight cycle</p>
+                <Label>Priority</Label>
+                <Input type="number" value={scheduleForm.priority} onChange={(e) => setScheduleForm((p) => ({ ...p, priority: e.target.value }))} placeholder="0" />
+                <p className="text-xs text-muted-foreground mt-1">Lower slides first when a month is tight</p>
               </div>
-              <Switch
-                checked={scheduleForm.flexibility === "FLEXIBLE"}
-                onCheckedChange={(v) => setScheduleForm((p) => ({ ...p, flexibility: v ? "FLEXIBLE" : "FIXED" }))}
-              />
-            </div>
-            {scheduleForm.flexibility === "FLEXIBLE" && (
-              <div>
-                <Label>Slide Window (months)</Label>
-                <Input type="number" min={1} value={scheduleForm.slideWindowMonths} onChange={(e) => setScheduleForm((p) => ({ ...p, slideWindowMonths: e.target.value }))} />
-              </div>
-            )}
-            <div>
-              <Label>Priority</Label>
-              <Input type="number" value={scheduleForm.priority} onChange={(e) => setScheduleForm((p) => ({ ...p, priority: e.target.value }))} placeholder="0" />
-              <p className="text-xs text-muted-foreground mt-1">Lower slides first when a month is tight</p>
-            </div>
+            </MoreOptions>
+
             <Button className="w-full" onClick={handleAddSchedule} disabled={loading}>
               {loading ? "Adding..." : "Add Schedule"}
             </Button>

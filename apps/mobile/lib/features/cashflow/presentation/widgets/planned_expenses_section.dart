@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_section.dart';
 import '../../data/datasources/cashflow_datasource.dart';
 import '../../domain/entities/planned_expense_entity.dart';
 import '../pages/add_planned_expense_page.dart';
+import '../pages/record_planned_expense_page.dart';
 import '../providers/planned_expenses_provider.dart';
 
 class PlannedExpensesSection extends ConsumerWidget {
@@ -28,18 +29,13 @@ class PlannedExpensesSection extends ConsumerWidget {
     );
   }
 
-  Future<void> _markPaid(BuildContext context, WidgetRef ref, PlannedExpenseEntity item) async {
-    try {
-      await ref.read(cashflowDatasourceProvider).updatePlannedExpenseStatus(id: item.id, status: 'PAID');
-      ref.invalidate(plannedExpensesProvider);
-      if (context.mounted) {
-        ref.read(toastServiceProvider).success(context, 'Marked as paid');
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      final msg = e is AppException ? e.message : 'Failed to update';
-      ref.read(toastServiceProvider).error(context, msg);
-    }
+  void _markPaid(BuildContext context, PlannedExpenseEntity item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => RecordPlannedExpensePage(plannedExpense: item),
+      ),
+    );
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref, PlannedExpenseEntity item) async {
@@ -90,7 +86,7 @@ class PlannedExpensesSection extends ConsumerWidget {
                             ),
                             const SizedBox(width: 8),
                             GestureDetector(
-                              onTap: () => _markPaid(context, ref, item),
+                              onTap: () => _markPaid(context, item),
                               behavior: HitTestBehavior.opaque,
                               child: const Padding(
                                 padding: EdgeInsets.all(4),

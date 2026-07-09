@@ -22,13 +22,27 @@ import 'record_payment_page.dart';
 class LoansPage extends ConsumerWidget {
   const LoansPage({super.key});
 
-  void _showPayment(BuildContext context, LoanEntity loan) {
+  void _showPayment(BuildContext context, LoanEntity loan, {LoanPaymentEntity? editPayment, LoanScheduleEntity? linkSchedule}) {
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => RecordPaymentPage(loan: loan),
+        builder: (_) => RecordPaymentPage(loan: loan, editPayment: editPayment, linkSchedule: linkSchedule),
       ),
     );
+  }
+
+  Future<void> _deletePayment(BuildContext context, WidgetRef ref, LoanEntity loan, LoanPaymentEntity payment) async {
+    try {
+      await ref.read(loansDatasourceProvider).deletePayment(loanId: loan.id, paymentId: payment.id);
+      ref.invalidate(loansProvider);
+      if (context.mounted) {
+        ref.read(toastServiceProvider).success(context, 'Payment deleted');
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      final msg = e is AppException ? e.message : 'Failed to delete payment';
+      ref.read(toastServiceProvider).error(context, msg);
+    }
   }
 
   void _showAddSchedule(BuildContext context, LoanEntity loan) {
@@ -113,6 +127,9 @@ class LoansPage extends ConsumerWidget {
                                 onPay: l.status != 'PAID' ? () => _showPayment(context, l) : null,
                                 onAddSchedule: l.status != 'PAID' ? () => _showAddSchedule(context, l) : null,
                                 onDeleteSchedule: (s) => _deleteSchedule(context, ref, s),
+                                onEditPayment: (p) => _showPayment(context, l, editPayment: p),
+                                onDeletePayment: (p) => _deletePayment(context, ref, l, p),
+                                onRecordInstallment: l.status != 'PAID' ? (s) => _showPayment(context, l, linkSchedule: s) : null,
                               ),
                             )),
                         const SizedBox(height: 12),
@@ -132,6 +149,9 @@ class LoansPage extends ConsumerWidget {
                                 onPay: l.status != 'PAID' ? () => _showPayment(context, l) : null,
                                 onAddSchedule: l.status != 'PAID' ? () => _showAddSchedule(context, l) : null,
                                 onDeleteSchedule: (s) => _deleteSchedule(context, ref, s),
+                                onEditPayment: (p) => _showPayment(context, l, editPayment: p),
+                                onDeletePayment: (p) => _deletePayment(context, ref, l, p),
+                                onRecordInstallment: l.status != 'PAID' ? (s) => _showPayment(context, l, linkSchedule: s) : null,
                               ),
                             )),
                       ],
@@ -189,11 +209,44 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class _LoanCard extends StatelessWidget {
-  const _LoanCard({required this.loan, this.onPay, this.onAddSchedule, this.onDeleteSchedule});
+  const _LoanCard({
+    required this.loan,
+    this.onPay,
+    this.onAddSchedule,
+    this.onDeleteSchedule,
+    this.onEditPayment,
+    this.onDeletePayment,
+    this.onRecordInstallment,
+  });
   final LoanEntity loan;
   final VoidCallback? onPay;
   final VoidCallback? onAddSchedule;
   final void Function(LoanScheduleEntity)? onDeleteSchedule;
+  final void Function(LoanPaymentEntity)? onEditPayment;
+  final void Function(LoanPaymentEntity)? onDeletePayment;
+  final void Function(LoanScheduleEntity)? onRecordInstallment;
+
+  Future<void> _confirmDeletePayment(BuildContext context, LoanPaymentEntity payment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('Delete payment?', style: AppTextStyles.headlineSmall),
+        content: Text(
+          "This removes the payment and its linked transaction, and adds the amount back to the loan's remaining balance. This cannot be undone.",
+          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.mutedForeground),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete', style: TextStyle(color: AppColors.destructive)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) onDeletePayment?.call(payment);
+  }
 
   AppBadgeVariant get _badgeVariant => switch (loan.status) {
         'ACTIVE' => AppBadgeVariant.warning,
@@ -299,11 +352,33 @@ class _LoanCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(p.date.toShortDate, style: AppTextStyles.bodySmall),
-                        Text(
-                          p.amountPaisas.formatPKR(),
-                          style: AppTextStyles.labelMedium.copyWith(
-                            color: const Color(0xFF4CAF50),
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              p.amountPaisas.formatPKR(),
+                              style: AppTextStyles.labelMedium.copyWith(
+                                color: const Color(0xFF4CAF50),
+                              ),
+                            ),
+                            if (p.hasTransaction && onEditPayment != null) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => onEditPayment!(p),
+                                behavior: HitTestBehavior.opaque,
+                                child: const Icon(Icons.edit_outlined, size: 13, color: AppColors.mutedForeground),
+                              ),
+                            ],
+                            if (onDeletePayment != null) ...[
+                              const SizedBox(width: 8),
+                              Builder(
+                                builder: (ctx) => GestureDetector(
+                                  onTap: () => _confirmDeletePayment(ctx, p),
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Icon(Icons.delete_outline, size: 13, color: AppColors.destructive.withValues(alpha: 0.7)),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -358,6 +433,20 @@ class _LoanCard extends StatelessWidget {
                             s.amountPaisas.formatPKR(),
                             style: AppTextStyles.labelMedium,
                           ),
+                          if (s.fulfilledPaymentId != null)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text('Recorded', style: AppTextStyles.labelSmall.copyWith(color: const Color(0xFF4CAF50))),
+                            )
+                          else if (onRecordInstallment != null)
+                            GestureDetector(
+                              onTap: () => onRecordInstallment!(s),
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 8),
+                                child: Text('Record', style: AppTextStyles.labelSmall.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
                           if (onDeleteSchedule != null) ...[
                             const SizedBox(width: 10),
                             GestureDetector(

@@ -79,6 +79,37 @@ class CashflowDatasource {
     }
   }
 
+  /// Books a real income transaction for "this month" of a recurring income
+  /// stream, linked back so the same period can't be double-recorded.
+  Future<String> recordRecurringIncome({
+    required String id,
+    required int amountPaisas,
+    required String categoryId,
+    String? description,
+    String? notes,
+    required DateTime date,
+    int? budgetMonth,
+    int? budgetYear,
+  }) async {
+    try {
+      final res = await _dio.post(
+        ApiConstants.recurringIncomeRecord(id),
+        data: {
+          'amountPaisas': amountPaisas,
+          'categoryId': categoryId,
+          if (description != null && description.isNotEmpty) 'description': description,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          'date': date.toIso8601String(),
+          if (budgetMonth != null) 'budgetMonth': budgetMonth,
+          if (budgetYear != null) 'budgetYear': budgetYear,
+        },
+      );
+      return (res.data['data'] as Map<String, dynamic>)['id'] as String;
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
   // ── Planned expenses ──────────────────────────────────────────────────
 
   Future<List<PlannedExpenseEntity>> getPlannedExpenses() async {
@@ -138,6 +169,40 @@ class CashflowDatasource {
     }
   }
 
+  /// Books a real expense transaction for a planned-expense row ("Mark paid"),
+  /// linked back so the row shows as actually paid, not just a status flip.
+  Future<String> recordPlannedExpense({
+    required String id,
+    required int amountPaisas,
+    required String categoryId,
+    String? description,
+    String? notes,
+    required DateTime date,
+    int? budgetMonth,
+    int? budgetYear,
+    String? fundingPotId,
+  }) async {
+    try {
+      final res = await _dio.post(
+        ApiConstants.plannedExpenseRecord(id),
+        data: {
+          'amountPaisas': amountPaisas,
+          'categoryId': categoryId,
+          if (description != null && description.isNotEmpty) 'description': description,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          'date': date.toIso8601String(),
+          if (budgetMonth != null) 'budgetMonth': budgetMonth,
+          if (budgetYear != null) 'budgetYear': budgetYear,
+          if (fundingPotId != null) 'fundingSource': 'SAVINGS_POT',
+          if (fundingPotId != null) 'fundingPotId': fundingPotId,
+        },
+      );
+      return (res.data['data'] as Map<String, dynamic>)['id'] as String;
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────
 
   Future<CashflowSummaryEntity> getSummary() async {
@@ -181,6 +246,10 @@ class CashflowDatasource {
         startDate: DateTime.parse(m['startDate'] as String),
         endDate: m['endDate'] != null ? DateTime.parse(m['endDate'] as String) : null,
         active: m['active'] as bool,
+        occurrences: ((m['occurrences'] as List<dynamic>?) ?? [])
+            .map((o) => o as Map<String, dynamic>)
+            .map((o) => RecurringIncomeOccurrence(month: o['month'] as int, year: o['year'] as int))
+            .toList(),
       );
 
   static PlannedExpenseEntity _parseExpense(Map<String, dynamic> m) => PlannedExpenseEntity(

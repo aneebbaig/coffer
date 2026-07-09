@@ -17,6 +17,7 @@ interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: n
 interface PlannedExpense {
   id: string; name: string; amount: number; dueDate: Date; flexibility: string;
   priority: number; slideWindowMonths: number; status: string; notes: string | null;
+  categoryId: string | null;
 }
 interface Transaction {
   id: string; amount: number; type: string; categoryId: string; description: string;
@@ -135,7 +136,14 @@ export function ExpensesClient({
       />
 
       <div className="space-y-6">
-        <PlannedExpensesCard expenses={plannedExpenses} baseSymbol={baseSymbol} />
+        <PlannedExpensesCard
+          expenses={plannedExpenses}
+          baseSymbol={baseSymbol}
+          categories={expenseCategories}
+          fundingContext={fundingContext}
+          currentPeriod={currentPeriod}
+          dateFormat={dateFormat}
+        />
 
         {/* Summary cards - always current period */}
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">
@@ -239,6 +247,7 @@ export function ExpensesClient({
             budgetByCategoryId={budgetByCategoryId}
             currencies={fundingContext.currencies}
             fundingContext={fundingContext}
+            currentPeriod={currentPeriod}
             dateFormat={dateFormat}
             onSuccess={() => setOpen(false)}
           />

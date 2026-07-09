@@ -21,6 +21,7 @@ class ApiConstants {
   // REST data endpoints (used with baseUrl)
   static const String categories = '/categories';
   static const String expenses = '/expenses';
+  static const String expenseFundingContext = '/expenses/funding-context';
   static const String income = '/income';
   static const String budget = '/budget';
   static const String savings = '/savings';
@@ -35,6 +36,8 @@ class ApiConstants {
   static const String cashflow = '/cashflow';
 
   static String loanPayments(String loanId) => '/loans/$loanId/payments';
+  static String loanPaymentById(String loanId, String paymentId) =>
+      '/loans/$loanId/payments/$paymentId';
   static String loanSchedules(String loanId) => '/loans/$loanId/schedules';
   static String loanScheduleById(String loanId, String scheduleId) =>
       '/loans/$loanId/schedules/$scheduleId';
@@ -48,4 +51,6 @@ class ApiConstants {
   static String tagById(String id) => '/tags/$id';
   static String recurringIncomeById(String id) => '/recurring-income/$id';
   static String plannedExpenseById(String id) => '/planned-expenses/$id';
+  static String plannedExpenseRecord(String id) => '/planned-expenses/$id/record';
+  static String recurringIncomeRecord(String id) => '/recurring-income/$id/record';
 }

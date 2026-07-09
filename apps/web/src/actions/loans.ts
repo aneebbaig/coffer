@@ -5,9 +5,10 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getAuthenticatedUser, getUserId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { toPaisas, toLocalDate } from "@/lib/utils";
-import { creditPot, debitPot } from "@/lib/pot-helpers";
+import { debitPot } from "@/lib/pot-helpers";
 import { getBaseCurrency } from "@/lib/currency-helpers";
 import { getCurrentPeriod } from "@/lib/month";
+import { updateLoanPaymentCore, deleteLoanPaymentCore } from "@/lib/loans/payments";
 import { ActionResult } from "@/types";
 
 // Loans always operate in the household's base currency (out of scope for
@@ -21,7 +22,10 @@ export async function getLoans(filter?: "ACTIVE" | "PAID" | "ALL") {
   return prisma.loan.findMany({
     where,
     include: {
-      payments: { orderBy: { date: "desc" } },
+      payments: {
+        orderBy: { date: "desc" },
+        include: { transaction: { select: { fundingSource: true, fundingPotId: true, budgetMonth: true, budgetYear: true } } },
+      },
       schedules: { orderBy: { startDate: "asc" } },
     },
     orderBy: [{ status: "asc" }, { date: "desc" }],
@@ -123,6 +127,9 @@ export async function recordPayment(loanId: string, data: {
   // Optional budget-period override. When omitted, the user's open period is used.
   budgetMonth?: number;
   budgetYear?: number;
+  // Set when this payment is recorded via a LoanSchedule row's "Record installment" -
+  // marks that scheduled row fulfilled so the planner shows it as done, not just forecast.
+  linkScheduleId?: string;
 }): Promise<ActionResult> {
   try {
     const user = await getAuthenticatedUser({ currentBudgetMonth: true, currentBudgetYear: true });
@@ -134,6 +141,12 @@ export async function recordPayment(loanId: string, data: {
 
     const loan = await prisma.loan.findFirst({ where: { id: loanId, userId } });
     if (!loan) return { success: false, error: "Loan not found" };
+
+    if (data.linkScheduleId) {
+      const schedule = await prisma.loanSchedule.findFirst({ where: { id: data.linkScheduleId, loanId, userId } });
+      if (!schedule) return { success: false, error: "Schedule not found" };
+      if (schedule.fulfilledPaymentId) return { success: false, error: "Already recorded" };
+    }
 
     const paymentAmount = toPaisas(data.amount);
     if (paymentAmount > loan.remainingAmount) {
@@ -187,9 +200,6 @@ export async function recordPayment(loanId: string, data: {
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.loanPayment.create({
-        data: { loanId, amount: paymentAmount, date: toLocalDate(data.date), notes: data.notes },
-      });
       await tx.loan.update({
         where: { id: loanId },
         data: { remainingAmount: newRemaining, status: newStatus },
@@ -239,6 +249,14 @@ export async function recordPayment(loanId: string, data: {
       } else if (isExpense && fundingSource === "SAVINGS_POT" && fundingPotId) {
         await debitPot(tx, fundingPotId, paymentAmount, base.id, `Expense: Loan repayment - ${loan.personName}`, "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
       }
+
+      const payment = await tx.loanPayment.create({
+        data: { loanId, amount: paymentAmount, date: toLocalDate(data.date), notes: data.notes, transactionId: created.id },
+      });
+
+      if (data.linkScheduleId) {
+        await tx.loanSchedule.update({ where: { id: data.linkScheduleId }, data: { fulfilledPaymentId: payment.id } });
+      }
     });
 
     revalidatePath("/loans");
@@ -250,6 +268,51 @@ export async function recordPayment(loanId: string, data: {
   } catch (e) {
     console.error("[recordPayment]", e);
     return { success: false, error: "Failed to record payment" };
+  }
+}
+
+export async function updateLoanPayment(paymentId: string, data: {
+  amount: number;
+  date: string;
+  notes?: string;
+  fundingSource?: string;
+  fundingPotId?: string;
+  // Optional budget-period override. When omitted, the existing period is preserved.
+  budgetMonth?: number;
+  budgetYear?: number;
+}): Promise<ActionResult> {
+  try {
+    const user = await getAuthenticatedUser({});
+    const result = await updateLoanPaymentCore(user.id, paymentId, { ...data, amountPaisas: toPaisas(data.amount) });
+    if (result.error) return { success: false, error: result.error };
+
+    revalidatePath("/loans");
+    revalidatePath("/expenses");
+    revalidatePath("/income");
+    revalidatePath("/dashboard");
+    revalidatePath("/savings");
+    return { success: true };
+  } catch (e) {
+    console.error("[updateLoanPayment]", e);
+    return { success: false, error: "Failed to update payment" };
+  }
+}
+
+export async function deleteLoanPayment(paymentId: string): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    const result = await deleteLoanPaymentCore(userId, paymentId);
+    if (result.error) return { success: false, error: result.error };
+
+    revalidatePath("/loans");
+    revalidatePath("/expenses");
+    revalidatePath("/income");
+    revalidatePath("/dashboard");
+    revalidatePath("/savings");
+    return { success: true };
+  } catch (e) {
+    console.error("[deleteLoanPayment]", e);
+    return { success: false, error: "Failed to delete payment" };
   }
 }
 

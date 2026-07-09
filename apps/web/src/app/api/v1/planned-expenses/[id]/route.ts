@@ -12,7 +12,9 @@ const patchSchema = z.object({
   priority: z.number().int().optional(),
   slideWindowMonths: z.number().int().min(0).optional(),
   notes: z.string().max(1000).nullable().optional(),
-  status: z.enum(["PLANNED", "PAID", "SKIPPED"]).optional(),
+  // "PAID" is not settable here - it's only reached via POST .../record, which
+  // books a real ledger Transaction alongside the status flip.
+  status: z.enum(["PLANNED", "SKIPPED"]).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

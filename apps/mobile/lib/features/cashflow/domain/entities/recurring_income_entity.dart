@@ -1,3 +1,9 @@
+class RecurringIncomeOccurrence {
+  const RecurringIncomeOccurrence({required this.month, required this.year});
+  final int month;
+  final int year;
+}
+
 class RecurringIncomeEntity {
   const RecurringIncomeEntity({
     required this.id,
@@ -10,6 +16,7 @@ class RecurringIncomeEntity {
     required this.active,
     this.dayOfMonth,
     this.endDate,
+    this.occurrences = const [],
   });
 
   final String id;
@@ -22,4 +29,8 @@ class RecurringIncomeEntity {
   final DateTime startDate;
   final DateTime? endDate;
   final bool active;
+  final List<RecurringIncomeOccurrence> occurrences;
+
+  bool recordedFor(int month, int year) =>
+      occurrences.any((o) => o.month == month && o.year == year);
 }

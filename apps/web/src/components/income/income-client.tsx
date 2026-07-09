@@ -17,6 +17,7 @@ interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: n
 interface RecurringIncome {
   id: string; label: string; kind: string; amount: number; variable: boolean;
   countsTowardFloor: boolean; dayOfMonth: number | null; startDate: Date; endDate: Date | null; active: boolean;
+  occurrences: { month: number; year: number }[];
 }
 interface Transaction {
   id: string; amount: number; type: string; categoryId: string; description: string;
@@ -127,7 +128,13 @@ export function IncomeClient({
       <PageHeader section="Money Flow" title="Income" />
       <div className="space-y-6">
 
-        <RecurringIncomeCard incomes={recurringIncomes} baseSymbol={baseSymbol} />
+        <RecurringIncomeCard
+          incomes={recurringIncomes}
+          baseSymbol={baseSymbol}
+          categories={incomeCategories}
+          currentPeriod={currentPeriod}
+          dateFormat={dateFormat}
+        />
 
         {/* This period summary cards */}
         <div className="grid grid-cols-3 gap-px bg-border rounded-xl overflow-hidden border border-border">

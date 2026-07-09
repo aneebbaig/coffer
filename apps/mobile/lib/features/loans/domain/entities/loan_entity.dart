@@ -3,6 +3,7 @@ class LoanPaymentEntity {
     required this.id,
     required this.amountPaisas,
     required this.date,
+    required this.hasTransaction,
     this.notes,
   });
 
@@ -10,6 +11,9 @@ class LoanPaymentEntity {
   final int amountPaisas;
   final DateTime date;
   final String? notes;
+  // False for the legacy "mark fully paid" shortcut, which doesn't book a
+  // ledger transaction - those payments can be deleted but not edited.
+  final bool hasTransaction;
 }
 
 class LoanScheduleEntity {
@@ -24,6 +28,7 @@ class LoanScheduleEntity {
     required this.slideWindowMonths,
     this.endDate,
     this.interestRate,
+    this.fulfilledPaymentId,
   });
 
   final String id;
@@ -36,6 +41,8 @@ class LoanScheduleEntity {
   final int priority;
   final int slideWindowMonths;
   final double? interestRate;
+  // Set once a real LoanPayment has been recorded for this installment.
+  final String? fulfilledPaymentId;
 }
 
 class LoanEntity {
