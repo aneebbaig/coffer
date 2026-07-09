@@ -19,7 +19,7 @@ import { createLoan, recordPayment, deleteLoan } from "@/actions/loans";
 import { createLoanSchedule, deleteLoanSchedule } from "@/actions/cashflow";
 import { Switch } from "@/components/ui/switch";
 import { CalendarClock } from "lucide-react";
-import { BudgetPeriodOverride, type PeriodOverride } from "@/components/shared/budget-period-override";
+import { BudgetPeriodOverride, monthYearFromDateStr } from "@/components/shared/budget-period-override";
 import { SplitFunding, type FundingOption } from "@/components/shared/split-funding";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
@@ -55,10 +55,10 @@ const STATUS_BADGE: Record<string, string> = {
   PAID: "bg-emerald-100 text-emerald-700",
 };
 
-export function LoansClient({ loans, summary, fundingContext, openPeriod }: { loans: Loan[]; summary: Summary; fundingContext: FundingContext; openPeriod: { month: number; year: number } }) {
+export function LoansClient({ loans, summary, fundingContext }: { loans: Loan[]; summary: Summary; fundingContext: FundingContext }) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [createPeriodOverride, setCreatePeriodOverride] = useState<PeriodOverride>({ enabled: false, month: openPeriod.month, year: openPeriod.year });
-  const [periodOverride, setPeriodOverride] = useState<PeriodOverride>({ enabled: false, month: openPeriod.month, year: openPeriod.year });
+  const [fileCreateUnderDateBudget, setFileCreateUnderDateBudget] = useState(false);
+  const [fileUnderDateBudget, setFileUnderDateBudget] = useState(false);
   const [payOpen, setPayOpen] = useState<string | null>(null);
   const [deleteLoanData, setDeleteLoanData] = useState<{ id: string; personName: string } | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -89,16 +89,17 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
   async function handleCreate() {
     if (!form.personName || !form.principalAmount) return;
     setLoading(true);
+    const createDateOverride = monthYearFromDateStr(form.date);
     const result = await createLoan({
       ...form,
       principalAmount: parseFloat(form.principalAmount),
-      ...(createPeriodOverride.enabled ? { budgetMonth: createPeriodOverride.month, budgetYear: createPeriodOverride.year } : {}),
+      ...(fileCreateUnderDateBudget ? { budgetMonth: createDateOverride.month, budgetYear: createDateOverride.year } : {}),
     });
     if (result.success) {
       toast.success(form.type === "GIVEN" ? "Loan added - recorded as an expense" : "Loan added - recorded as income");
       setCreateOpen(false);
       setForm({ personName: "", description: "", type: "GIVEN", principalAmount: "", date: format(new Date(), "yyyy-MM-dd"), dueDate: "", notes: "" });
-      setCreatePeriodOverride({ enabled: false, month: openPeriod.month, year: openPeriod.year });
+      setFileCreateUnderDateBudget(false);
     } else toast.error(result.error ?? "Failed");
     setLoading(false);
   }
@@ -128,6 +129,7 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
       });
     }
 
+    const payDateOverride = monthYearFromDateStr(payForm.date);
     const result = await recordPayment(payOpen, {
       amount: parseFloat(payForm.amount),
       date: payForm.date,
@@ -137,7 +139,7 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
         fundingPotId: payForm.fundingSource === "SAVINGS_POT" ? payForm.fundingPotId : undefined,
       } : {}),
       splitSources: isReceived && useSplit ? splitSources : undefined,
-      ...(periodOverride.enabled ? { budgetMonth: periodOverride.month, budgetYear: periodOverride.year } : {}),
+      ...(fileUnderDateBudget ? { budgetMonth: payDateOverride.month, budgetYear: payDateOverride.year } : {}),
     });
     if (result.success) {
       toast.success(isReceived ? "Payment recorded & expense created!" : "Payment recorded & added to income!");
@@ -145,6 +147,7 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
       setPayForm({ amount: "", date: format(new Date(), "yyyy-MM-dd"), notes: "", fundingSource: "INCOME", fundingPotId: "" });
       setUseSplit(false);
       setSplitRows([{ value: "INCOME", pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]);
+      setFileUnderDateBudget(false);
     } else toast.error(result.error ?? "Failed");
     setLoading(false);
   }
@@ -437,7 +440,7 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
               <Label>Notes (optional)</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Any extra details..." />
             </div>
-            <BudgetPeriodOverride openPeriod={openPeriod} value={createPeriodOverride} onChange={setCreatePeriodOverride} />
+            <BudgetPeriodOverride date={form.date} checked={fileCreateUnderDateBudget} onChange={setFileCreateUnderDateBudget} />
             <p className="text-xs text-muted-foreground">
               {form.type === "GIVEN"
                 ? "Recorded as an expense - the money leaves your available cash."
@@ -523,7 +526,7 @@ export function LoansClient({ loans, summary, fundingContext, openPeriod }: { lo
               <Label>Notes (optional)</Label>
               <Input value={payForm.notes} onChange={(e) => setPayForm((p) => ({ ...p, notes: e.target.value }))} placeholder="e.g. Cash, bank transfer" />
             </div>
-            <BudgetPeriodOverride openPeriod={openPeriod} value={periodOverride} onChange={setPeriodOverride} />
+            <BudgetPeriodOverride date={payForm.date} checked={fileUnderDateBudget} onChange={setFileUnderDateBudget} />
             <Button className="w-full" onClick={handlePayment} disabled={loading}>
               {loading ? "Recording..." : payLoan?.type === "RECEIVED" ? "Record Repayment" : "Record Payment"}
             </Button>

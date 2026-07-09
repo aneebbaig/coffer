@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createTransaction, updateTransaction } from "@/actions/expenses";
-import { BudgetPeriodOverride, type PeriodOverride } from "@/components/shared/budget-period-override";
+import { BudgetPeriodOverride, monthYearFromDateStr } from "@/components/shared/budget-period-override";
 import { SplitFunding, type FundingOption } from "@/components/shared/split-funding";
 import { addToWantList } from "@/actions/want-list";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,6 @@ interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: n
 interface Props {
   defaultType: "EXPENSE" | "INCOME";
   categories: { id: string; name: string; color: string; icon: string }[];
-  openPeriod: { month: number; year: number };
   transaction?: {
     id: string; amount: number; categoryId: string; description: string;
     notes?: string | null; date: Date; budgetMonth?: number; budgetYear?: number; isRecurring: boolean;
@@ -135,15 +134,11 @@ function FundingSelect({
 
 export function TransactionForm({
   defaultType, categories, transaction, budgetByCategoryId = {},
-  currencies = [], fundingContext, dateFormat = "dd/MM/yyyy", openPeriod, onSuccess,
+  currencies = [], fundingContext, dateFormat = "dd/MM/yyyy", onSuccess,
 }: Props) {
   const baseCurrency = currencies.find((c) => c.isBase) ?? { id: "", code: "PKR", symbol: "Rs", rateToBase: 1, isBase: true };
   const [loading, setLoading] = useState(false);
-  const [periodOverride, setPeriodOverride] = useState<PeriodOverride>(() => ({
-    enabled: false,
-    month: transaction?.budgetMonth ?? openPeriod.month,
-    year: transaction?.budgetYear ?? openPeriod.year,
-  }));
+  const [fileUnderDateBudget, setFileUnderDateBudget] = useState(false);
   const [isRecurring, setIsRecurring] = useState(transaction?.isRecurring ?? false);
   const [isRegretPurchase, setIsRegretPurchase] = useState(transaction?.isRegretPurchase ?? false);
   const [selectedCategory, setSelectedCategory] = useState(transaction?.categoryId ?? "");
@@ -215,6 +210,7 @@ export function TransactionForm({
       const pkrAmount = isNativeIncome ? rawAmount * nativeRate : rawAmount;
 
       const splitPayload = defaultType === "EXPENSE" && !isEditingExpense ? buildSplitPayload(pkrAmount) : null;
+      const dateOverride = monthYearFromDateStr(data.date);
 
       let singleFunding: { fundingSource: string; fundingPotId?: string; fundingCurrencyId?: string } = {
         fundingSource: "INCOME",
@@ -239,7 +235,7 @@ export function TransactionForm({
         recurringFrequency: data.recurringFrequency || undefined,
         tags: data.tags ?? "",
         isRegretPurchase: defaultType === "EXPENSE" ? data.isRegretPurchase : false,
-        ...(periodOverride.enabled ? { budgetMonth: periodOverride.month, budgetYear: periodOverride.year } : {}),
+        ...(fileUnderDateBudget ? { budgetMonth: dateOverride.month, budgetYear: dateOverride.year } : {}),
         ...(isNativeIncome ? { nativeCurrencyId: incomeCurrencyId, nativeAmount: rawAmount } : {}),
         ...singleFunding,
         ...(splitPayload ?? {}),
@@ -506,7 +502,7 @@ export function TransactionForm({
         </div>
       )}
 
-      <BudgetPeriodOverride openPeriod={openPeriod} value={periodOverride} onChange={setPeriodOverride} />
+      <BudgetPeriodOverride date={watch("date")} checked={fileUnderDateBudget} onChange={setFileUnderDateBudget} />
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : transaction ? "Save Changes" : "Add Transaction"}
