@@ -9,6 +9,7 @@ import '../../../../core/services/toast_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/budget_period_field.dart';
+import '../../../../core/widgets/form_section.dart';
 import '../../data/datasources/loans_datasource.dart';
 import '../providers/loans_provider.dart';
 
@@ -241,45 +242,43 @@ class _QuickAddLoanPageState extends ConsumerState<QuickAddLoanPage> {
               onChanged: () => setState(() {}),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
+            Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
+            const SizedBox(height: 16),
 
-            _Field(
-              controller: _descCtrl,
-              hint: 'Description (optional)',
-            ),
-
-            const SizedBox(height: 12),
-
-            // Date row
-            Row(
+            FormSection(
+              title: 'When',
               children: [
-                Expanded(
-                  child: _DateButton(
-                    label: isToday ? 'Today' : dateLabel,
-                    onTap: () => _pickDate(false),
-                  ),
+                _DateButton(
+                  label: isToday ? 'Today' : dateLabel,
+                  onTap: () => _pickDate(false),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _DateButton(
-                    label: _dueDate != null
-                        ? 'Due ${DateFormat('d MMM y').format(_dueDate!)}'
-                        : 'Due date (optional)',
-                    muted: _dueDate == null,
-                    onTap: () => _pickDate(true),
-                  ),
+                BudgetPeriodField(
+                  date: _date,
+                  checked: _fileUnderDateBudget,
+                  onChanged: (v) => setState(() => _fileUnderDateBudget = v),
                 ),
               ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
-            BudgetPeriodField(
-              date: _date,
-              checked: _fileUnderDateBudget,
-              onChanged: (v) => setState(() => _fileUnderDateBudget = v),
+            MoreOptions(
+              children: [
+                _Field(
+                  controller: _descCtrl,
+                  hint: 'Description (optional)',
+                ),
+                _DateButton(
+                  label: _dueDate != null
+                      ? 'Due ${DateFormat('d MMM y').format(_dueDate!)}'
+                      : 'Due date (optional)',
+                  muted: _dueDate == null,
+                  onTap: () => _pickDate(true),
+                ),
+              ],
             ),
           ],
         ),

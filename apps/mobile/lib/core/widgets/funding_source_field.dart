@@ -2,30 +2,45 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/savings/presentation/providers/savings_provider.dart';
+import '../extensions/async_value_ext.dart';
 import '../extensions/currency_ext.dart';
+import '../providers/funding_context_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
 /// Picks whether an expense/repayment is funded from income (default) or a
 /// specific savings pot's base-currency balance, mirroring the web app's
 /// funding-source selector (single-source only - no split across sources).
+///
+/// `month`/`year` is the resolved *target* budget period (from the entry's
+/// own date + the "file under this date's budget" checkbox) - the income
+/// chip's available figure is refetched for that period, never the stale
+/// current-period number.
 class FundingSourceField extends ConsumerWidget {
   const FundingSourceField({
     required this.potId,
     required this.onChanged,
+    required this.month,
+    required this.year,
     super.key,
   });
 
   final String? potId;
   final void Function(String? potId) onChanged;
+  // Resolved target budget period - null/null defers to the server's current
+  // open period (mirrors the funding-context API's optional query params).
+  final int? month;
+  final int? year;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(savingsProvider);
+    final savingsAsync = ref.watch(savingsProvider);
+    final fundingAsync = ref.watch(fundingContextProvider(month, year));
 
-    return async.when(
+    return savingsAsync.when(
       data: (state) {
-        if (state.pots.isEmpty) return const SizedBox.shrink();
+        final incomeAvailable = fundingAsync.valueOrNull?.monthlyIncomeAvailablePaisas;
+        final incomeLoading = fundingAsync.isLoading;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -41,7 +56,13 @@ class FundingSourceField extends ConsumerWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _Chip(label: 'Income', selected: potId == null, onTap: () => onChanged(null)),
+                _Chip(
+                  label: incomeLoading
+                      ? 'Income · …'
+                      : 'Income${incomeAvailable != null ? ' · ${incomeAvailable.formatPKR()} available' : ''}',
+                  selected: potId == null,
+                  onTap: () => onChanged(null),
+                ),
                 ...state.pots.map((p) => _Chip(
                       label: '${p.name} · ${p.currentPaisas.formatPKR()}',
                       selected: potId == p.id,

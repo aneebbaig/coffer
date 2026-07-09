@@ -3,7 +3,7 @@
 import { CornerDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export interface SplitSourceRow {
   value: string;
@@ -13,9 +13,36 @@ export interface SplitSourceRow {
 export interface FundingOption {
   value: string;
   label: string;
+  /** "income" reacts to the budget-period checkbox/date; "pot" is always a
+   * global, period-independent balance. Grouped separately in the dropdown
+   * so the two very different kinds of "available money" aren't confused. */
+  group: "income" | "pot";
 }
 
 const fmt = (paisas: number) => (paisas / 100).toLocaleString();
+
+/** Shared grouped dropdown content - income (period-scoped) vs savings pots
+ * (global), reused by the single-source picker and both split-funding rows. */
+export function FundingSelectContent({ options }: { options: FundingOption[] }) {
+  const income = options.filter((o) => o.group === "income");
+  const pots = options.filter((o) => o.group === "pot");
+  return (
+    <SelectContent>
+      {income.length > 0 && (
+        <SelectGroup>
+          <SelectLabel>This period&apos;s income</SelectLabel>
+          {income.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+        </SelectGroup>
+      )}
+      {pots.length > 0 && (
+        <SelectGroup>
+          <SelectLabel>Savings pots</SelectLabel>
+          {pots.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+        </SelectGroup>
+      )}
+    </SelectContent>
+  );
+}
 
 /**
  * Shared two-source split funding control (inline-remainder UX). The caller supplies the
@@ -54,9 +81,7 @@ export function SplitFunding({
       <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-2.5">
         <Select value={primary.value} onValueChange={(v) => setPrimary({ value: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-          </SelectContent>
+          <FundingSelectContent options={options} />
         </Select>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground shrink-0">Amount {baseSymbol}</span>
@@ -80,9 +105,7 @@ export function SplitFunding({
       <div className="rounded-xl border border-border bg-muted/20 p-3">
         <Select value={secondary.value} onValueChange={(v) => setSecondary({ value: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-          </SelectContent>
+          <FundingSelectContent options={options} />
         </Select>
       </div>
     </div>

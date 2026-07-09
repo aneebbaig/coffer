@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,9 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { createTransaction, updateTransaction } from "@/actions/expenses";
+import { createTransaction, getExpenseFundingContext, updateTransaction } from "@/actions/expenses";
 import { BudgetPeriodOverride, monthYearFromDateStr } from "@/components/shared/budget-period-override";
-import { SplitFunding, type FundingOption } from "@/components/shared/split-funding";
+import { SplitFunding, FundingSelectContent, type FundingOption } from "@/components/shared/split-funding";
+import { FormSection, MoreOptions } from "@/components/shared/form-section";
 import { addToWantList } from "@/actions/want-list";
 import { cn } from "@/lib/utils";
 
@@ -53,12 +54,23 @@ interface Props {
     fundingSources?: { priority: number; source: string; potId: string | null; currencyId: string | null; pkrAmount: number; pot?: { id: string; name: string; type: string } | null }[];
   } | null;
   budgetByCategoryId?: Record<string, { allocated: number; spent: number }>;
+  // Prefills a NEW (non-edit) transaction from a cash-flow planner row - all fields
+  // stay editable, unlike `transaction` (which locks amount/date/funding on edit).
+  initialValues?: { amount?: number; categoryId?: string; description?: string; date?: string };
+  // Links the created transaction back to the planner row it books - see
+  // createTransaction's linkPlannedExpenseId/linkRecurringIncomeId.
+  linkPlannedExpenseId?: string;
+  linkRecurringIncomeId?: string;
   // Currencies the household has configured - used for the income native-currency picker.
   currencies?: CurrencyLite[];
   fundingContext?: {
     monthlyIncomeAvailable: number;
     pots: { id: string; name: string; type: string; balances: { amount: number; currency: CurrencyLite }[] }[];
   };
+  // The period `fundingContext` was computed for (the page's open period at load time) -
+  // used to detect when the date-budget checkbox targets a *different* period, so the
+  // funding figures can be refetched for that period instead of showing a stale number.
+  currentPeriod?: { month: number; year: number };
   dateFormat?: string;
   onSuccess: () => void;
 }
@@ -101,11 +113,11 @@ function fundingValueFromTransaction(t?: Props["transaction"]): string {
 function buildFundingOptions(fundingContext: Props["fundingContext"], baseSymbol: string): FundingOption[] {
   if (!fundingContext) return [];
   const opts: FundingOption[] = [
-    { value: "INCOME", label: `Monthly income · ${baseSymbol} ${fmtMoney(Math.max(0, fundingContext.monthlyIncomeAvailable))} available` },
+    { value: "INCOME", group: "income", label: `Monthly income · ${baseSymbol} ${fmtMoney(Math.max(0, fundingContext.monthlyIncomeAvailable))} available` },
   ];
   for (const pot of fundingContext.pots) {
     for (const b of pot.balances) {
-      if (b.amount > 0) opts.push({ value: `POT:${pot.id}:${b.currency.id}`, label: `${pot.name} (${pot.type}) · ${b.currency.symbol} ${fmtMoney(b.amount)}` });
+      if (b.amount > 0) opts.push({ value: `POT:${pot.id}:${b.currency.id}`, group: "pot", label: `${pot.name} (${pot.type}) · ${b.currency.symbol} ${fmtMoney(b.amount)}` });
     }
   }
   return opts;
@@ -123,9 +135,7 @@ function FundingSelect({
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger><SelectValue /></SelectTrigger>
-      <SelectContent>
-        {options.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-      </SelectContent>
+      <FundingSelectContent options={options} />
     </Select>
   );
 }
@@ -133,15 +143,16 @@ function FundingSelect({
 // ─── main component ────────────────────────────────────────────────────────────
 
 export function TransactionForm({
-  defaultType, categories, transaction, budgetByCategoryId = {},
-  currencies = [], fundingContext, dateFormat = "dd/MM/yyyy", onSuccess,
+  defaultType, categories, transaction, budgetByCategoryId = {}, initialValues,
+  linkPlannedExpenseId, linkRecurringIncomeId,
+  currencies = [], fundingContext, currentPeriod, dateFormat = "dd/MM/yyyy", onSuccess,
 }: Props) {
   const baseCurrency = currencies.find((c) => c.isBase) ?? { id: "", code: "PKR", symbol: "Rs", rateToBase: 1, isBase: true };
   const [loading, setLoading] = useState(false);
   const [fileUnderDateBudget, setFileUnderDateBudget] = useState(false);
   const [isRecurring, setIsRecurring] = useState(transaction?.isRecurring ?? false);
   const [isRegretPurchase, setIsRegretPurchase] = useState(transaction?.isRegretPurchase ?? false);
-  const [selectedCategory, setSelectedCategory] = useState(transaction?.categoryId ?? "");
+  const [selectedCategory, setSelectedCategory] = useState(transaction?.categoryId ?? initialValues?.categoryId ?? "");
   const [impulseCheck, setImpulseCheck] = useState<{ data: FormValues } | null>(null);
   const [incomeCurrencyId, setIncomeCurrencyId] = useState(baseCurrency.id);
   const [nativeRate, setNativeRate] = useState(baseCurrency.rateToBase);
@@ -162,14 +173,20 @@ export function TransactionForm({
     return [{ value: "INCOME", pkrAmount: "" }];
   });
 
+  // Funding figures follow whichever period the transaction will actually be
+  // filed under - refetch when the date-budget checkbox targets a different
+  // period than the one `fundingContext` was computed for at page load.
+  const [fetchedFundingContext, setFetchedFundingContext] = useState<Props["fundingContext"]>();
+  const [fundingContextLoading, setFundingContextLoading] = useState(false);
+
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      amount: transaction ? String(transaction.amount / 100) : "",
-      categoryId: transaction?.categoryId ?? "",
-      description: transaction?.description ?? "",
+      amount: transaction ? String(transaction.amount / 100) : initialValues?.amount != null ? String(initialValues.amount / 100) : "",
+      categoryId: transaction?.categoryId ?? initialValues?.categoryId ?? "",
+      description: transaction?.description ?? initialValues?.description ?? "",
       notes: transaction?.notes ?? "",
-      date: transaction ? format(new Date(transaction.date), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      date: transaction ? format(new Date(transaction.date), "yyyy-MM-dd") : initialValues?.date ?? format(new Date(), "yyyy-MM-dd"),
       isRecurring: transaction?.isRecurring ?? false,
       recurringFrequency: transaction?.recurringFrequency ?? "",
       tags: transaction?.tags ?? "",
@@ -178,6 +195,7 @@ export function TransactionForm({
   });
 
   const watchedAmount = watch("amount");
+  const watchedDate = watch("date");
   const budget = selectedCategory && defaultType === "EXPENSE" ? budgetByCategoryId[selectedCategory] : null;
   const remaining = budget ? budget.allocated - budget.spent : null;
   const isOverBudget = remaining !== null && remaining < 0;
@@ -185,7 +203,23 @@ export function TransactionForm({
   const showCurrencyToggle = defaultType === "INCOME" && !transaction && currencies.length > 1;
   const selectedCurrency = currencies.find((c) => c.id === incomeCurrencyId) ?? baseCurrency;
   const isNativeIncome = showCurrencyToggle && incomeCurrencyId !== baseCurrency.id;
-  const fundingOptions = buildFundingOptions(fundingContext, baseCurrency.symbol);
+  // Resolved target period: the date-derived period when the checkbox is on,
+  // otherwise the page's current open period.
+  const targetPeriod = fileUnderDateBudget && watchedDate ? monthYearFromDateStr(watchedDate) : currentPeriod;
+  const isCurrentPeriod = !!targetPeriod && !!currentPeriod && targetPeriod.month === currentPeriod.month && targetPeriod.year === currentPeriod.year;
+  const liveFundingContext = isCurrentPeriod ? fundingContext : (fetchedFundingContext ?? fundingContext);
+  const fundingOptions = buildFundingOptions(liveFundingContext, baseCurrency.symbol);
+
+  useEffect(() => {
+    if (defaultType !== "EXPENSE" || isEditingExpense || !fundingContext || !targetPeriod || isCurrentPeriod) return;
+    let cancelled = false;
+    setFundingContextLoading(true);
+    getExpenseFundingContext(targetPeriod.month, targetPeriod.year)
+      .then((ctx) => { if (!cancelled) setFetchedFundingContext(ctx); })
+      .finally(() => { if (!cancelled) setFundingContextLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetPeriod?.month, targetPeriod?.year, defaultType, isEditingExpense, isCurrentPeriod]);
 
   // Build splitSources payload for submit
   function buildSplitPayload(totalAmount: number): {
@@ -239,6 +273,8 @@ export function TransactionForm({
         ...(isNativeIncome ? { nativeCurrencyId: incomeCurrencyId, nativeAmount: rawAmount } : {}),
         ...singleFunding,
         ...(splitPayload ?? {}),
+        ...(!transaction && linkPlannedExpenseId ? { linkPlannedExpenseId } : {}),
+        ...(!transaction && linkRecurringIncomeId ? { linkRecurringIncomeId } : {}),
       };
 
       if (transaction) {
@@ -353,156 +389,166 @@ export function TransactionForm({
         </div>
       )}
 
+      {/* What: description + category */}
+      <FormSection title="What">
+        <div className="space-y-1">
+          <Label htmlFor="description">Description</Label>
+          <Input id="description" placeholder="What was this for?" {...register("description")} />
+          {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
+        </div>
+
+        <div className="space-y-1">
+          <Label>Category</Label>
+          <Select onValueChange={(v) => { setValue("categoryId", v); setSelectedCategory(v); }} defaultValue={transaction?.categoryId}>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {categories.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                    {cat.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.categoryId && <p className="text-xs text-destructive">{errors.categoryId.message}</p>}
+          {budget && remaining !== null && (
+            <div className={cn("flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg", isOverBudget ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300")}>
+              {isOverBudget ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
+              {isOverBudget
+                ? `${baseCurrency.symbol} ${(Math.abs(remaining) / 100).toLocaleString()} over budget this month`
+                : `${baseCurrency.symbol} ${(remaining / 100).toLocaleString()} remaining in budget this month`}
+            </div>
+          )}
+          {defaultType === "EXPENSE" && selectedCategory && !budget && (
+            <p className="text-xs text-muted-foreground px-1">No budget set for this category this month</p>
+          )}
+        </div>
+      </FormSection>
+
       {/* Amount + currency toggle */}
       {!isEditingExpense && (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="amount">Amount ({selectedCurrency.symbol} {selectedCurrency.code})</Label>
-            {showCurrencyToggle && (
-              <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 text-xs flex-wrap">
-                {currencies.map((c) => (
-                  <button key={c.id} type="button" onClick={() => { setIncomeCurrencyId(c.id); setNativeRate(c.rateToBase); }}
-                    className={cn("px-2 py-1 rounded-md font-semibold transition-colors", incomeCurrencyId === c.id ? "bg-background shadow text-foreground" : "text-muted-foreground")}>
-                    {c.symbol} {c.code}
-                  </button>
-                ))}
+        <FormSection title="Amount">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="amount">Amount ({selectedCurrency.symbol} {selectedCurrency.code})</Label>
+              {showCurrencyToggle && (
+                <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 text-xs flex-wrap">
+                  {currencies.map((c) => (
+                    <button key={c.id} type="button" onClick={() => { setIncomeCurrencyId(c.id); setNativeRate(c.rateToBase); }}
+                      className={cn("px-2 py-1 rounded-md font-semibold transition-colors", incomeCurrencyId === c.id ? "bg-background shadow text-foreground" : "text-muted-foreground")}>
+                      {c.symbol} {c.code}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Input id="amount" type="number" step="0.01" placeholder="0.00" className="text-lg font-semibold" {...register("amount")} />
+            {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
+            {isNativeIncome && (
+              <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                <span className="text-xs text-blue-700 dark:text-blue-300 font-medium shrink-0">1 {selectedCurrency.code} =</span>
+                <input type="number" step="0.01" value={nativeRate}
+                  onChange={(e) => setNativeRate(parseFloat(e.target.value) || selectedCurrency.rateToBase)}
+                  className="w-24 text-xs font-semibold bg-transparent border-b border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 focus:outline-none" />
+                <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">{baseCurrency.code}</span>
+                <span className="text-xs text-blue-500 ml-auto">≈ {baseCurrency.symbol} {((parseFloat(watchedAmount) || 0) * nativeRate).toLocaleString()}</span>
               </div>
             )}
           </div>
-          <Input id="amount" type="number" step="0.01" placeholder="0.00" className="text-lg font-semibold" {...register("amount")} />
-          {errors.amount && <p className="text-xs text-destructive">{errors.amount.message}</p>}
-          {isNativeIncome && (
-            <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
-              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium shrink-0">1 {selectedCurrency.code} =</span>
-              <input type="number" step="0.01" value={nativeRate}
-                onChange={(e) => setNativeRate(parseFloat(e.target.value) || selectedCurrency.rateToBase)}
-                className="w-24 text-xs font-semibold bg-transparent border-b border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 focus:outline-none" />
-              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">{baseCurrency.code}</span>
-              <span className="text-xs text-blue-500 ml-auto">≈ {baseCurrency.symbol} {((parseFloat(watchedAmount) || 0) * nativeRate).toLocaleString()}</span>
-            </div>
-          )}
-        </div>
+        </FormSection>
       )}
 
-      {/* Category */}
-      <div className="space-y-1">
-        <Label>Category</Label>
-        <Select onValueChange={(v) => { setValue("categoryId", v); setSelectedCategory(v); }} defaultValue={transaction?.categoryId}>
-          <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-          <SelectContent>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                  {cat.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.categoryId && <p className="text-xs text-destructive">{errors.categoryId.message}</p>}
-        {budget && remaining !== null && (
-          <div className={cn("flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg", isOverBudget ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300")}>
-            {isOverBudget ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
-            {isOverBudget
-              ? `${baseCurrency.symbol} ${(Math.abs(remaining) / 100).toLocaleString()} over budget this month`
-              : `${baseCurrency.symbol} ${(remaining / 100).toLocaleString()} remaining in budget this month`}
+      {/* When: date + budget-period checkbox, right next to each other */}
+      {!isEditingExpense && (
+        <FormSection title="When">
+          <div className="space-y-1">
+            <Label htmlFor="date">Date</Label>
+            <Input id="date" type="date" lang={dateFormatToLang(dateFormat)} {...register("date")} />
           </div>
-        )}
-        {defaultType === "EXPENSE" && selectedCategory && !budget && (
-          <p className="text-xs text-muted-foreground px-1">No budget set for this category this month</p>
-        )}
-      </div>
+          <BudgetPeriodOverride
+            date={watchedDate}
+            checked={fileUnderDateBudget}
+            onChange={setFileUnderDateBudget}
+            affectsFunding={defaultType === "EXPENSE"}
+          />
+        </FormSection>
+      )}
 
       {/* Funding - only for new expenses with funding context */}
       {defaultType === "EXPENSE" && fundingContext && !isEditingExpense && (
-        <div className="space-y-2">
-          {!useSplit ? (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label>Pay from</Label>
-                <button type="button" onClick={() => { setUseSplit(true); setSplitSources([{ value: singleFundingValue, pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]); }}
-                  className="text-xs text-primary hover:underline font-medium">
-                  + Split across two sources
-                </button>
+        <FormSection title="Funding">
+          <div className={cn("space-y-2 transition-opacity", fundingContextLoading && "opacity-60")}>
+            {!useSplit ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label>Pay from</Label>
+                  <button type="button" onClick={() => { setUseSplit(true); setSplitSources([{ value: singleFundingValue, pkrAmount: "" }, { value: "INCOME", pkrAmount: "" }]); }}
+                    className="text-xs text-primary hover:underline font-medium">
+                    + Split across two sources
+                  </button>
+                </div>
+                <FundingSelect value={singleFundingValue} onChange={setSingleFundingValue} options={fundingOptions} />
+                <p className="text-xs text-muted-foreground px-1">
+                  Choosing a savings pot deducts immediately and is reversed if you delete this expense.
+                </p>
               </div>
-              <FundingSelect value={singleFundingValue} onChange={setSingleFundingValue} options={fundingOptions} />
-              <p className="text-xs text-muted-foreground px-1">
-                Choosing a savings pot deducts immediately and is reversed if you delete this expense.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Pay from (split)</Label>
-                <button type="button" onClick={() => { setUseSplit(false); setSingleFundingValue("INCOME"); }}
-                  className="text-xs text-muted-foreground hover:underline">
-                  Use single source
-                </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Pay from (split)</Label>
+                  <button type="button" onClick={() => { setUseSplit(false); setSingleFundingValue("INCOME"); }}
+                    className="text-xs text-muted-foreground hover:underline">
+                    Use single source
+                  </button>
+                </div>
+                <SplitFunding
+                  totalAmount={parseFloat(watchedAmount) || 0}
+                  options={fundingOptions}
+                  value={splitSources}
+                  onChange={setSplitSources}
+                  baseSymbol={baseCurrency.symbol}
+                />
               </div>
-              <SplitFunding
-                totalAmount={parseFloat(watchedAmount) || 0}
-                options={fundingOptions}
-                value={splitSources}
-                onChange={setSplitSources}
-                baseSymbol={baseCurrency.symbol}
-              />
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </FormSection>
       )}
 
-      {/* Description */}
-      <div className="space-y-1">
-        <Label htmlFor="description">Description</Label>
-        <Input id="description" placeholder="What was this for?" {...register("description")} />
-        {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
-      </div>
-
-      {/* Date */}
-      {!isEditingExpense && (
+      <MoreOptions>
         <div className="space-y-1">
-          <Label htmlFor="date">Date</Label>
-          <Input id="date" type="date" lang={dateFormatToLang(dateFormat)} {...register("date")} />
+          <Label htmlFor="notes">Notes (optional)</Label>
+          <Textarea id="notes" rows={2} placeholder="Additional details..." {...register("notes")} />
         </div>
-      )}
 
-      {/* Notes */}
-      <div className="space-y-1">
-        <Label htmlFor="notes">Notes (optional)</Label>
-        <Textarea id="notes" rows={2} placeholder="Additional details..." {...register("notes")} />
-      </div>
+        {defaultType === "EXPENSE" && (
+          <div className="flex items-center gap-2">
+            <Checkbox id="regret" checked={isRegretPurchase} onCheckedChange={(v) => { const c = !!v; setIsRegretPurchase(c); setValue("isRegretPurchase", c); }} />
+            <Label htmlFor="regret" className="cursor-pointer">Regret buy - wish I hadn't</Label>
+          </div>
+        )}
 
-      {/* Regret purchase */}
-      {defaultType === "EXPENSE" && (
         <div className="flex items-center gap-2">
-          <Checkbox id="regret" checked={isRegretPurchase} onCheckedChange={(v) => { const c = !!v; setIsRegretPurchase(c); setValue("isRegretPurchase", c); }} />
-          <Label htmlFor="regret" className="cursor-pointer">Regret buy - wish I hadn't</Label>
+          <Checkbox id="recurring" checked={isRecurring} onCheckedChange={(v) => { const c = !!v; setIsRecurring(c); setValue("isRecurring", c); }} />
+          <Label htmlFor="recurring" className="cursor-pointer">Recurring transaction</Label>
         </div>
-      )}
-
-      {/* Recurring */}
-      <div className="flex items-center gap-2">
-        <Checkbox id="recurring" checked={isRecurring} onCheckedChange={(v) => { const c = !!v; setIsRecurring(c); setValue("isRecurring", c); }} />
-        <Label htmlFor="recurring" className="cursor-pointer">Recurring transaction</Label>
-      </div>
-      {isRecurring && (
-        <div className="space-y-1">
-          <Label>Frequency</Label>
-          <Select onValueChange={(v) => setValue("recurringFrequency", v)} defaultValue={transaction?.recurringFrequency ?? "MONTHLY"}>
-            <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="DAILY">Daily</SelectItem>
-              <SelectItem value="WEEKLY">Weekly</SelectItem>
-              <SelectItem value="MONTHLY">Monthly</SelectItem>
-              <SelectItem value="YEARLY">Yearly</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">Recurring transactions need to be added manually each month.</p>
-        </div>
-      )}
-
-      <BudgetPeriodOverride date={watch("date")} checked={fileUnderDateBudget} onChange={setFileUnderDateBudget} />
+        {isRecurring && (
+          <div className="space-y-1">
+            <Label>Frequency</Label>
+            <Select onValueChange={(v) => setValue("recurringFrequency", v)} defaultValue={transaction?.recurringFrequency ?? "MONTHLY"}>
+              <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DAILY">Daily</SelectItem>
+                <SelectItem value="WEEKLY">Weekly</SelectItem>
+                <SelectItem value="MONTHLY">Monthly</SelectItem>
+                <SelectItem value="YEARLY">Yearly</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Recurring transactions need to be added manually each month.</p>
+          </div>
+        )}
+      </MoreOptions>
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : transaction ? "Save Changes" : "Add Transaction"}

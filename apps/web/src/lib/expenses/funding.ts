@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getBaseCurrency } from "@/lib/currency-helpers";
+import { getBaseCurrency, getCurrencies } from "@/lib/currency-helpers";
 
 // Shared by the "use server" expense actions (web) and the v1 bearer-auth API
 // routes (mobile) - kept out of actions/expenses.ts since that file is
@@ -66,6 +66,23 @@ export async function getIncomeAvailableForMonth(
   const potDeposits = incomePotDeposits.reduce((s, e) => s + e.amount, 0);
 
   return totalIncome - incomeFundedExpenses - potDeposits;
+}
+
+/** Income-available + pot balances for a target period - shared by the "use
+ * server" web action (`getExpenseFundingContext`) and the v1 bearer-auth
+ * route, so mobile and web compute this identically. */
+export async function getFundingContextForMonth(userId: string, month: number, year: number) {
+  const [monthlyIncomeAvailable, pots, currencies] = await Promise.all([
+    getIncomeAvailableForMonth(userId, month, year),
+    prisma.savingsPot.findMany({
+      where: { userId },
+      select: { id: true, name: true, type: true, balances: { include: { currency: true } } },
+      orderBy: [{ type: "asc" }, { createdAt: "asc" }],
+    }),
+    getCurrencies(),
+  ]);
+
+  return { monthlyIncomeAvailable, pots, currencies };
 }
 
 export async function validateFundingSources(

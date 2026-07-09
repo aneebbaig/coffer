@@ -56,6 +56,7 @@ class LoansDatasource {
     int? budgetMonth,
     int? budgetYear,
     String? fundingPotId,
+    String? linkScheduleId,
   }) async {
     try {
       await _dio.post(
@@ -68,8 +69,48 @@ class LoansDatasource {
           if (budgetYear != null) 'budgetYear': budgetYear,
           if (fundingPotId != null) 'fundingSource': 'SAVINGS_POT',
           if (fundingPotId != null) 'fundingPotId': fundingPotId,
+          if (linkScheduleId != null) 'linkScheduleId': linkScheduleId,
         },
       );
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<void> updatePayment({
+    required String loanId,
+    required String paymentId,
+    required int amountPaisas,
+    required DateTime date,
+    String? notes,
+    int? budgetMonth,
+    int? budgetYear,
+    String? fundingPotId,
+  }) async {
+    try {
+      await _dio.patch(
+        ApiConstants.loanPaymentById(loanId, paymentId),
+        data: {
+          'amountPaisas': amountPaisas,
+          'date': date.toIso8601String(),
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (budgetMonth != null) 'budgetMonth': budgetMonth,
+          if (budgetYear != null) 'budgetYear': budgetYear,
+          'fundingSource': fundingPotId != null ? 'SAVINGS_POT' : 'INCOME',
+          if (fundingPotId != null) 'fundingPotId': fundingPotId,
+        },
+      );
+    } catch (e) {
+      throw ErrorHandler.handle(e);
+    }
+  }
+
+  Future<void> deletePayment({
+    required String loanId,
+    required String paymentId,
+  }) async {
+    try {
+      await _dio.delete(ApiConstants.loanPaymentById(loanId, paymentId));
     } catch (e) {
       throw ErrorHandler.handle(e);
     }
@@ -154,6 +195,7 @@ class LoansDatasource {
         amountPaisas: m['amount'] as int,
         date: DateTime.parse(m['date'] as String),
         notes: m['notes'] as String?,
+        hasTransaction: m['transactionId'] != null,
       );
 
   static LoanScheduleEntity _parseSchedule(Map<String, dynamic> m) =>
@@ -170,5 +212,6 @@ class LoansDatasource {
         priority: m['priority'] as int,
         slideWindowMonths: m['slideWindowMonths'] as int,
         interestRate: (m['interestRate'] as num?)?.toDouble(),
+        fulfilledPaymentId: m['fulfilledPaymentId'] as String?,
       );
 }

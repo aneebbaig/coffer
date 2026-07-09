@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { TransactionForm } from "@/components/expenses/transaction-form";
 import { cn } from "@/lib/utils";
 import {
   createPlannedExpense,
@@ -28,6 +29,7 @@ interface PlannedExpense {
   slideWindowMonths: number;
   status: string; // "PLANNED" | "PAID" | "SKIPPED"
   notes: string | null;
+  categoryId: string | null;
 }
 
 const BLANK_FORM = {
@@ -35,9 +37,21 @@ const BLANK_FORM = {
   flexibility: "FIXED", priority: "0", slideWindowMonths: "0", notes: "",
 };
 
-export function PlannedExpensesCard({ expenses, baseSymbol = "Rs" }: { expenses: PlannedExpense[]; baseSymbol?: string }) {
+interface CurrencyLite { id: string; code: string; symbol: string; rateToBase: number; isBase: boolean; }
+
+export function PlannedExpensesCard({
+  expenses, baseSymbol = "Rs", categories = [], fundingContext, currentPeriod, dateFormat,
+}: {
+  expenses: PlannedExpense[];
+  baseSymbol?: string;
+  categories?: { id: string; name: string; color: string; icon: string }[];
+  fundingContext?: { monthlyIncomeAvailable: number; pots: { id: string; name: string; type: string; balances: { amount: number; currency: CurrencyLite }[] }[] };
+  currentPeriod?: { month: number; year: number };
+  dateFormat?: string;
+}) {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [recordExpense, setRecordExpense] = useState<PlannedExpense | null>(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(BLANK_FORM);
 
@@ -64,7 +78,7 @@ export function PlannedExpensesCard({ expenses, baseSymbol = "Rs" }: { expenses:
     setLoading(false);
   }
 
-  async function handleStatus(id: string, status: "PAID" | "SKIPPED" | "PLANNED") {
+  async function handleStatus(id: string, status: "SKIPPED" | "PLANNED") {
     const result = await updatePlannedExpenseStatus(id, status);
     if (!result.success) toast.error(result.error ?? "Failed to update");
   }
@@ -109,7 +123,7 @@ export function PlannedExpensesCard({ expenses, baseSymbol = "Rs" }: { expenses:
                   </span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => handleStatus(e.id, "PAID")} className="text-muted-foreground hover:text-emerald-500 transition-colors p-1" title="Mark paid">
+                  <button onClick={() => setRecordExpense(e)} className="text-muted-foreground hover:text-emerald-500 transition-colors p-1" title="Mark paid">
                     <CheckCircle className="h-3.5 w-3.5" />
                   </button>
                   <button onClick={() => setDeleteId(e.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1" title="Delete">
@@ -187,6 +201,32 @@ export function PlannedExpensesCard({ expenses, baseSymbol = "Rs" }: { expenses:
         description="This removes it from the cash-flow planner. It does not affect any past transactions."
         onConfirm={handleDelete}
       />
+
+      {/* Mark paid - books a real expense transaction linked back to this planned row */}
+      <Dialog open={!!recordExpense} onOpenChange={(o) => !o && setRecordExpense(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
+          {recordExpense && (
+            <TransactionForm
+              defaultType="EXPENSE"
+              categories={categories}
+              transaction={null}
+              initialValues={{
+                amount: recordExpense.amount,
+                categoryId: recordExpense.categoryId ?? undefined,
+                description: recordExpense.name,
+                date: format(new Date(recordExpense.dueDate), "yyyy-MM-dd"),
+              }}
+              linkPlannedExpenseId={recordExpense.id}
+              currencies={[{ id: "base", code: "PKR", symbol: baseSymbol, rateToBase: 1, isBase: true }]}
+              fundingContext={fundingContext}
+              currentPeriod={currentPeriod}
+              dateFormat={dateFormat}
+              onSuccess={() => { toast.success("Expense recorded"); setRecordExpense(null); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -12,6 +12,7 @@ import '../../../../core/services/toast_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/budget_period_field.dart';
+import '../../../../core/widgets/form_section.dart';
 import '../../../../core/widgets/funding_source_field.dart';
 import '../../../home_widget/widget_service.dart';
 import '../../data/repositories/expense_repository_impl.dart';
@@ -259,108 +260,115 @@ class _QuickAddExpensePageState extends ConsumerState<QuickAddExpensePage> {
               textCapitalization: TextCapitalization.sentences,
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
+            Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
+            const SizedBox(height: 16),
 
-            _FormField(
-              controller: _notesCtrl,
-              hint: 'Notes (optional)',
-              maxLines: 3,
-              textCapitalization: TextCapitalization.sentences,
-            ),
-
-            const SizedBox(height: 12),
-
-            GestureDetector(
-              onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  children: [
-                    Icon('CalendarDays'.lucideIcon, size: 16, color: AppColors.mutedForeground),
-                    const SizedBox(width: 10),
-                    Text(
-                      isToday ? 'Today' : dateLabel,
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: isToday ? AppColors.mutedForeground : AppColors.foreground,
-                      ),
+            FormSection(
+              title: 'When',
+              children: [
+                GestureDetector(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
                     ),
-                    if (!isToday) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        dateLabel,
-                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.mutedForeground),
-                      ),
-                    ],
-                    const Spacer(),
-                    Icon('ChevronDown'.lucideIcon, size: 14, color: AppColors.mutedForeground),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                setState(() => _isRegretPurchase = !_isRegretPurchase);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  color: _isRegretPurchase
-                      ? AppColors.destructive.withValues(alpha: 0.12)
-                      : AppColors.card,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _isRegretPurchase
-                        ? AppColors.destructive.withValues(alpha: 0.5)
-                        : AppColors.border.withValues(alpha: 0.5),
+                    child: Row(
+                      children: [
+                        Icon('CalendarDays'.lucideIcon, size: 16, color: AppColors.mutedForeground),
+                        const SizedBox(width: 10),
+                        Text(
+                          isToday ? 'Today' : dateLabel,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: isToday ? AppColors.mutedForeground : AppColors.foreground,
+                          ),
+                        ),
+                        if (!isToday) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            dateLabel,
+                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.mutedForeground),
+                          ),
+                        ],
+                        const Spacer(),
+                        Icon('ChevronDown'.lucideIcon, size: 14, color: AppColors.mutedForeground),
+                      ],
+                    ),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _isRegretPurchase ? Icons.sentiment_dissatisfied : Icons.sentiment_dissatisfied_outlined,
-                      size: 16,
-                      color: _isRegretPurchase ? AppColors.destructive : AppColors.mutedForeground,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Regret buy - wish I hadn\'t',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: _isRegretPurchase ? AppColors.destructive : AppColors.mutedForeground,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (_isRegretPurchase) const Icon(Icons.check, size: 16, color: AppColors.destructive),
-                  ],
+                BudgetPeriodField(
+                  date: _date,
+                  checked: _fileUnderDateBudget,
+                  onChanged: (v) => setState(() => _fileUnderDateBudget = v),
                 ),
-              ),
+              ],
             ),
 
             const SizedBox(height: 16),
             Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
             FundingSourceField(
               potId: _fundingPotId,
               onChanged: (potId) => setState(() => _fundingPotId = potId),
+              month: _fileUnderDateBudget ? _date.month : null,
+              year: _fileUnderDateBudget ? _date.year : null,
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Divider(color: AppColors.border.withValues(alpha: 0.4), height: 1),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
-            BudgetPeriodField(
-              date: _date,
-              checked: _fileUnderDateBudget,
-              onChanged: (v) => setState(() => _fileUnderDateBudget = v),
+            MoreOptions(
+              children: [
+                _FormField(
+                  controller: _notesCtrl,
+                  hint: 'Notes (optional)',
+                  maxLines: 3,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _isRegretPurchase = !_isRegretPurchase);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _isRegretPurchase
+                          ? AppColors.destructive.withValues(alpha: 0.12)
+                          : AppColors.card,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _isRegretPurchase
+                            ? AppColors.destructive.withValues(alpha: 0.5)
+                            : AppColors.border.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isRegretPurchase ? Icons.sentiment_dissatisfied : Icons.sentiment_dissatisfied_outlined,
+                          size: 16,
+                          color: _isRegretPurchase ? AppColors.destructive : AppColors.mutedForeground,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Regret buy - wish I hadn\'t',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: _isRegretPurchase ? AppColors.destructive : AppColors.mutedForeground,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_isRegretPurchase) const Icon(Icons.check, size: 16, color: AppColors.destructive),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

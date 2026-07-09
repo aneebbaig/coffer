@@ -12,6 +12,7 @@ import '../../../../core/widgets/app_section.dart';
 import '../../data/datasources/cashflow_datasource.dart';
 import '../../domain/entities/recurring_income_entity.dart';
 import '../pages/add_recurring_income_page.dart';
+import '../pages/record_recurring_income_page.dart';
 import '../providers/recurring_income_provider.dart';
 
 class RecurringIncomeSection extends ConsumerWidget {
@@ -22,6 +23,15 @@ class RecurringIncomeSection extends ConsumerWidget {
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => const AddRecurringIncomePage(),
+      ),
+    );
+  }
+
+  void _record(BuildContext context, RecurringIncomeEntity item) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => RecordRecurringIncomePage(recurringIncome: item),
       ),
     );
   }
@@ -76,6 +86,15 @@ class RecurringIncomeSection extends ConsumerWidget {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            if (item.recordedFor(DateTime.now().month, DateTime.now().year))
+                              Text('Recorded', style: AppTextStyles.labelSmall.copyWith(color: const Color(0xFF4CAF50)))
+                            else
+                              GestureDetector(
+                                onTap: () => _record(context, item),
+                                behavior: HitTestBehavior.opaque,
+                                child: Text('Record', style: AppTextStyles.labelMedium.copyWith(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                              ),
                             const SizedBox(width: 8),
                             GestureDetector(
                               onTap: () => _delete(context, ref, item),
