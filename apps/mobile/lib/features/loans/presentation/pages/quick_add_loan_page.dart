@@ -27,8 +27,7 @@ class _QuickAddLoanPageState extends ConsumerState<QuickAddLoanPage> {
   String _type = 'RECEIVED';
   DateTime _date = DateTime.now();
   DateTime? _dueDate;
-  int? _budgetMonth;
-  int? _budgetYear;
+  bool _fileUnderDateBudget = false;
   bool _loading = false;
 
   @override
@@ -107,8 +106,8 @@ class _QuickAddLoanPageState extends ConsumerState<QuickAddLoanPage> {
                 ? _descCtrl.text.trim()
                 : null,
             dueDate: _dueDate,
-            budgetMonth: _budgetMonth,
-            budgetYear: _budgetYear,
+            budgetMonth: _fileUnderDateBudget ? _date.month : null,
+            budgetYear: _fileUnderDateBudget ? _date.year : null,
           );
 
       if (!mounted) return;
@@ -278,12 +277,9 @@ class _QuickAddLoanPageState extends ConsumerState<QuickAddLoanPage> {
             const SizedBox(height: 8),
 
             BudgetPeriodField(
-              month: _budgetMonth,
-              year: _budgetYear,
-              onChanged: (m, y) => setState(() {
-                _budgetMonth = m;
-                _budgetYear = y;
-              }),
+              date: _date,
+              checked: _fileUnderDateBudget,
+              onChanged: (v) => setState(() => _fileUnderDateBudget = v),
             ),
           ],
         ),
