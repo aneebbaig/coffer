@@ -259,7 +259,6 @@ export function IncomeClient({
             transaction={editingTx}
             dateFormat={dateFormat}
             currencies={currencies}
-            openPeriod={currentPeriod}
             onSuccess={() => setOpen(false)}
           />
         </DialogContent>
