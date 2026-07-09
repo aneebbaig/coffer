@@ -9,12 +9,12 @@ import { ActionResult } from "@/types";
 import { getCurrentPeriod } from "@/lib/month";
 import { toPaisas, toLocalDate } from "@/lib/utils";
 import { creditPot, debitPot, type PotEntryPeriod } from "@/lib/pot-helpers";
-import { getBaseCurrency, getCurrencies } from "@/lib/currency-helpers";
+import { getBaseCurrency } from "@/lib/currency-helpers";
 import { fetchMonthIncomeIntegrityData, baseIntegrity } from "@/lib/income-helpers";
 import { revalidateTransactionPaths } from "@/lib/revalidate";
 import { sendEmail, budgetWarningEmail, budgetExceededEmail, doomSpendingEmail } from "@/lib/email";
 import { MAX_FUNDING_SOURCES } from "@/lib/constants";
-import { validateFundingSources, incomePkrForTransaction, getPotUnits } from "@/lib/expenses/funding";
+import { validateFundingSources, getFundingContextForMonth, getPotUnits } from "@/lib/expenses/funding";
 
 // ─── internal helpers ─────────────────────────────────────────────────────────
 
@@ -80,38 +80,7 @@ export async function getTransactions(filters?: {
 
 export async function getExpenseFundingContext(month: number, year: number) {
   const user = await getAuthenticatedUser({});
-
-  const [income, expenseTxns, pots, currencies] = await Promise.all([
-    prisma.transaction.aggregate({
-      where: { userId: user.id, type: "INCOME", budgetMonth: month, budgetYear: year },
-      _sum: { amount: true },
-    }),
-    prisma.transaction.findMany({
-      where: { userId: user.id, type: "EXPENSE", budgetMonth: month, budgetYear: year },
-      select: { amount: true, fundingSource: true, fundingSources: { select: { source: true, pkrAmount: true } } },
-    }),
-    prisma.savingsPot.findMany({
-      where: { userId: user.id },
-      select: { id: true, name: true, type: true, balances: { include: { currency: true } } },
-      orderBy: [{ type: "asc" }, { createdAt: "asc" }],
-    }),
-    getCurrencies(),
-  ]);
-
-  const base = currencies.find((c) => c.isBase)!;
-  const potIds = pots.map((p) => p.id);
-  const incomePotDeposits = await prisma.savingsPotEntry.findMany({
-    where: { potId: { in: potIds }, sourceType: "INCOME", budgetMonth: month, budgetYear: year, currencyId: base.id },
-    select: { amount: true },
-  });
-  const potDeposits = incomePotDeposits.reduce((s, e) => s + e.amount, 0);
-  const incomeFundedExpenses = expenseTxns.reduce((sum, t) => sum + incomePkrForTransaction(t), 0);
-
-  return {
-    monthlyIncomeAvailable: (income._sum.amount ?? 0) - incomeFundedExpenses - potDeposits,
-    currencies,
-    pots,
-  };
+  return getFundingContextForMonth(user.id, month, year);
 }
 
 // ─── createTransaction ────────────────────────────────────────────────────────
@@ -139,6 +108,11 @@ export async function createTransaction(data: {
   fundingCurrencyId?: string;
   // Split sources (up to MAX_FUNDING_SOURCES)
   splitSources?: { source: "INCOME" | "SAVINGS_POT"; potId?: string; currencyId?: string; pkrAmount: number }[];
+  // Cash-flow planner "book this" links - set when this transaction is created via
+  // a planner row's "Mark paid" / "Record this month" action, so the planner row
+  // stays linked to the real ledger entry it represents instead of drifting apart.
+  linkPlannedExpenseId?: string;
+  linkRecurringIncomeId?: string;
 }): Promise<ActionResult> {
   try {
     const user = await getAuthenticatedUser({ email: true, currentBudgetMonth: true, currentBudgetYear: true, notifyDoomSpending: true, notifyBudgetWarning: true });
@@ -149,6 +123,20 @@ export async function createTransaction(data: {
       : getCurrentPeriod(user.currentBudgetMonth as number | null, user.currentBudgetYear as number | null);
     const validated = transactionSchema.safeParse(data);
     if (!validated.success) return { success: false, error: "Invalid data" };
+
+    if (data.linkPlannedExpenseId) {
+      const plan = await prisma.plannedExpense.findFirst({ where: { id: data.linkPlannedExpenseId, userId: user.id } });
+      if (!plan) return { success: false, error: "Planned expense not found" };
+      if (plan.transactionId) return { success: false, error: "Already recorded" };
+    }
+    if (data.linkRecurringIncomeId) {
+      const recurring = await prisma.recurringIncome.findFirst({ where: { id: data.linkRecurringIncomeId, userId: user.id } });
+      if (!recurring) return { success: false, error: "Recurring income not found" };
+      const existingOccurrence = await prisma.recurringIncomeOccurrence.findUnique({
+        where: { recurringIncomeId_month_year: { recurringIncomeId: data.linkRecurringIncomeId, month: period.month, year: period.year } },
+      });
+      if (existingOccurrence) return { success: false, error: "Already recorded for this period" };
+    }
 
     const amountPaisas = toPaisas(data.amount);
     const txDate = toLocalDate(data.date);
@@ -237,6 +225,15 @@ export async function createTransaction(data: {
         }
       } else if (data.type === "EXPENSE" && fundingSource === "SAVINGS_POT" && data.fundingPotId && data.fundingCurrencyId && fundingAmount) {
         await debitPot(tx, data.fundingPotId, fundingAmount, data.fundingCurrencyId, fundingEntryDescription(data.description), "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
+      }
+
+      if (data.linkPlannedExpenseId) {
+        await tx.plannedExpense.update({ where: { id: data.linkPlannedExpenseId }, data: { status: "PAID", transactionId: created.id } });
+      }
+      if (data.linkRecurringIncomeId) {
+        await tx.recurringIncomeOccurrence.create({
+          data: { recurringIncomeId: data.linkRecurringIncomeId, month: period.month, year: period.year, transactionId: created.id },
+        });
       }
     });
 
@@ -470,10 +467,20 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
           await creditFundingSources(tx, existing.fundingSources, existing.description, period);
         }
       }
+      // If this transaction was booked via a planned expense's "Mark paid", revert
+      // that row to PLANNED once the transaction is gone - looked up before the
+      // delete since ON DELETE SET NULL will have already cleared the FK after.
+      const linkedPlan = await tx.plannedExpense.findFirst({ where: { transactionId: id } });
+
       await tx.transaction.delete({ where: { id } });
+
+      if (linkedPlan) {
+        await tx.plannedExpense.update({ where: { id: linkedPlan.id }, data: { status: "PLANNED" } });
+      }
     });
 
     revalidateTransactionPaths();
+    revalidatePath("/expenses/planner");
     return { success: true };
   } catch (e) {
     console.error("[deleteTransaction]", e);

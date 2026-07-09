@@ -131,14 +131,17 @@ model Transaction {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  category        Category                   @relation(fields: [categoryId], references: [id])
-  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plannerItem     PlannerItem?               @relation(fields: [plannerItemId], references: [id], onDelete: SetNull)
-  fundingPot      SavingsPot?                @relation("ExpenseFundingPot", fields: [fundingPotId], references: [id], onDelete: SetNull)
-  fundingSources  TransactionFundingSource[]
-  nativeCurrency  Currency?                  @relation("TransactionNativeCurrency", fields: [nativeCurrencyId], references: [id])
-  fundingCurrency Currency?                  @relation("TransactionFundingCurrency", fields: [fundingCurrencyId], references: [id])
-  loanPrincipalOf Loan?
+  category                    Category                   @relation(fields: [categoryId], references: [id])
+  user                        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannerItem                 PlannerItem?               @relation(fields: [plannerItemId], references: [id], onDelete: SetNull)
+  fundingPot                  SavingsPot?                @relation("ExpenseFundingPot", fields: [fundingPotId], references: [id], onDelete: SetNull)
+  fundingSources              TransactionFundingSource[]
+  nativeCurrency              Currency?                  @relation("TransactionNativeCurrency", fields: [nativeCurrencyId], references: [id])
+  fundingCurrency             Currency?                  @relation("TransactionFundingCurrency", fields: [fundingCurrencyId], references: [id])
+  loanPrincipalOf             Loan?
+  loanPaymentOf               LoanPayment?
+  plannedExpenseOf            PlannedExpense?
+  recurringIncomeOccurrenceOf RecurringIncomeOccurrence?
 
   @@index([userId])
   @@index([date])
@@ -598,14 +601,20 @@ model Loan {
 }
 
 model LoanPayment {
-  id        String   @id @default(cuid())
-  loanId    String
-  amount    Int // Payment amount in paisas
-  date      DateTime @default(now())
-  notes     String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  loanId        String
+  amount        Int // Payment amount in paisas
+  date          DateTime @default(now())
+  notes         String?
+  createdAt     DateTime @default(now())
+  // The ledger Transaction this payment created (null for the legacy
+  // "mark fully paid" shortcut, which doesn't book a transaction). Nulled out
+  // if that transaction is deleted directly from Expenses/Income.
+  transactionId String?  @unique
 
-  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan             Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  transaction      Transaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  fulfillsSchedule LoanSchedule?
 
   @@index([loanId])
   @@map("loan_payments")
@@ -620,22 +629,27 @@ model LoanPayment {
 // rows (e.g. "20k now" + "60k in month 4" = two LUMP_SUM rows). Distinct from
 // LoanPayment, which records payments that ALREADY happened.
 model LoanSchedule {
-  id                String    @id @default(cuid())
-  loanId            String
-  kind              String // "LUMP_SUM" | "FIXED_INSTALLMENT"
-  amount            Int // paisas: lump total, or per-installment amount
-  startDate         DateTime // first (or only) due date
-  endDate           DateTime? // FIXED_INSTALLMENT inclusive; null for LUMP_SUM
-  flexibility       String    @default("FIXED") // "FIXED" | "FLEXIBLE"
-  priority          Int       @default(0) // lower slides first when a month is tight
-  slideWindowMonths Int       @default(0) // how far it may move (e.g. ±1)
-  interestRate      Float? // annual %, declining balance; null/0 = interest-free
-  userId            String // denormalized for scoped queries (mirrors app convention)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  loanId             String
+  kind               String // "LUMP_SUM" | "FIXED_INSTALLMENT"
+  amount             Int // paisas: lump total, or per-installment amount
+  startDate          DateTime // first (or only) due date
+  endDate            DateTime? // FIXED_INSTALLMENT inclusive; null for LUMP_SUM
+  flexibility        String    @default("FIXED") // "FIXED" | "FLEXIBLE"
+  priority           Int       @default(0) // lower slides first when a month is tight
+  slideWindowMonths  Int       @default(0) // how far it may move (e.g. ±1)
+  interestRate       Float? // annual %, declining balance; null/0 = interest-free
+  userId             String // denormalized for scoped queries (mirrors app convention)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  // Set once a real LoanPayment has been recorded against this scheduled
+  // installment via "Record installment" - lets the UI show it as fulfilled
+  // instead of just a forecast row. Nulled out if that payment is deleted.
+  fulfilledPaymentId String?   @unique
 
-  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loan             Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fulfilledPayment LoanPayment? @relation(fields: [fulfilledPaymentId], references: [id], onDelete: SetNull)
 
   @@index([loanId])
   @@index([userId])
@@ -662,8 +676,9 @@ model RecurringIncome {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currency Currency? @relation(fields: [currencyId], references: [id])
+  user        User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency    Currency?                   @relation(fields: [currencyId], references: [id])
+  occurrences RecurringIncomeOccurrence[]
 
   @@index([userId])
   @@map("recurring_incomes")
@@ -685,12 +700,36 @@ model PlannedExpense {
   userId            String
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  // Set once "Mark paid" has actually booked a real ledger Transaction -
+  // reverts to PLANNED if that transaction is deleted, so the row never
+  // silently claims to be paid without a real expense behind it.
+  transactionId     String?  @unique
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category Category? @relation(fields: [categoryId], references: [id])
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category?    @relation(fields: [categoryId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@map("planned_expenses")
+}
+
+// Tracks which (month, year) periods a RecurringIncome stream has already had
+// a real Transaction booked for via "Record this month" - prevents
+// double-booking the same period and lets the UI show recorded vs. pending.
+model RecurringIncomeOccurrence {
+  id                String   @id @default(cuid())
+  recurringIncomeId String
+  month             Int
+  year              Int
+  transactionId     String   @unique
+  createdAt         DateTime @default(now())
+
+  recurringIncome RecurringIncome @relation(fields: [recurringIncomeId], references: [id], onDelete: Cascade)
+  transaction     Transaction     @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@unique([recurringIncomeId, month, year])
+  @@index([recurringIncomeId])
+  @@map("recurring_income_occurrences")
 }
 
 // Investment planning (Checkpoint 2). One plan per user; monthly target split

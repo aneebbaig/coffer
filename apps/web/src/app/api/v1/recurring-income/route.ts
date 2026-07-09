@@ -14,6 +14,7 @@ function serialize(i: {
   startDate: Date;
   endDate: Date | null;
   active: boolean;
+  occurrences: { month: number; year: number }[];
 }) {
   return {
     id: i.id,
@@ -26,6 +27,7 @@ function serialize(i: {
     startDate: i.startDate.toISOString(),
     endDate: i.endDate?.toISOString() ?? null,
     active: i.active,
+    occurrences: i.occurrences,
   };
 }
 
@@ -36,6 +38,7 @@ export async function GET(req: NextRequest) {
   try {
     const incomes = await prisma.recurringIncome.findMany({
       where: { userId: auth.id },
+      include: { occurrences: { select: { month: true, year: true } } },
       orderBy: { createdAt: "asc" },
     });
     return NextResponse.json({ data: incomes.map(serialize) });

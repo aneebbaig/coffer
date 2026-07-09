@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { TransactionForm } from "@/components/expenses/transaction-form";
 import {
   createRecurringIncome,
   updateRecurringIncome,
@@ -29,6 +30,7 @@ interface RecurringIncome {
   startDate: Date;
   endDate: Date | null;
   active: boolean;
+  occurrences: { month: number; year: number }[];
 }
 
 const KINDS = [
@@ -42,11 +44,23 @@ const BLANK_FORM = {
   dayOfMonth: "", startDate: format(new Date(), "yyyy-MM-dd"),
 };
 
-export function RecurringIncomeCard({ incomes, baseSymbol = "Rs" }: { incomes: RecurringIncome[]; baseSymbol?: string }) {
+export function RecurringIncomeCard({
+  incomes, baseSymbol = "Rs", categories = [], currentPeriod, dateFormat,
+}: {
+  incomes: RecurringIncome[];
+  baseSymbol?: string;
+  categories?: { id: string; name: string; color: string; icon: string }[];
+  currentPeriod?: { month: number; year: number };
+  dateFormat?: string;
+}) {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [recordIncome, setRecordIncome] = useState<RecurringIncome | null>(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(BLANK_FORM);
+
+  const recordedThisPeriod = (inc: RecurringIncome) =>
+    !!currentPeriod && inc.occurrences.some((o) => o.month === currentPeriod.month && o.year === currentPeriod.year);
 
   async function handleAdd() {
     if (!form.label || !form.amount) return;
@@ -113,6 +127,15 @@ export function RecurringIncomeCard({ incomes, baseSymbol = "Rs" }: { incomes: R
                   </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {inc.active && (
+                    recordedThisPeriod(inc) ? (
+                      <span className="text-[10px] text-emerald-600 font-medium">Recorded</span>
+                    ) : (
+                      <button onClick={() => setRecordIncome(inc)} className="text-xs text-primary hover:underline font-medium" title="Record this month's income">
+                        Record
+                      </button>
+                    )
+                  )}
                   <Switch checked={inc.active} onCheckedChange={() => handleToggleActive(inc)} />
                   <button onClick={() => setDeleteId(inc.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1" title="Delete">
                     <Trash2 className="h-3.5 w-3.5" />
@@ -186,6 +209,29 @@ export function RecurringIncomeCard({ incomes, baseSymbol = "Rs" }: { incomes: R
         description="This stops it from being counted in the cash-flow planner. It does not affect any past transactions."
         onConfirm={handleDelete}
       />
+
+      {/* Record this month - books a real income transaction linked back to this stream */}
+      <Dialog open={!!recordIncome} onOpenChange={(o) => !o && setRecordIncome(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Record Income</DialogTitle></DialogHeader>
+          {recordIncome && (
+            <TransactionForm
+              defaultType="INCOME"
+              categories={categories}
+              transaction={null}
+              initialValues={{
+                amount: recordIncome.amount,
+                description: recordIncome.label,
+                date: format(new Date(), "yyyy-MM-dd"),
+              }}
+              linkRecurringIncomeId={recordIncome.id}
+              currencies={[{ id: "base", code: "PKR", symbol: baseSymbol, rateToBase: 1, isBase: true }]}
+              dateFormat={dateFormat}
+              onSuccess={() => { toast.success("Income recorded"); setRecordIncome(null); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

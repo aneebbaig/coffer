@@ -27,6 +27,8 @@ const createPaymentSchema = z.object({
   // omitted, funded from income (existing behavior).
   fundingSource: z.enum(["INCOME", "SAVINGS_POT"]).optional(),
   fundingPotId: z.string().optional(),
+  // Set when this payment is recorded via a LoanSchedule row's "Record installment".
+  linkScheduleId: z.string().optional(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -47,9 +49,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { amountPaisas, date, notes, budgetMonth, budgetYear, fundingPotId } = parsed.data;
+    const { amountPaisas, date, notes, budgetMonth, budgetYear, fundingPotId, linkScheduleId } = parsed.data;
     if (amountPaisas > loan.remainingAmount) {
       return NextResponse.json({ error: "Payment exceeds remaining balance" }, { status: 422 });
+    }
+
+    if (linkScheduleId) {
+      const schedule = await prisma.loanSchedule.findFirst({ where: { id: linkScheduleId, loanId, userId: auth.id } });
+      if (!schedule) return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
+      if (schedule.fulfilledPaymentId) return NextResponse.json({ error: "Already recorded" }, { status: 422 });
     }
 
     const user = await prisma.user.findUnique({
@@ -85,15 +93,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const categoryId = await findOrCreateLoanRepaymentCategory(auth.id);
 
     const payment = await prisma.$transaction(async (tx) => {
-      const p = await tx.loanPayment.create({
-        data: { loanId, amount: amountPaisas, date: new Date(date), notes: notes ?? null },
-        select: { id: true },
-      });
       await tx.loan.update({
         where: { id: loanId },
         data: { remainingAmount: newRemaining, status: newStatus },
       });
-      await tx.transaction.create({
+      const transaction = await tx.transaction.create({
         data: {
           amount: amountPaisas,
           type: isExpense ? "EXPENSE" : "INCOME",
@@ -114,7 +118,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (isExpense && fundingSource === "SAVINGS_POT" && fundingPotId && fundingCurrencyId) {
         await debitPot(tx, fundingPotId, amountPaisas, fundingCurrencyId, `Expense: Loan repayment - ${loan.personName}`, "MANUAL", { budgetMonth: period.month, budgetYear: period.year });
       }
-      return p;
+      const payment = await tx.loanPayment.create({
+        data: { loanId, amount: amountPaisas, date: new Date(date), notes: notes ?? null, transactionId: transaction.id },
+        select: { id: true },
+      });
+
+      if (linkScheduleId) {
+        await tx.loanSchedule.update({ where: { id: linkScheduleId }, data: { fulfilledPaymentId: payment.id } });
+      }
+
+      return payment;
     });
 
     return NextResponse.json({ data: { id: payment.id } }, { status: 201 });

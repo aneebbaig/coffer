@@ -16,7 +16,7 @@ export default async function LoansPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <LoansClient loans={loans} summary={summary} fundingContext={fundingContext} />
+      <LoansClient loans={loans} summary={summary} fundingContext={fundingContext} currentPeriod={period} />
     </div>
   );
 }
