@@ -189,12 +189,11 @@ export async function getRecurringTransactions() {
 export async function exportUserData(): Promise<{ success: true; data: object } | { success: false; error: string }> {
   try {
     const userId = await getUserId();
-    const [transactions, categories, budgets, goals, planners, savingsPots, investments, tasks, loans] =
+    const [transactions, categories, budgets, planners, savingsPots, investments, tasks, loans] =
       await Promise.all([
         prisma.transaction.findMany({ where: { userId }, include: { category: true } }),
         prisma.category.findMany({ where: { userId, isHidden: false } }),
         prisma.budget.findMany({ where: { userId }, include: { budgetCategories: true } }),
-        prisma.goal.findMany({ where: { userId } }),
         prisma.planner.findMany({ where: { userId }, include: { items: true } }),
         prisma.savingsPot.findMany({ where: { userId }, include: { history: true, balances: { include: { currency: true } } } }),
         prisma.investment.findMany({ where: { userId } }),
@@ -209,7 +208,6 @@ export async function exportUserData(): Promise<{ success: true; data: object } 
         transactions,
         categories,
         budgets,
-        goals,
         planners,
         savingsPots,
         investments,

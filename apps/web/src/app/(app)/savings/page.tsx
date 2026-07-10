@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { getCurrentPeriod } from "@/lib/month";
 import { getSavingsPots, getCumulativeSavings, getAverageMonthlyExpenses, getInvestments, getIncomeAvailableForPot, getFinancialPosition } from "@/actions/savings";
-import { getGoals } from "@/actions/goals";
 import { getUserSettings } from "@/actions/settings";
 import { getReadyToAssign } from "@/actions/budget";
 import { getCurrencies } from "@/lib/currency-helpers";
@@ -13,10 +12,9 @@ export default async function SavingsPage() {
   const settings = await getUserSettings();
   const { month, year } = getCurrentPeriod(settings?.currentBudgetMonth, settings?.currentBudgetYear);
 
-  const [pots, currencies, goals, cumulativeSavings, avgMonthlyExpenses, investments, incomeData, potAvailable, financialPosition] = await Promise.all([
+  const [pots, currencies, cumulativeSavings, avgMonthlyExpenses, investments, incomeData, potAvailable, financialPosition] = await Promise.all([
     getSavingsPots(),
     getCurrencies(),
-    getGoals(),
     getCumulativeSavings(),
     getAverageMonthlyExpenses(),
     getInvestments(),
@@ -30,7 +28,6 @@ export default async function SavingsPage() {
       <SavingsClient
         pots={pots}
         currencies={currencies}
-        goals={goals}
         cumulativeSavings={cumulativeSavings}
         avgMonthlyExpenses={avgMonthlyExpenses}
         investments={investments}

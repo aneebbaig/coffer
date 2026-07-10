@@ -34,6 +34,13 @@ class ApiConstants {
   static const String recurringIncome = '/recurring-income';
   static const String plannedExpenses = '/planned-expenses';
   static const String cashflow = '/cashflow';
+  static const String investments = '/investments';
+  static const String investmentPlan = '/investment-plan';
+
+  static String investmentById(String id) => '/investments/$id';
+  static String investmentContributions(String id) => '/investments/$id/contributions';
+  static String investmentContributionById(String id, String cid) =>
+      '/investments/$id/contributions/$cid';
 
   static String loanPayments(String loanId) => '/loans/$loanId/payments';
   static String loanPaymentById(String loanId, String paymentId) =>

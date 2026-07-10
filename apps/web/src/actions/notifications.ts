@@ -4,12 +4,12 @@ import { getServerUser } from "@/lib/session";
 import { getUserSettings } from "@/actions/settings";
 import { getCurrentPeriod } from "@/lib/month";
 import { getBudgetWithSpending } from "@/actions/budget";
-import { getGoals } from "@/actions/goals";
 import { getTodaysTasks } from "@/actions/tasks";
 import { getTodaysEvents } from "@/actions/calendar";
 import { getSavingsPots, getAverageMonthlyExpenses } from "@/actions/savings";
 import { getTransactions } from "@/actions/expenses";
 import { getUpcomingDueAlerts } from "@/actions/cashflow";
+import { potBaseBalance } from "@/lib/currency-utils";
 import { getBaseCurrency } from "@/lib/currency-helpers";
 import { isOverdue } from "@/lib/utils";
 import { format } from "date-fns";
@@ -27,10 +27,9 @@ export async function getNotifications(): Promise<AppNotification[]> {
   const settings = await getUserSettings();
   const { month, year } = getCurrentPeriod(settings?.currentBudgetMonth, settings?.currentBudgetYear);
 
-  const [budgetData, goals, todaysTasks, todaysEvents, savingsPots, avgMonthlyExpenses, recentTransactions, base, upcomingDue] =
+  const [budgetData, todaysTasks, todaysEvents, savingsPots, avgMonthlyExpenses, recentTransactions, base, upcomingDue] =
     await Promise.all([
       getBudgetWithSpending(month, year),
-      getGoals(),
       getTodaysTasks(),
       getTodaysEvents(),
       getSavingsPots(),
@@ -105,14 +104,16 @@ export async function getNotifications(): Promise<AppNotification[]> {
     }
   }
 
-  // Goal progress (80-99%)
-  for (const goal of goals.filter((g) => g.status === "ACTIVE")) {
-    const pct = goal.targetAmount > 0 ? Math.round((goal.savedAmount / goal.targetAmount) * 100) : 0;
+  // Targeted-pot progress (80-99%) - pots with a target are savings goals.
+  for (const pot of savingsPots) {
+    if (pot.targetAmount <= 0) continue;
+    const saved = potBaseBalance(pot.balances);
+    const pct = Math.round((saved / pot.targetAmount) * 100);
     if (pct >= 80 && pct < 100) {
       notifications.push({
-        id: `goal-${goal.id}`,
+        id: `pot-${pot.id}`,
         type: "success",
-        message: `${pct}% towards "${goal.name}" - almost there!`,
+        message: `${pct}% towards "${pot.name}" - almost there!`,
       });
     }
   }

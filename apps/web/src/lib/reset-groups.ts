@@ -5,8 +5,7 @@
 export const RESET_GROUPS = [
   { key: "transactions", label: "Transactions", description: "All expense and income entries" },
   { key: "budgets", label: "Budgets", description: "Monthly budgets and category allocations" },
-  { key: "savingsPots", label: "Savings Pots", description: "Pots and their contribution/withdrawal history" },
-  { key: "goals", label: "Savings Goals", description: "Savings goals" },
+  { key: "savingsPots", label: "Savings Pots", description: "Pots (incl. targeted savings goals) and their history" },
   { key: "investments", label: "Investments", description: "Investment holdings" },
   { key: "loans", label: "Loans", description: "Loans given/received and their payments" },
   { key: "planners", label: "Planner", description: "Planners and their line items" },

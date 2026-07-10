@@ -8,6 +8,7 @@ class SavingsPotEntity {
     required this.targetPaisas,
     required this.currentPaisas,
     required this.currentUsdCents,
+    this.targetDate,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class SavingsPotEntity {
   final int targetPaisas;
   final int currentPaisas;
   final int currentUsdCents;
+  final DateTime? targetDate;
 
   double get progressPct =>
       targetPaisas > 0 ? (currentPaisas / targetPaisas).clamp(0.0, 1.0) : 0.0;
