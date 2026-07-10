@@ -10,22 +10,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { createPlannerItem, updatePlannerItem, deletePlannerItem, updatePlannerStatus, deletePlanner } from "@/actions/planner";
+import { createPlannerItem, updatePlannerItem, deletePlannerItem, updatePlannerStatus, deletePlanner, logPlanItemExpense } from "@/actions/plan";
 import { cn } from "@/lib/utils";
 
-interface PlannerItem {
-  id: string; plannerId: string; name: string; description: string | null;
+interface PlanItem {
+  id: string; planId: string; name: string; description: string | null;
   estimatedCost: number; actualCost: number | null; status: string;
   dueDate: Date | null; notes: string | null; eventGroup: string | null; vendor: string | null;
 }
-interface Planner {
+interface Plan {
   id: string; name: string; description: string | null; coverColor: string;
   type: string; status: string; completedAt: Date | null; estimatedTotalCost: number;
-  targetDate: Date | null; items: PlannerItem[];
+  targetDate: Date | null; items: PlanItem[];
 }
 interface FinancialPosition {
   accumulatedSavings: number;
@@ -54,11 +53,11 @@ const PLANNER_STATUS_LABELS: Record<string, string> = {
 
 const GENERIC_GROUPS = ["Phase 1", "Phase 2", "Phase 3", "Venue", "Catering", "Decor", "Transport", "Other"];
 
-export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "Rs" }: { planner: Planner; financialPosition: FinancialPosition; baseSymbol?: string }) {
+export function PlanDetailClient({ plan, financialPosition, baseSymbol = "Rs" }: { plan: Plan; financialPosition: FinancialPosition; baseSymbol?: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
-  const [editItem, setEditItem] = useState<PlannerItem | null>(null);
+  const [editItem, setEditItem] = useState<PlanItem | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   const [deletePlanId, setDeletePlanId] = useState<string | null>(null);
 
@@ -66,15 +65,20 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
     name: "", estimatedCost: "", dueDate: "", notes: "", eventGroup: "", vendor: "",
   });
 
-  const totalEstimated = planner.items.reduce((s, i) => s + i.estimatedCost, 0);
-  const totalActual = planner.items.reduce((s, i) => s + (i.actualCost ?? 0), 0);
-  const paidCount = planner.items.filter((i) => i.status === "PAID").length;
-  const pct = planner.items.length > 0 ? Math.round((paidCount / planner.items.length) * 100) : 0;
+  const totalEstimated = plan.items.reduce((s, i) => s + i.estimatedCost, 0);
+  // A paid item counts toward "actually paid" even if no actual cost was
+  // entered — fall back to its estimate rather than showing 0.
+  const totalActual = plan.items.reduce(
+    (s, i) => s + (i.actualCost ?? (i.status === "PAID" ? i.estimatedCost : 0)),
+    0,
+  );
+  const paidCount = plan.items.filter((i) => i.status === "PAID").length;
+  const pct = plan.items.length > 0 ? Math.round((paidCount / plan.items.length) * 100) : 0;
 
   // Group items by eventGroup
-  const grouped: Record<string, PlannerItem[]> = {};
-  const ungrouped: PlannerItem[] = [];
-  for (const item of planner.items) {
+  const grouped: Record<string, PlanItem[]> = {};
+  const ungrouped: PlanItem[] = [];
+  for (const item of plan.items) {
     if (item.eventGroup) {
       if (!grouped[item.eventGroup]) grouped[item.eventGroup] = [];
       grouped[item.eventGroup].push(item);
@@ -88,7 +92,7 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
   async function handleAddItem() {
     if (!newItem.name) return;
     startTransition(async () => {
-      const result = await createPlannerItem(planner.id, {
+      const result = await createPlannerItem(plan.id, {
         name: newItem.name,
         estimatedCost: parseFloat(newItem.estimatedCost) || 0,
         dueDate: newItem.dueDate || undefined,
@@ -115,10 +119,12 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
     });
   }
 
-  async function handleActualCost(itemId: string, actualCost: number) {
+  // One-tap: mark bought + book a real expense for this item.
+  async function handleLogExpense(itemId: string) {
     startTransition(async () => {
-      await updatePlannerItem(itemId, { actualCost, status: "PAID" });
-      toast.success("Actual cost saved");
+      const result = await logPlanItemExpense(itemId);
+      if (result.success) toast.success("Bought — expense logged");
+      else toast.error(result.error ?? "Failed to log expense");
       router.refresh();
     });
   }
@@ -133,7 +139,7 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
 
   async function handlePlanStatus(status: string) {
     startTransition(async () => {
-      const result = await updatePlannerStatus(planner.id, status);
+      const result = await updatePlannerStatus(plan.id, status);
       if (result.success) {
         toast.success(`Plan marked as ${PLANNER_STATUS_LABELS[status]}`);
         router.refresh();
@@ -144,15 +150,12 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
   }
 
   async function handleDeletePlan() {
-    await deletePlanner(planner.id);
+    await deletePlanner(plan.id);
     toast.success("Plan deleted");
-    router.push("/planner");
+    router.push("/plans");
   }
 
-  function ItemRow({ item }: { item: PlannerItem }) {
-    const [editCost, setEditCost] = useState(false);
-    const [costInput, setCostInput] = useState(item.actualCost ? String(item.actualCost / 100) : "");
-
+  function ItemRow({ item }: { item: PlanItem }) {
     return (
       <div className={cn("p-3 rounded-lg border border-border bg-background", item.status === "SKIPPED" && "opacity-50")}>
         <div className="flex items-start gap-3">
@@ -175,42 +178,30 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
               )}
             </div>
             {item.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">{item.notes}</p>}
-
-            {/* Actual cost entry (shown when PAID status) */}
-            {editCost && (
-              <div className="flex gap-2 mt-2">
-                <Input
-                  type="number"
-                  value={costInput}
-                  onChange={(e) => setCostInput(e.target.value)}
-                  placeholder="Actual cost paid"
-                  className="h-7 text-xs w-40"
-                  autoFocus
-                />
-                <Button size="sm" className="h-7 text-xs" onClick={() => {
-                  handleActualCost(item.id, parseFloat(costInput) || 0);
-                  setEditCost(false);
-                }}>Save</Button>
-                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditCost(false)}>Cancel</Button>
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <Select onValueChange={(v) => {
-              handleStatusChange(item.id, v);
-              if (v === "PAID" && !item.actualCost) setEditCost(true);
-            }} defaultValue={item.status}>
-              <SelectTrigger className="w-28 h-7 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="BOOKED">Booked</SelectItem>
-                <SelectItem value="PAID">Paid</SelectItem>
-                <SelectItem value="SKIPPED">Skip</SelectItem>
-              </SelectContent>
-            </Select>
+            {item.status === "PAID" ? (
+              <button
+                onClick={() => handleStatusChange(item.id, "PENDING")}
+                disabled={isPending}
+                className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-muted-foreground transition-colors"
+                title="Bought — click to undo"
+              >
+                <CheckCircle2 className="h-4 w-4" /> Bought
+              </button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                disabled={isPending}
+                onClick={() => handleLogExpense(item.id)}
+                title="Mark bought and log a real expense"
+              >
+                Buy &amp; log
+              </Button>
+            )}
             <button onClick={() => setDeleteItemId(item.id)} className="text-muted-foreground hover:text-red-500 transition-colors p-1">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -224,26 +215,26 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/planner">
+        <Link href="/plans">
           <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
         </Link>
-        <div className="h-3 w-1 rounded-full" style={{ backgroundColor: planner.coverColor }} />
+        <div className="h-3 w-1 rounded-full" style={{ backgroundColor: plan.coverColor }} />
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{planner.name}</h1>
-          {planner.description && <p className="text-sm text-muted-foreground mt-0.5">{planner.description}</p>}
+          <h1 className="text-2xl font-bold text-foreground">{plan.name}</h1>
+          {plan.description && <p className="text-sm text-muted-foreground mt-0.5">{plan.description}</p>}
         </div>
         <Badge className={cn("text-xs", {
-          "bg-blue-100 text-blue-700": planner.status === "PLANNING",
-          "bg-amber-100 text-amber-700": planner.status === "IN_PROGRESS",
-          "bg-emerald-100 text-emerald-700": planner.status === "COMPLETED",
-          "bg-slate-100 text-slate-500": planner.status === "CANCELLED",
-        })}>{PLANNER_STATUS_LABELS[planner.status]}</Badge>
+          "bg-blue-100 text-blue-700": plan.status === "PLANNING",
+          "bg-amber-100 text-amber-700": plan.status === "IN_PROGRESS",
+          "bg-emerald-100 text-emerald-700": plan.status === "COMPLETED",
+          "bg-slate-100 text-slate-500": plan.status === "CANCELLED",
+        })}>{PLANNER_STATUS_LABELS[plan.status]}</Badge>
       </div>
 
       {/* Status actions */}
-      {planner.status !== "COMPLETED" && planner.status !== "CANCELLED" && (
+      {plan.status !== "COMPLETED" && plan.status !== "CANCELLED" && (
         <div className="flex gap-2 flex-wrap">
-          {planner.status === "PLANNING" && (
+          {plan.status === "PLANNING" && (
             <Button size="sm" variant="outline" onClick={() => handlePlanStatus("IN_PROGRESS")} disabled={isPending}>
               Mark In Progress
             </Button>
@@ -254,13 +245,13 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
           <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => handlePlanStatus("CANCELLED")} disabled={isPending}>
             Cancel Plan
           </Button>
-          <Button size="sm" variant="ghost" className="text-red-500 ml-auto" onClick={() => setDeletePlanId(planner.id)}>
+          <Button size="sm" variant="ghost" className="text-red-500 ml-auto" onClick={() => setDeletePlanId(plan.id)}>
             <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
           </Button>
         </div>
       )}
-      {planner.completedAt && (
-        <p className="text-xs text-muted-foreground">Completed on {format(new Date(planner.completedAt), "d MMMM yyyy")}</p>
+      {plan.completedAt && (
+        <p className="text-xs text-muted-foreground">Completed on {format(new Date(plan.completedAt), "d MMMM yyyy")}</p>
       )}
 
       {/* Cost summary */}
@@ -276,7 +267,7 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="text-xs text-muted-foreground mb-1">Progress</div>
           <div className="text-xl font-bold text-primary">{pct}%</div>
-          <div className="text-xs text-muted-foreground">{paidCount}/{planner.items.length} items</div>
+          <div className="text-xs text-muted-foreground">{paidCount}/{plan.items.length} items</div>
         </div>
       </div>
 
@@ -284,7 +275,10 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
       {totalEstimated > 0 && (() => {
         const remaining = totalEstimated - totalActual;
         const canAfford = financialPosition.liquidAvailable >= remaining;
-        const coveragePct = remaining > 0 ? Math.round((financialPosition.liquidAvailable / remaining) * 100) : 100;
+        // Clamp to 0-100: you can't cover a negative share (liquid in the red = 0% covered).
+        const coveragePct = remaining > 0
+          ? Math.max(0, Math.min(100, Math.round((financialPosition.liquidAvailable / remaining) * 100)))
+          : 100;
         return (
           <div className={cn("rounded-xl border p-5",
             canAfford
@@ -355,7 +349,7 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
           <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="h-3.5 w-3.5" />Add Item</Button>
         </div>
 
-        {planner.items.length === 0 ? (
+        {plan.items.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">No items yet. Add your first expense item!</p>
         ) : (
           <div className="space-y-4">
@@ -413,12 +407,12 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
               <div>
                 <Label>Event Group (optional)</Label>
                 <Input
-                  list={`groups-${planner.id}`}
+                  list={`groups-${plan.id}`}
                   value={newItem.eventGroup}
                   onChange={(e) => setNewItem((p) => ({ ...p, eventGroup: e.target.value }))}
                   placeholder="e.g. Phase 1"
                 />
-                <datalist id={`groups-${planner.id}`}>
+                <datalist id={`groups-${plan.id}`}>
                   {suggestedGroups.map((g) => <option key={g} value={g} />)}
                 </datalist>
               </div>

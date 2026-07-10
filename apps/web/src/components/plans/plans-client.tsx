@@ -15,7 +15,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createPlanner, deletePlanner } from "@/actions/planner";
+import { createPlanner, deletePlanner } from "@/actions/plan";
 import { getDaysUntil } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
@@ -46,7 +46,7 @@ function getTypeInfo(type: string) {
   return PLANNER_TYPES.find((t) => t.value === type) ?? PLANNER_TYPES[0];
 }
 
-export function PlannerClient({ planners, baseSymbol = "Rs" }: { planners: Planner[]; baseSymbol?: string }) {
+export function PlansClient({ planners, baseSymbol = "Rs" }: { planners: Planner[]; baseSymbol?: string }) {
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -92,7 +92,7 @@ export function PlannerClient({ planners, baseSymbol = "Rs" }: { planners: Plann
     const typeInfo = getTypeInfo(plan.type);
 
     return (
-      <Link href={`/planner/${plan.id}`} className="block bg-card border border-border rounded-xl overflow-hidden hover:shadow-md hover:border-primary/30 transition-all">
+      <Link href={`/plans/${plan.id}`} className="block bg-card border border-border rounded-xl overflow-hidden hover:shadow-md hover:border-primary/30 transition-all">
         <div className="h-2" style={{ backgroundColor: plan.coverColor }} />
         <div className="p-5">
           <div className="flex items-start justify-between mb-3">
@@ -141,7 +141,7 @@ export function PlannerClient({ planners, baseSymbol = "Rs" }: { planners: Plann
     <>
       <PageHeader
         section="Planning"
-        title="Planner"
+        title="Plans"
         action={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />New Plan</Button>}
       />
       <Tabs defaultValue="active">

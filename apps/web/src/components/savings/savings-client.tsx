@@ -16,19 +16,16 @@ import { updateCurrency } from "@/actions/currencies";
 import { cn } from "@/lib/utils";
 import { fmt, potTotalBase, baseCurrencyOf, CurrencyPicker, type SavingsPot, type CurrencyLite } from "./savings-utils";
 import { FundTab } from "./fund-tab";
-import { InvestmentsTab } from "./investments-tab";
 import { PageHeader } from "@/components/shared/page-header";
 
 interface MonthSaving { label: string; key: string; income: number; expenses: number; surplus: number; cumulative: number; }
 interface CumulativeSavings { totalAccumulated: number; months: MonthSaving[]; }
-interface Investment { id: string; name: string; type: string; platform: string; investedAmount: number; currentValue: number; }
 
 interface Props {
   pots: SavingsPot[];
   currencies: CurrencyLite[];
   cumulativeSavings: CumulativeSavings;
   avgMonthlyExpenses: number;
-  investments: Investment[];
   emergencyFundMonths: number;
   totalIncome: number;
   readyToAssign: number;
@@ -133,7 +130,7 @@ function PotCard({ pot, base, onAdd, onCorrect, onDelete }: {
   );
 }
 
-export function SavingsClient({ pots, currencies, cumulativeSavings, avgMonthlyExpenses, investments, emergencyFundMonths, totalIncome, readyToAssign, incomeAvailability, liquidAvailable }: Props) {
+export function SavingsClient({ pots, currencies, cumulativeSavings, avgMonthlyExpenses, emergencyFundMonths, totalIncome, readyToAssign, incomeAvailability, liquidAvailable }: Props) {
   const base = baseCurrencyOf(currencies);
   const [potDialog, setPotDialog] = useState<{ type: "add" | "correct" | "new" | null; potId?: string }>({ type: null });
   const [amount, setAmount] = useState("");
@@ -217,7 +214,6 @@ export function SavingsClient({ pots, currencies, cumulativeSavings, avgMonthlyE
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="emergency">Emergency Fund</TabsTrigger>
         <TabsTrigger value="pots">Savings Pots</TabsTrigger>
-        <TabsTrigger value="investments">Investments</TabsTrigger>
       </TabsList>
 
       <TabsContent value="overview" className="mt-4 space-y-4">
@@ -349,10 +345,6 @@ export function SavingsClient({ pots, currencies, cumulativeSavings, avgMonthlyE
             ))}
           </div>
         )}
-      </TabsContent>
-
-      <TabsContent value="investments" className="mt-4">
-        <InvestmentsTab investments={investments} baseSymbol={base.symbol} />
       </TabsContent>
 
       <Dialog open={potDialog.type === "add"} onOpenChange={(o) => !o && setPotDialog({ type: null })}>

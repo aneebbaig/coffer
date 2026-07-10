@@ -480,7 +480,7 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
     });
 
     revalidateTransactionPaths();
-    revalidatePath("/expenses/planner");
+    revalidatePath("/expenses/plans");
     return { success: true };
   } catch (e) {
     console.error("[deleteTransaction]", e);

@@ -31,7 +31,7 @@ const MORE_GROUPS = [
   {
     label: "Planning",
     items: [
-      { href: "/planner", label: "Planner", icon: CalendarDays },
+      { href: "/plans", label: "Plans", icon: CalendarDays },
       { href: "/want-list", label: "Want List", icon: ShoppingCart },
       { href: "/need-list", label: "Need List", icon: ClipboardList },
       { href: "/calendar", label: "Calendar", icon: Calendar },
@@ -40,7 +40,7 @@ const MORE_GROUPS = [
   {
     label: "Other",
     items: [
-      { href: "/projects", label: "Projects", icon: FolderKanban },
+      { href: "/projects", label: "Work", icon: FolderKanban },
       { href: "/perfumes", label: "Perfumes", icon: FlaskConical },
       { href: "/vault", label: "Vault", icon: Gift },
       { href: "/settings", label: "Settings", icon: Settings },

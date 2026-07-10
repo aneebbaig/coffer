@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { getCurrentPeriod } from "@/lib/month";
-import { getSavingsPots, getCumulativeSavings, getAverageMonthlyExpenses, getInvestments, getIncomeAvailableForPot, getFinancialPosition } from "@/actions/savings";
+import { getSavingsPots, getCumulativeSavings, getAverageMonthlyExpenses, getIncomeAvailableForPot, getFinancialPosition } from "@/actions/savings";
 import { getUserSettings } from "@/actions/settings";
 import { getReadyToAssign } from "@/actions/budget";
 import { getCurrencies } from "@/lib/currency-helpers";
@@ -12,12 +12,11 @@ export default async function SavingsPage() {
   const settings = await getUserSettings();
   const { month, year } = getCurrentPeriod(settings?.currentBudgetMonth, settings?.currentBudgetYear);
 
-  const [pots, currencies, cumulativeSavings, avgMonthlyExpenses, investments, incomeData, potAvailable, financialPosition] = await Promise.all([
+  const [pots, currencies, cumulativeSavings, avgMonthlyExpenses, incomeData, potAvailable, financialPosition] = await Promise.all([
     getSavingsPots(),
     getCurrencies(),
     getCumulativeSavings(),
     getAverageMonthlyExpenses(),
-    getInvestments(),
     getReadyToAssign(month, year),
     getIncomeAvailableForPot(),
     getFinancialPosition(),
@@ -30,7 +29,6 @@ export default async function SavingsPage() {
         currencies={currencies}
         cumulativeSavings={cumulativeSavings}
         avgMonthlyExpenses={avgMonthlyExpenses}
-        investments={investments}
         emergencyFundMonths={settings?.emergencyFundMonths ?? 6}
         totalIncome={incomeData.totalIncome}
         readyToAssign={incomeData.readyToAssign}

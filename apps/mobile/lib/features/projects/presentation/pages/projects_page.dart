@@ -85,7 +85,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text('Projects', style: AppTextStyles.headlineSmall),
+        title: const Text('Work', style: AppTextStyles.headlineSmall),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.sort, color: AppColors.foreground),
