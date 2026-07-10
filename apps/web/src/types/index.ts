@@ -2,11 +2,9 @@
 
 export type TransactionType = "INCOME" | "EXPENSE";
 export type CategoryType = "EXPENSE" | "INCOME" | "BOTH";
-export type GoalPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-export type GoalStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "ABANDONED";
 export type PlannerStatus = "PLANNING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export type PlannerItemStatus = "PENDING" | "BOOKED" | "PAID" | "SKIPPED";
-export type SavingsPotType = "EMERGENCY" | "GENERAL" | "GOAL_LINKED" | "CUSTOM";
+export type SavingsPotType = "EMERGENCY" | "GENERAL" | "GOAL" | "CUSTOM";
 export type InvestmentType = "MUTUAL_FUND" | "STOCKS" | "GOLD" | "CRYPTO" | "FIXED_DEPOSIT" | "OTHER";
 export type TaskType = "DAILY" | "ONE_TIME";
 
@@ -20,17 +18,6 @@ export type ReminderType = "NONE" | "AT_TIME" | "MIN_15" | "MIN_30" | "HOUR_1" |
 export type SurpriseStatus = "IDEA" | "PLANNING" | "BUYING" | "READY" | "DELIVERED";
 export type SurpriseItemStatus = "IDEA" | "SHORTLISTED" | "BOUGHT" | "WRAPPED";
 export type RecurringFrequency = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
-
-export interface GoalItem {
-  id: string;
-  name: string;
-  estimatedCost: number;
-  actualCost?: number;
-  purchased: boolean;
-  // Set once the quick-add-expense action (shown right after marking an item
-  // purchased) has logged a matching Transaction, so the button doesn't fire twice.
-  expenseLogged?: boolean;
-}
 
 // Server action response type
 export interface ActionResult<T = undefined> {

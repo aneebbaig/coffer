@@ -35,8 +35,15 @@ class MorePage extends StatelessWidget {
             _MoreItem(
               icon: Icons.savings_outlined,
               label: 'Savings',
-              subtitle: 'Pots, goals & wealth',
+              subtitle: 'Pots & wealth',
               onTap: () => context.push('/savings'),
+            ),
+            const SizedBox(height: 8),
+            _MoreItem(
+              icon: Icons.show_chart,
+              label: 'Investments',
+              subtitle: 'SIPs, plan & contributions',
+              onTap: () => context.push('/investments'),
             ),
             const SizedBox(height: 8),
             _MoreItem(

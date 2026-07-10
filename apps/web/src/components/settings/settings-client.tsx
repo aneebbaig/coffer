@@ -802,7 +802,7 @@ export function SettingsClient({
               {isPending ? "Exporting..." : "Download Backup (JSON)"}
             </Button>
             <p className="text-xs text-muted-foreground mt-2">
-              Includes all transactions, budgets, goals, planners, savings, loans, and tasks.
+              Includes all transactions, budgets, planners, savings, loans, and tasks.
             </p>
           </CardContent>
         </Card>

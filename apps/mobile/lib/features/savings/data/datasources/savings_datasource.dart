@@ -38,5 +38,8 @@ class SavingsDatasource {
         targetPaisas: m['targetAmount'] as int,
         currentPaisas: m['currentAmount'] as int,
         currentUsdCents: m['currentAmountUsd'] as int,
+        targetDate: m['targetDate'] != null
+            ? DateTime.parse(m['targetDate'] as String)
+            : null,
       );
 }

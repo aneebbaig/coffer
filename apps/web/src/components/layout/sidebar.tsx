@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, ArrowDownUp, PiggyBank, Target, CalendarDays,
+  LayoutDashboard, ArrowDownUp, PiggyBank, CalendarDays,
   ListTodo, Calendar, Gift, Settings, TrendingUp, Wallet, HandCoins,
   ChevronLeft, ChevronRight, LineChart, Heart,
   FlaskConical, ClipboardList, FolderKanban,
@@ -34,7 +34,6 @@ const NAV_GROUPS = [
   {
     label: "Planning",
     items: [
-      { href: "/goals", label: "Savings Goals", icon: Target },
       { href: "/planner", label: "Planner", icon: CalendarDays },
       { href: "/wedding", label: "Wedding", icon: Heart },
       { href: "/lists", label: "Lists", icon: ClipboardList },

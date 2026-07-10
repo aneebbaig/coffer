@@ -6,7 +6,7 @@ export interface CurrencyLite { id: string; code: string; symbol: string; rateTo
 export interface PotBalance { amount: number; currency: CurrencyLite; }
 export interface SavingsPot {
   id: string; name: string; color: string; icon: string;
-  targetAmount: number; type: string; balances: PotBalance[];
+  targetAmount: number; targetDate?: string | Date | null; type: string; balances: PotBalance[];
 }
 
 export function fmt(amount: number) {

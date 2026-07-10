@@ -3,7 +3,6 @@ import { getServerUser } from "@/lib/session";
 import { getCurrentPeriod } from "@/lib/month";
 import { getMonthlySummary, getSpendingByCategory, getMonthlyTrend, getTransactions, getRegretPurchaseStats } from "@/actions/expenses";
 import { getBudgetWithSpending } from "@/actions/budget";
-import { getGoals } from "@/actions/goals";
 import { getTodaysTasks } from "@/actions/tasks";
 import { getTodaysEvents } from "@/actions/calendar";
 import { getSavingsPots, getCumulativeSavings, getAverageMonthlyExpenses } from "@/actions/savings";
@@ -16,7 +15,6 @@ import { CashflowSummaryCard } from "@/components/dashboard/cashflow-summary-car
 import { SpendingChart } from "@/components/dashboard/spending-chart";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { RecentTransactions } from "@/components/dashboard/recent-transactions";
-import { GoalsSummary } from "@/components/dashboard/goals-summary";
 import { TodayTasks } from "@/components/dashboard/today-tasks";
 import { TodaySchedule } from "@/components/dashboard/today-schedule";
 import { TrendChart } from "@/components/dashboard/trend-chart";
@@ -30,13 +28,12 @@ export default async function DashboardPage() {
   const { month, year } = getCurrentPeriod(userSettings?.currentBudgetMonth, userSettings?.currentBudgetYear);
   const now = new Date();
 
-  const [summary, spendingByCategory, trend, budgetData, goals, todaysTasks, todaysEvents, savingsPots, recentTransactions, cumulativeSavings, avgMonthlyExpenses, regretStats, currencies, cashflowSummary, upcomingDue] =
+  const [summary, spendingByCategory, trend, budgetData, todaysTasks, todaysEvents, savingsPots, recentTransactions, cumulativeSavings, avgMonthlyExpenses, regretStats, currencies, cashflowSummary, upcomingDue] =
     await Promise.all([
       getMonthlySummary(month, year),
       getSpendingByCategory(month, year),
       getMonthlyTrend(6),
       getBudgetWithSpending(month, year),
-      getGoals(),
       getTodaysTasks(),
       getTodaysEvents(),
       getSavingsPots(),
@@ -97,10 +94,8 @@ export default async function DashboardPage() {
         <RecentTransactions transactions={recentTransactions.slice(0, 10)} baseSymbol={baseSymbol} />
       </div>
 
-      {/* Goals + Savings overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GoalsSummary goals={goals.filter((g) => g.status === "ACTIVE").slice(0, 3)} baseSymbol={baseSymbol} />
-
+      {/* Savings overview */}
+      <div className="grid grid-cols-1 gap-6">
         <div className="bg-card border border-border rounded-xl p-5 space-y-5">
           <h3 className="font-semibold text-foreground">Savings</h3>
 

@@ -269,7 +269,7 @@ export function BudgetClient({ budgetData, categories, currencies, month, year }
               const nonBaseBalances = pot.balances.filter((b) => !b.currency.isBase && b.amount > 0);
               const baseBalance = pot.balances.find((b) => b.currency.isBase)?.amount ?? 0;
               const pkrBalance = baseBalance / 100;
-              const typeLabel = pot.type === "GOAL_LINKED" ? "Goal" : pot.type;
+              const typeLabel = pot.type === "GOAL" ? "Goal" : pot.type;
 
               return (
                 <div key={pot.id} className={cn(

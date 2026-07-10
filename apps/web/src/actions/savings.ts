@@ -63,7 +63,7 @@ export async function getSavingsPots() {
   const userId = await getUserId();
   return prisma.savingsPot.findMany({
     where: { userId },
-    include: { linkedGoal: true, balances: { include: { currency: true } } },
+    include: { balances: { include: { currency: true } } },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -74,7 +74,7 @@ export async function createSavingsPot(data: {
   color: string;
   targetAmount: number;
   type: string;
-  linkedGoalId?: string;
+  targetDate?: string;
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
@@ -84,8 +84,8 @@ export async function createSavingsPot(data: {
         icon: data.icon,
         color: data.color,
         type: data.type,
-        linkedGoalId: data.linkedGoalId,
         targetAmount: toPaisas(data.targetAmount),
+        targetDate: data.targetDate ? new Date(data.targetDate) : null,
         userId,
       },
     });

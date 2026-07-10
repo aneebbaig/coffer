@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
         color: true,
         type: true,
         targetAmount: true,
+        targetDate: true,
         balances: { include: { currency: true } },
       },
       orderBy: [{ type: "asc" }, { createdAt: "asc" }],

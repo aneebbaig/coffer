@@ -19,7 +19,6 @@ import { FundTab } from "./fund-tab";
 import { InvestmentsTab } from "./investments-tab";
 import { PageHeader } from "@/components/shared/page-header";
 
-interface Goal { id: string; name: string; }
 interface MonthSaving { label: string; key: string; income: number; expenses: number; surplus: number; cumulative: number; }
 interface CumulativeSavings { totalAccumulated: number; months: MonthSaving[]; }
 interface Investment { id: string; name: string; type: string; platform: string; investedAmount: number; currentValue: number; }
@@ -27,7 +26,6 @@ interface Investment { id: string; name: string; type: string; platform: string;
 interface Props {
   pots: SavingsPot[];
   currencies: CurrencyLite[];
-  goals: Goal[];
   cumulativeSavings: CumulativeSavings;
   avgMonthlyExpenses: number;
   investments: Investment[];
@@ -115,7 +113,10 @@ function PotCard({ pot, base, onAdd, onCorrect, onDelete }: {
       </div>
       {pot.targetAmount > 0 && (
         <>
-          <div className="text-xs text-muted-foreground mb-2">{pct}% of {base.symbol} {fmt(pot.targetAmount)} goal</div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+            <span>{pct}% of {base.symbol} {fmt(pot.targetAmount)} goal</span>
+            {pot.targetDate && <span>by {new Date(pot.targetDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</span>}
+          </div>
           <Progress value={Math.min(pct, 100)} className="h-2 mb-3" />
         </>
       )}
@@ -132,7 +133,7 @@ function PotCard({ pot, base, onAdd, onCorrect, onDelete }: {
   );
 }
 
-export function SavingsClient({ pots, currencies, goals: _goals, cumulativeSavings, avgMonthlyExpenses, investments, emergencyFundMonths, totalIncome, readyToAssign, incomeAvailability, liquidAvailable }: Props) {
+export function SavingsClient({ pots, currencies, cumulativeSavings, avgMonthlyExpenses, investments, emergencyFundMonths, totalIncome, readyToAssign, incomeAvailability, liquidAvailable }: Props) {
   const base = baseCurrencyOf(currencies);
   const [potDialog, setPotDialog] = useState<{ type: "add" | "correct" | "new" | null; potId?: string }>({ type: null });
   const [amount, setAmount] = useState("");
@@ -140,7 +141,7 @@ export function SavingsClient({ pots, currencies, goals: _goals, cumulativeSavin
   const [potSourceType, setPotSourceType] = useState<"income" | "pot" | "manual">("income");
   const [potSourcePotId, setPotSourcePotId] = useState("");
   const [correctNote, setCorrectNote] = useState("");
-  const [newPot, setNewPot] = useState({ name: "", targetAmount: "", color: "#3b82f6", type: "GENERAL" });
+  const [newPot, setNewPot] = useState({ name: "", targetAmount: "", targetDate: "", color: "#3b82f6", type: "GENERAL" });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -193,14 +194,17 @@ export function SavingsClient({ pots, currencies, goals: _goals, cumulativeSavin
   async function handleCreatePot() {
     if (!newPot.name) return;
     setLoading(true);
+    const target = parseFloat(newPot.targetAmount) || 0;
     const result = await createSavingsPot({
       name: newPot.name,
       icon: "PiggyBank",
       color: newPot.color,
-      targetAmount: parseFloat(newPot.targetAmount) || 0,
-      type: newPot.type,
+      targetAmount: target,
+      // A pot with a target is a savings goal; type follows the target.
+      type: target > 0 ? "GOAL" : "GENERAL",
+      targetDate: newPot.targetDate || undefined,
     });
-    if (result.success) { toast.success("Pot created!"); setPotDialog({ type: null }); setNewPot({ name: "", targetAmount: "", color: "#3b82f6", type: "GENERAL" }); }
+    if (result.success) { toast.success("Pot created!"); setPotDialog({ type: null }); setNewPot({ name: "", targetAmount: "", targetDate: "", color: "#3b82f6", type: "GENERAL" }); }
     else toast.error(result.error ?? "Failed");
     setLoading(false);
   }
@@ -463,6 +467,13 @@ export function SavingsClient({ pots, currencies, goals: _goals, cumulativeSavin
               <Input type="number" value={newPot.targetAmount} onChange={(e) => setNewPot((p) => ({ ...p, targetAmount: e.target.value }))} placeholder="0" />
               <p className="text-xs text-muted-foreground">Target in {base.code}. You can add balances in any configured currency after creating.</p>
             </div>
+            {(parseFloat(newPot.targetAmount) || 0) > 0 && (
+              <div className="space-y-1.5">
+                <Label>Target Date <span className="text-muted-foreground font-normal text-xs">optional</span></Label>
+                <Input type="date" value={newPot.targetDate} onChange={(e) => setNewPot((p) => ({ ...p, targetDate: e.target.value }))} />
+                <p className="text-xs text-muted-foreground">A deadline for this savings goal.</p>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <Label>Color</Label>
               <input type="color" value={newPot.color} onChange={(e) => setNewPot((p) => ({ ...p, color: e.target.value }))} className="w-10 h-8 rounded cursor-pointer border border-border" />
