@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard, ArrowDownUp, PiggyBank, Target, ListTodo,
+  LayoutDashboard, ArrowDownUp, PiggyBank, ListTodo,
   Calendar, Gift, Settings, TrendingUp, CalendarDays, Wallet,
   HandCoins, ShoppingCart, LineChart, MoreHorizontal, X,
   FlaskConical, ClipboardList, FolderKanban,
@@ -15,7 +15,6 @@ const PRIMARY_NAV = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/expenses", label: "Expenses", icon: ArrowDownUp },
   { href: "/budget", label: "Budget", icon: PiggyBank },
-  { href: "/goals", label: "Goals", icon: Target },
   { href: "/tasks", label: "Tasks", icon: ListTodo },
 ];
 

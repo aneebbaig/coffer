@@ -22,7 +22,6 @@ const DELETE_ORDER: ResetGroupKey[] = [
   "transactions",
   "budgets",
   "savingsPots",
-  "goals",
   "investments",
   "loans",
   "planners",
@@ -68,11 +67,6 @@ export async function resetAppData(
             case "savingsPots": {
               const r = await tx.savingsPot.deleteMany({});
               deleted.savingsPots = r.count;
-              break;
-            }
-            case "goals": {
-              const r = await tx.goal.deleteMany({});
-              deleted.goals = r.count;
               break;
             }
             case "investments": {

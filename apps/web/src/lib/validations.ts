@@ -24,24 +24,6 @@ export const budgetCategorySchema = z.object({
   allocatedAmount: z.number().min(0),
 });
 
-export const goalSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).optional(),
-  icon: z.string().default("Target"),
-  color: z.string().default("#6366f1"),
-  targetAmount: z.number().positive(),
-  deadline: z.string().optional(),
-  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
-});
-
-export const goalItemSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1),
-  estimatedCost: z.number().min(0),
-  actualCost: z.number().min(0).optional(),
-  purchased: z.boolean().default(false),
-});
-
 export const plannerSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
@@ -63,8 +45,8 @@ export const savingsPotSchema = z.object({
   icon: z.string().default("PiggyBank"),
   color: z.string().default("#3b82f6"),
   targetAmount: z.number().min(0).default(0),
-  type: z.enum(["EMERGENCY", "GENERAL", "GOAL_LINKED", "CUSTOM"]).default("GENERAL"),
-  linkedGoalId: z.string().optional(),
+  type: z.enum(["EMERGENCY", "GENERAL", "GOAL", "CUSTOM"]).default("GENERAL"),
+  targetDate: z.string().optional(),
 });
 
 export const investmentSchema = z.object({

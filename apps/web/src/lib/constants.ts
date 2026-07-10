@@ -29,7 +29,7 @@ export const TASK_CATEGORIES = ["Home", "Work", "Personal", "Errands", "Finance"
 export const PLANNER_STATUSES = ["PLANNING", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const;
 export const PLANNER_ITEM_STATUSES = ["PENDING", "BOOKED", "PAID", "SKIPPED"] as const;
 
-export const SAVINGS_POT_TYPES = ["EMERGENCY", "GENERAL", "GOAL_LINKED", "CUSTOM"] as const;
+export const SAVINGS_POT_TYPES = ["EMERGENCY", "GENERAL", "GOAL", "CUSTOM"] as const;
 
 export const INVESTMENT_TYPES = [
   "MUTUAL_FUND",

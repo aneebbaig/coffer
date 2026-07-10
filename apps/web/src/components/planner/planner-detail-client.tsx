@@ -52,8 +52,6 @@ const PLANNER_STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-// Suggested event groups for wedding planners (also usable for other types)
-const WEDDING_GROUPS = ["Nikkah", "Mehndi", "Barat", "Valima", "Dholki", "General"];
 const GENERIC_GROUPS = ["Phase 1", "Phase 2", "Phase 3", "Venue", "Catering", "Decor", "Transport", "Other"];
 
 export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "Rs" }: { planner: Planner; financialPosition: FinancialPosition; baseSymbol?: string }) {
@@ -85,7 +83,7 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
     }
   }
 
-  const suggestedGroups = planner.type === "WEDDING" ? WEDDING_GROUPS : GENERIC_GROUPS;
+  const suggestedGroups = GENERIC_GROUPS;
 
   async function handleAddItem() {
     if (!newItem.name) return;
@@ -224,24 +222,6 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Wedding migration banner */}
-      {planner.type === "WEDDING" && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-pink-200 bg-pink-50 dark:border-pink-800 dark:bg-pink-950/30 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span>💍</span>
-            <span className="text-pink-800 dark:text-pink-200">
-              There&apos;s a dedicated Wedding Planner now with events, vendor quotes, and budget breakdown.
-            </span>
-          </div>
-          <Link
-            href="/wedding"
-            className="shrink-0 text-xs font-semibold text-pink-600 dark:text-pink-400 hover:underline"
-          >
-            Open Wedding Planner →
-          </Link>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/planner">
@@ -436,7 +416,7 @@ export function PlannerDetailClient({ planner, financialPosition, baseSymbol = "
                   list={`groups-${planner.id}`}
                   value={newItem.eventGroup}
                   onChange={(e) => setNewItem((p) => ({ ...p, eventGroup: e.target.value }))}
-                  placeholder={planner.type === "WEDDING" ? "e.g. Barat" : "e.g. Phase 1"}
+                  placeholder="e.g. Phase 1"
                 />
                 <datalist id={`groups-${planner.id}`}>
                   {suggestedGroups.map((g) => <option key={g} value={g} />)}

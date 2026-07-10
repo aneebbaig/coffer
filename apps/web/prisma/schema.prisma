@@ -47,7 +47,6 @@ model User {
   categories     Category[]
   transactions   Transaction[]
   budgets        Budget[]
-  goals          Goal[]
   planners       Planner[]
   savingsPots    SavingsPot[]
   investments    Investment[]
@@ -198,31 +197,6 @@ model BudgetCategory {
   @@map("budget_categories")
 }
 
-model Goal {
-  id           String    @id @default(cuid())
-  name         String
-  description  String?
-  icon         String    @default("Target")
-  color        String    @default("#6366f1")
-  targetAmount Int
-  savedAmount  Int       @default(0)
-  deadline     DateTime?
-  priority     String    @default("MEDIUM") // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
-  status       String    @default("ACTIVE") // "ACTIVE" | "PAUSED" | "COMPLETED" | "ABANDONED"
-  items        String    @default("[]") // JSON array of {name, estimatedCost, actualCost?, purchased}
-  goalType     String    @default("FIXED") // "FIXED" | "ITEMS" — FIXED has upfront targetAmount; ITEMS derives it from item costs
-  order        Int       @default(0)
-  userId       String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  savingsPots SavingsPot[]
-
-  @@index([userId])
-  @@map("goals")
-}
-
 model Planner {
   id                 String    @id @default(cuid())
   name               String
@@ -230,7 +204,7 @@ model Planner {
   icon               String    @default("CalendarDays")
   coverColor         String    @default("#6366f1")
   // Type of life event — affects grouping options in the UI
-  type               String    @default("GENERAL") // "GENERAL" | "WEDDING" | "HOUSE_MOVE" | "TRIP" | "RENOVATION" | "CUSTOM"
+  type               String    @default("GENERAL") // "GENERAL" | "HOUSE_MOVE" | "TRIP" | "RENOVATION" | "CUSTOM" (weddings use the dedicated Wedding feature)
   estimatedTotalCost Int       @default(0)
   targetDate         DateTime?
   status             String    @default("PLANNING") // "PLANNING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
@@ -277,14 +251,15 @@ model SavingsPot {
   icon         String   @default("PiggyBank")
   color        String   @default("#3b82f6")
   targetAmount Int      @default(0)
-  type         String   @default("GENERAL") // "EMERGENCY" | "LIQUID" | "GENERAL" | "GOAL_LINKED" | "CUSTOM"
-  linkedGoalId String?
+  // Optional deadline for a targeted pot (a pot with a target IS a savings goal —
+  // goals were merged into pots). Null = no deadline.
+  targetDate   DateTime?
+  type         String   @default("GENERAL") // "EMERGENCY" | "LIQUID" | "GENERAL" | "GOAL" | "CUSTOM"
   userId       String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  linkedGoal         Goal?                      @relation(fields: [linkedGoalId], references: [id])
   balances           SavingsPotBalance[]
   history            SavingsPotEntry[]
   budgetAllocations  BudgetSavingsAllocation[]
