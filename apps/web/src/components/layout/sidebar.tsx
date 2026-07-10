@@ -34,7 +34,7 @@ const NAV_GROUPS = [
   {
     label: "Planning",
     items: [
-      { href: "/planner", label: "Planner", icon: CalendarDays },
+      { href: "/plans", label: "Plans", icon: CalendarDays },
       { href: "/wedding", label: "Wedding", icon: Heart },
       { href: "/lists", label: "Lists", icon: ClipboardList },
     ],
@@ -43,7 +43,7 @@ const NAV_GROUPS = [
     label: "Life",
     items: [
       { href: "/tasks", label: "Tasks", icon: ListTodo },
-      { href: "/projects", label: "Projects", icon: FolderKanban },
+      { href: "/projects", label: "Work", icon: FolderKanban },
       { href: "/calendar", label: "Calendar", icon: Calendar },
       { href: "/vault", label: "Vault", icon: Gift },
       { href: "/perfumes", label: "Perfumes", icon: FlaskConical },

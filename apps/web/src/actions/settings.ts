@@ -194,7 +194,7 @@ export async function exportUserData(): Promise<{ success: true; data: object } 
         prisma.transaction.findMany({ where: { userId }, include: { category: true } }),
         prisma.category.findMany({ where: { userId, isHidden: false } }),
         prisma.budget.findMany({ where: { userId }, include: { budgetCategories: true } }),
-        prisma.planner.findMany({ where: { userId }, include: { items: true } }),
+        prisma.plan.findMany({ where: { userId }, include: { items: true } }),
         prisma.savingsPot.findMany({ where: { userId }, include: { history: true, balances: { include: { currency: true } } } }),
         prisma.investment.findMany({ where: { userId } }),
         prisma.task.findMany({ where: { userId } }),

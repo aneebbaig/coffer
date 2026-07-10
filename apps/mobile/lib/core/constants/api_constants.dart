@@ -36,6 +36,11 @@ class ApiConstants {
   static const String cashflow = '/cashflow';
   static const String investments = '/investments';
   static const String investmentPlan = '/investment-plan';
+  static const String plans = '/plans';
+
+  static String planById(String id) => '/plans/$id';
+  static String planItemBuy(String planId, String itemId) => '/plans/$planId/items/$itemId/buy';
+  static String planItem(String planId, String itemId) => '/plans/$planId/items/$itemId';
 
   static String investmentById(String id) => '/investments/$id';
   static String investmentContributions(String id) => '/investments/$id/contributions';

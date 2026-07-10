@@ -89,7 +89,7 @@ export async function resetAppData(
               break;
             }
             case "planners": {
-              const r = await tx.planner.deleteMany({});
+              const r = await tx.plan.deleteMany({});
               deleted.planners = r.count;
               break;
             }

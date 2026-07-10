@@ -50,7 +50,7 @@ export function ProjectsClient({ projects }: { projects: ProjectCardData[] }) {
     <>
       <PageHeader
         section="Life"
-        title="Projects"
+        title="Work"
         description="Freelance and client work - projects with their own tasks, statuses, and due dates."
         action={
           <Button onClick={() => setOpen(true)}>
