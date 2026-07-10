@@ -47,7 +47,7 @@ model User {
   categories     Category[]
   transactions   Transaction[]
   budgets        Budget[]
-  planners       Planner[]
+  plans          Plan[]
   savingsPots    SavingsPot[]
   investments    Investment[]
   tasks          Task[]
@@ -112,8 +112,8 @@ model Transaction {
   // Flagged by the user as an impulse/regret purchase (EXPENSE only). Powers
   // the regret-buy stats view - not enforced at the DB level for INCOME rows.
   isRegretPurchase   Boolean  @default(false)
-  // Optional link to a planner item (to track actual spend against a plan)
-  plannerItemId      String?
+  // Optional link to a plan item (to track actual spend against a plan)
+  planItemId         String?
   // For income entered in a non-base currency: amount (above) is always the
   // base-currency equivalent; these capture what was actually entered.
   nativeCurrencyId   String? // null = entered directly in the base currency
@@ -132,7 +132,7 @@ model Transaction {
 
   category                    Category                   @relation(fields: [categoryId], references: [id])
   user                        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plannerItem                 PlannerItem?               @relation(fields: [plannerItemId], references: [id], onDelete: SetNull)
+  planItem                    PlanItem?                  @relation(fields: [planItemId], references: [id], onDelete: SetNull)
   fundingPot                  SavingsPot?                @relation("ExpenseFundingPot", fields: [fundingPotId], references: [id], onDelete: SetNull)
   fundingSources              TransactionFundingSource[]
   nativeCurrency              Currency?                  @relation("TransactionNativeCurrency", fields: [nativeCurrencyId], references: [id])
@@ -146,7 +146,7 @@ model Transaction {
   @@index([date])
   @@index([categoryId])
   @@index([type])
-  @@index([plannerItemId])
+  @@index([planItemId])
   @@index([fundingPotId])
   @@index([userId, budgetMonth, budgetYear])
   @@index([userId, isRegretPurchase])
@@ -197,14 +197,21 @@ model BudgetCategory {
   @@map("budget_categories")
 }
 
-model Planner {
+// A Plan is something you're working toward buying/achieving. FIXED = a single
+// target cost; ITEMIZED = a checklist of items you buy over time and tick off.
+// Distinct from a Savings Pot (real money set aside) — a Plan tracks cost and
+// progress and reads your savings to answer "can I afford it?".
+model Plan {
   id                 String    @id @default(cuid())
   name               String
   description        String?
   icon               String    @default("CalendarDays")
   coverColor         String    @default("#6366f1")
-  // Type of life event — affects grouping options in the UI
+  // FIXED (one target cost) | ITEMIZED (cost derived from item checklist)
+  planType           String    @default("ITEMIZED")
+  // Category — affects grouping options in the UI
   type               String    @default("GENERAL") // "GENERAL" | "HOUSE_MOVE" | "TRIP" | "RENOVATION" | "CUSTOM" (weddings use the dedicated Wedding feature)
+  // Target cost. For ITEMIZED plans this is kept in sync with the sum of item costs.
   estimatedTotalCost Int       @default(0)
   targetDate         DateTime?
   status             String    @default("PLANNING") // "PLANNING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
@@ -214,16 +221,16 @@ model Planner {
   updatedAt          DateTime  @updatedAt
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items          PlannerItem[]
+  items          PlanItem[]
   calendarEvents CalendarEvent[]
 
   @@index([userId])
-  @@map("planners")
+  @@map("plans")
 }
 
-model PlannerItem {
+model PlanItem {
   id            String    @id @default(cuid())
-  plannerId     String
+  planId        String
   name          String
   description   String?
   estimatedCost Int       @default(0)
@@ -231,18 +238,18 @@ model PlannerItem {
   status        String    @default("PENDING") // "PENDING" | "BOOKED" | "PAID" | "SKIPPED"
   dueDate       DateTime?
   notes         String?
-  // For grouping items within complex planners (e.g., "Nikkah", "Barat", "Valima" for weddings)
+  // For grouping items within complex plans (e.g. phases)
   eventGroup    String?
   // Vendor/supplier name for this item
   vendor        String?
   // JSON array of vendor quotes: [{vendor, amount, notes}]
   quotes        String?
 
-  planner      Planner       @relation(fields: [plannerId], references: [id], onDelete: Cascade)
+  plan         Plan          @relation(fields: [planId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
-  @@index([plannerId])
-  @@map("planner_items")
+  @@index([planId])
+  @@map("plan_items")
 }
 
 model SavingsPot {
@@ -493,14 +500,14 @@ model CalendarEvent {
   isAllDay        Boolean  @default(true)
   reminder        String   @default("NONE") // "NONE" | "AT_TIME" | "MIN_15" | "MIN_30" | "HOUR_1" | "DAY_1"
   linkedTaskId    String?
-  linkedPlannerId String?
+  linkedPlanId    String?
   userId          String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   linkedTask    Task?    @relation(fields: [linkedTaskId], references: [id], onDelete: SetNull)
-  linkedPlanner Planner? @relation(fields: [linkedPlannerId], references: [id], onDelete: SetNull)
+  linkedPlan    Plan?    @relation(fields: [linkedPlanId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([date])

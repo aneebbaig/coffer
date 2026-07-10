@@ -14,6 +14,8 @@ import 'features/expenses/presentation/pages/quick_add_expense_page.dart';
 import 'features/budget/presentation/pages/budget_page.dart';
 import 'features/savings/presentation/pages/savings_page.dart';
 import 'features/investments/presentation/pages/investments_page.dart';
+import 'features/plans/presentation/pages/plans_page.dart';
+import 'features/plans/presentation/pages/plan_detail_page.dart';
 import 'features/loans/presentation/pages/loans_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
 import 'features/tasks/presentation/pages/tasks_page.dart';
@@ -110,6 +112,16 @@ GoRouter goRouter(Ref ref) {
           GoRoute(
             path: '/loans',
             builder: (_, __) => const LoansPage(),
+          ),
+          GoRoute(
+            path: '/plans',
+            builder: (_, __) => const PlansPage(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, state) => PlanDetailPage(planId: state.pathParameters['id']!),
+              ),
+            ],
           ),
           GoRoute(
             path: '/projects',

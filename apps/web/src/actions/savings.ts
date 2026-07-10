@@ -5,6 +5,7 @@ import { getUserId, getAuthenticatedUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getCurrentPeriod, getCalendarMonthRange } from "@/lib/month";
 import { toPaisas } from "@/lib/utils";
+import { computeFinancialPosition } from "@/lib/financial-position";
 import { creditPot, debitPot } from "@/lib/pot-helpers";
 import { getCurrencies, getPotBalancesInBase } from "@/lib/currency-helpers";
 import { getCashflowProjection } from "@/actions/cashflow";
@@ -434,35 +435,7 @@ export async function getAverageMonthlyExpenses(): Promise<number> {
 
 export async function getFinancialPosition() {
   const userId = await getUserId();
-
-  const [transactions, savingsPotsTotal, investments, loans] = await Promise.all([
-    prisma.transaction.findMany({ where: { userId }, select: { amount: true, type: true } }),
-    getPotBalancesInBase(userId),
-    prisma.investment.findMany({ where: { userId }, select: { currentValue: true } }),
-    prisma.loan.findMany({ where: { userId, status: { not: "PAID" } }, select: { remainingAmount: true, type: true } }),
-  ]);
-
-  const totalIncome = transactions.filter((t) => t.type === "INCOME").reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = transactions.filter((t) => t.type === "EXPENSE").reduce((s, t) => s + t.amount, 0);
-  // Income minus expenses only - pot deposits never create a Transaction row
-  // (see pot-helpers.ts), so this already includes whatever's sitting in pots.
-  const accumulatedSavings = totalIncome - totalExpenses;
-
-  const investmentsTotal = investments.reduce((s, i) => s + i.currentValue, 0);
-  const loansOwed = loans.filter((l) => l.type === "RECEIVED").reduce((s, l) => s + l.remainingAmount, 0);
-  const loansReceivable = loans.filter((l) => l.type === "GIVEN").reduce((s, l) => s + l.remainingAmount, 0);
-
-  return {
-    accumulatedSavings,
-    savingsPotsTotal,
-    investmentsTotal,
-    loansOwed,
-    loansReceivable,
-    // Cash on hand, not already committed to a savings pot - what Liquid
-    // Savings used to represent, now computed live instead of being a pot.
-    liquidAvailable: accumulatedSavings - savingsPotsTotal,
-    netWorth: accumulatedSavings + investmentsTotal - loansOwed + loansReceivable,
-  };
+  return computeFinancialPosition(userId);
 }
 
 export async function getCumulativeSavings(): Promise<{

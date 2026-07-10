@@ -5,10 +5,11 @@ import { getUserId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { toPaisas } from "@/lib/utils";
 import { ActionResult } from "@/types";
+import { createTransaction } from "@/actions/expenses";
 
 export async function getPlanners() {
   const userId = await getUserId();
-  return prisma.planner.findMany({
+  return prisma.plan.findMany({
     where: { userId },
     include: { items: true },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
@@ -17,7 +18,7 @@ export async function getPlanners() {
 
 export async function getPlanner(id: string) {
   const userId = await getUserId();
-  return prisma.planner.findFirst({
+  return prisma.plan.findFirst({
     where: { id, userId },
     include: {
       items: {
@@ -33,38 +34,44 @@ export async function createPlanner(data: {
   icon: string;
   coverColor: string;
   type?: string;
+  planType?: string; // FIXED | ITEMIZED
   targetDate?: string;
+  estimatedTotalCost?: number; // FIXED plans: a single target cost
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    await prisma.planner.create({
+    const { estimatedTotalCost, ...rest } = data;
+    await prisma.plan.create({
       data: {
-        ...data,
+        ...rest,
         type: data.type ?? "GENERAL",
+        planType: data.planType ?? "ITEMIZED",
+        // FIXED plans carry the target directly; ITEMIZED derive it from items.
+        estimatedTotalCost: data.planType === "FIXED" && estimatedTotalCost ? toPaisas(estimatedTotalCost) : 0,
         targetDate: data.targetDate ? new Date(data.targetDate) : null,
         userId,
       },
     });
-    revalidatePath("/planner");
+    revalidatePath("/plans");
     return { success: true };
   } catch (e) {
     console.error("[createPlanner]", e);
-    return { success: false, error: "Failed to create planner" };
+    return { success: false, error: "Failed to create plan" };
   }
 }
 
 export async function updatePlannerStatus(id: string, status: string): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    await prisma.planner.updateMany({
+    await prisma.plan.updateMany({
       where: { id, userId },
       data: {
         status,
         completedAt: status === "COMPLETED" ? new Date() : null,
       },
     });
-    revalidatePath("/planner");
-    revalidatePath(`/planner/${id}`);
+    revalidatePath("/plans");
+    revalidatePath(`/plans/${id}`);
     return { success: true };
   } catch (e) {
     console.error("[updatePlannerStatus]", e);
@@ -77,15 +84,15 @@ export async function updatePlanner(id: string, data: Partial<{
 }>): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    await prisma.planner.updateMany({
+    await prisma.plan.updateMany({
       where: { id, userId },
       data: {
         ...data,
         estimatedTotalCost: data.estimatedTotalCost !== undefined ? toPaisas(data.estimatedTotalCost) : undefined,
       },
     });
-    revalidatePath("/planner");
-    revalidatePath(`/planner/${id}`);
+    revalidatePath("/plans");
+    revalidatePath(`/plans/${id}`);
     return { success: true };
   } catch (e) {
     console.error("[updatePlanner]", e);
@@ -93,7 +100,7 @@ export async function updatePlanner(id: string, data: Partial<{
   }
 }
 
-export async function createPlannerItem(plannerId: string, data: {
+export async function createPlannerItem(planId: string, data: {
   name: string;
   description?: string;
   estimatedCost: number;
@@ -104,18 +111,18 @@ export async function createPlannerItem(plannerId: string, data: {
 }): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    const planner = await prisma.planner.findFirst({ where: { id: plannerId, userId } });
+    const planner = await prisma.plan.findFirst({ where: { id: planId, userId } });
     if (!planner) return { success: false, error: "Not found" };
 
-    await prisma.plannerItem.create({
+    await prisma.planItem.create({
       data: {
         ...data,
         estimatedCost: toPaisas(data.estimatedCost),
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
-        plannerId,
+        planId,
       },
     });
-    revalidatePath(`/planner/${plannerId}`);
+    revalidatePath(`/plans/${planId}`);
     return { success: true };
   } catch (e) {
     console.error("[createPlannerItem]", e);
@@ -128,17 +135,20 @@ export async function updatePlannerItem(id: string, data: Partial<{
 }>): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    const item = await prisma.plannerItem.findFirst({
+    const item = await prisma.planItem.findFirst({
       where: { id },
-      select: { planner: { select: { userId: true } } },
+      select: { plan: { select: { userId: true } } },
     });
-    if (!item || item.planner.userId !== userId) return { success: false, error: "Not found" };
+    if (!item || item.plan.userId !== userId) return { success: false, error: "Not found" };
 
-    await prisma.plannerItem.update({
+    await prisma.planItem.update({
       where: { id },
       data: {
         ...data,
-        actualCost: data.actualCost !== undefined ? toPaisas(data.actualCost) : undefined,
+        // Un-marking (back to PENDING) clears the recorded actual cost.
+        actualCost: data.status === "PENDING"
+          ? null
+          : data.actualCost !== undefined ? toPaisas(data.actualCost) : undefined,
       },
     });
     return { success: true };
@@ -151,13 +161,13 @@ export async function updatePlannerItem(id: string, data: Partial<{
 export async function deletePlannerItem(id: string): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    const item = await prisma.plannerItem.findFirst({
+    const item = await prisma.planItem.findFirst({
       where: { id },
-      select: { planner: { select: { userId: true } } },
+      select: { plan: { select: { userId: true } } },
     });
-    if (!item || item.planner.userId !== userId) return { success: false, error: "Not found" };
+    if (!item || item.plan.userId !== userId) return { success: false, error: "Not found" };
 
-    await prisma.plannerItem.delete({ where: { id } });
+    await prisma.planItem.delete({ where: { id } });
     return { success: true };
   } catch (e) {
     console.error("[deletePlannerItem]", e);
@@ -165,11 +175,50 @@ export async function deletePlannerItem(id: string): Promise<ActionResult> {
   }
 }
 
+// One-tap: mark a plan item bought and book a real expense for it (the flow
+// itemized goals had). Auto-provisions a "Plan Purchase" category so it stays
+// a single click, and reuses createTransaction for the income/notification checks.
+export async function logPlanItemExpense(itemId: string): Promise<ActionResult> {
+  try {
+    const userId = await getUserId();
+    const item = await prisma.planItem.findFirst({
+      where: { id: itemId },
+      include: { plan: { select: { userId: true, id: true } } },
+    });
+    if (!item || item.plan.userId !== userId) return { success: false, error: "Not found" };
+
+    const amountPaisas = item.actualCost ?? item.estimatedCost;
+    if (!amountPaisas || amountPaisas <= 0) return { success: false, error: "Set a cost for this item first" };
+
+    const category = await prisma.category.findFirst({ where: { userId, name: "Plan Purchase", type: "EXPENSE" } })
+      ?? await prisma.category.create({ data: { userId, name: "Plan Purchase", type: "EXPENSE", color: "#8b5cf6", icon: "🎯" } });
+
+    const result = await createTransaction({
+      amount: amountPaisas / 100,
+      type: "EXPENSE",
+      categoryId: category.id,
+      description: item.name,
+      date: new Date().toISOString().slice(0, 10),
+      isRecurring: false,
+      tags: "",
+      fundingSource: "INCOME",
+    });
+    if (!result.success) return result;
+
+    await prisma.planItem.update({ where: { id: itemId }, data: { status: "PAID", actualCost: amountPaisas } });
+    revalidatePath(`/plans/${item.plan.id}`);
+    return { success: true };
+  } catch (e) {
+    console.error("[logPlanItemExpense]", e);
+    return { success: false, error: "Failed to log expense" };
+  }
+}
+
 export async function deletePlanner(id: string): Promise<ActionResult> {
   try {
     const userId = await getUserId();
-    await prisma.planner.deleteMany({ where: { id, userId } });
-    revalidatePath("/planner");
+    await prisma.plan.deleteMany({ where: { id, userId } });
+    revalidatePath("/plans");
     return { success: true };
   } catch (e) {
     console.error("[deletePlanner]", e);

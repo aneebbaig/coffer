@@ -3,7 +3,7 @@ import { getProjects } from "@/actions/projects";
 import { ProjectsClient } from "@/components/projects/projects-client";
 import { ProjectCardData } from "@/components/projects/project-card";
 
-export const metadata: Metadata = { title: "Projects" };
+export const metadata: Metadata = { title: "Work" };
 
 export default async function ProjectsPage() {
   const projects = await getProjects();
