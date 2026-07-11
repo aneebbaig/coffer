@@ -308,7 +308,7 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text('Project', style: AppTextStyles.headlineSmall),
+        title: const Text('Work', style: AppTextStyles.headlineSmall),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: AppColors.mutedForeground),

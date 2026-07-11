@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireBearerAuth } from "@/lib/v1-auth";
 import { computeFinancialPosition } from "@/lib/financial-position";
+import type { Prisma } from "@/generated/prisma/client";
 
 // A plan with its item checklist + an affordability snapshot (plan cost vs the
 // user's liquid money), so mobile can show "can you cover it?" like web.
@@ -62,6 +64,56 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         },
       },
     });
+  } catch {
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+// ── PATCH /api/v1/plans/[id] — edit a plan ───────────────────────────────────
+
+const patchSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  status: z.enum(["PLANNING", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
+  targetDate: z.string().nullable().optional(),
+  coverColor: z.string().max(32).optional(),
+  estimatedTotalPaisas: z.number().int().nonnegative().optional(),
+});
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireBearerAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { id } = await params;
+
+  try {
+    const parsed = patchSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
+    }
+    const d = parsed.data;
+    const update: Prisma.PlanUncheckedUpdateManyInput = {};
+    if (d.name != null) update.name = d.name;
+    if (d.status != null) update.status = d.status;
+    if (d.coverColor != null) update.coverColor = d.coverColor;
+    if (d.targetDate !== undefined) update.targetDate = d.targetDate ? new Date(d.targetDate) : null;
+    if (d.estimatedTotalPaisas != null) update.estimatedTotalCost = d.estimatedTotalPaisas;
+
+    const updated = await prisma.plan.updateMany({ where: { id, userId: auth.id }, data: update });
+    if (updated.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ data: { id } });
+  } catch {
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireBearerAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const { id } = await params;
+
+  try {
+    const deleted = await prisma.plan.deleteMany({ where: { id, userId: auth.id } });
+    if (deleted.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ data: { id } });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

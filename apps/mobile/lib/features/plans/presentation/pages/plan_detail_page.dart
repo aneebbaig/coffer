@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/extensions/currency_ext.dart';
@@ -11,6 +12,7 @@ import '../../../../core/widgets/app_card.dart';
 import '../../data/datasources/plans_datasource.dart';
 import '../../domain/entities/plan_entity.dart';
 import '../providers/plans_provider.dart';
+import '../widgets/plan_sheets.dart';
 
 class PlanDetailPage extends ConsumerWidget {
   const PlanDetailPage({super.key, required this.planId});
@@ -25,6 +27,25 @@ class PlanDetailPage extends ConsumerWidget {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(async.asData?.value.name ?? 'Plan', style: AppTextStyles.headlineSmall),
+        actions: [
+          if (async.asData != null)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: AppColors.mutedForeground),
+              color: AppColors.popover,
+              onSelected: (v) {
+                final plan = async.asData!.value;
+                if (v == 'edit') {
+                  showEditPlanSheet(context, ref, plan);
+                } else if (v == 'delete') {
+                  _confirmDeletePlan(context, ref, plan);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'edit', child: Text('Edit plan', style: AppTextStyles.bodyMedium)),
+                PopupMenuItem(value: 'delete', child: Text('Delete plan', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.destructive))),
+              ],
+            ),
+        ],
       ),
       body: RefreshIndicator(
         color: AppColors.primary,
@@ -94,7 +115,16 @@ class _Content extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('Items & Checklist', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
-            Text('$paidCount/${plan.items.length} done', style: AppTextStyles.bodySmall),
+            Row(children: [
+              Text('$paidCount/${plan.items.length} done', style: AppTextStyles.bodySmall),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () => showAddItemSheet(context, ref, plan.id),
+                icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+                label: const Text('Add', style: TextStyle(color: AppColors.primary)),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6), minimumSize: Size.zero),
+              ),
+            ]),
           ],
         ),
         const SizedBox(height: 8),
@@ -104,10 +134,49 @@ class _Content extends ConsumerWidget {
                 item: item,
                 onBuy: () => _buy(context, ref, item),
                 onUndo: () => _undo(context, ref, item),
+                onEdit: () => showEditItemSheet(context, ref, plan.id, item),
+                onDelete: () => _deleteItem(context, ref, item),
               ),
             )),
       ],
     );
+  }
+
+  Future<void> _deleteItem(BuildContext context, WidgetRef ref, PlanItemEntity item) async {
+    try {
+      await ref.read(plansDatasourceProvider).deleteItem(planId: plan.id, itemId: item.id);
+      ref.invalidate(planDetailProvider(plan.id));
+      ref.invalidate(plansProvider);
+    } catch (e) {
+      if (context.mounted) ref.read(toastServiceProvider).error(context, e is AppException ? e.message : 'Failed');
+    }
+  }
+}
+
+Future<void> _confirmDeletePlan(BuildContext context, WidgetRef ref, PlanDetailEntity plan) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppColors.card,
+      title: const Text('Delete plan?', style: AppTextStyles.bodyLarge),
+      content: Text('This removes ${plan.name} and all its items.', style: AppTextStyles.bodySmall),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete', style: TextStyle(color: AppColors.destructive))),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  try {
+    HapticFeedback.mediumImpact();
+    await ref.read(plansDatasourceProvider).deletePlan(plan.id);
+    ref.invalidate(plansProvider);
+    if (context.mounted) {
+      ref.read(toastServiceProvider).success(context, 'Deleted');
+      context.pop();
+    }
+  } catch (e) {
+    if (context.mounted) ref.read(toastServiceProvider).error(context, e is AppException ? e.message : 'Failed');
   }
 }
 
@@ -191,13 +260,38 @@ class _Mini extends StatelessWidget {
 }
 
 class _ItemRow extends StatelessWidget {
-  const _ItemRow({required this.item, required this.onBuy, required this.onUndo});
+  const _ItemRow({required this.item, required this.onBuy, required this.onUndo, required this.onEdit, required this.onDelete});
   final PlanItemEntity item;
   final VoidCallback onBuy;
   final VoidCallback onUndo;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  void _menu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.popover,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.edit_outlined, color: AppColors.foreground, size: 20),
+            title: const Text('Edit item', style: AppTextStyles.bodyMedium),
+            onTap: () { Navigator.pop(ctx); onEdit(); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: AppColors.destructive, size: 20),
+            title: Text('Delete item', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.destructive)),
+            onTap: () { Navigator.pop(ctx); onDelete(); },
+          ),
+        ]),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => AppCard(
+        onTap: () => _menu(context),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [

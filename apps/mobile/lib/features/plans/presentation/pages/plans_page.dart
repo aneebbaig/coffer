@@ -10,6 +10,7 @@ import '../../../../core/widgets/app_empty_state.dart';
 import '../../../../core/widgets/app_progress_bar.dart';
 import '../../domain/entities/plan_entity.dart';
 import '../providers/plans_provider.dart';
+import '../widgets/plan_sheets.dart';
 
 Color planColor(String hex) {
   var h = hex.replaceAll('#', '');
@@ -29,6 +30,13 @@ class PlansPage extends ConsumerWidget {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: const Text('Plans', style: AppTextStyles.headlineSmall),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add, color: AppColors.primary),
+            tooltip: 'New plan',
+            onPressed: () => showNewPlanSheet(context, ref),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         color: AppColors.primary,
