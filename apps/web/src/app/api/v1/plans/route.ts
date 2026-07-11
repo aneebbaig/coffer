@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireBearerAuth } from "@/lib/v1-auth";
 
@@ -40,6 +41,47 @@ export async function GET(req: NextRequest) {
         };
       }),
     });
+  } catch {
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+// ── POST /api/v1/plans — create a plan ───────────────────────────────────────
+
+const createSchema = z.object({
+  name: z.string().min(1).max(100),
+  planType: z.enum(["FIXED", "ITEMIZED"]).default("ITEMIZED"),
+  icon: z.string().max(64).default("CalendarDays"),
+  coverColor: z.string().max(32).default("#6366f1"),
+  targetDate: z.string().optional(),
+  // FIXED plans: a single target cost.
+  estimatedTotalPaisas: z.number().int().nonnegative().optional(),
+});
+
+export async function POST(req: NextRequest) {
+  const auth = await requireBearerAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
+  try {
+    const parsed = createSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 });
+    }
+    const d = parsed.data;
+    const created = await prisma.plan.create({
+      data: {
+        name: d.name,
+        planType: d.planType,
+        icon: d.icon,
+        coverColor: d.coverColor,
+        type: "GENERAL",
+        estimatedTotalCost: d.planType === "FIXED" ? (d.estimatedTotalPaisas ?? 0) : 0,
+        targetDate: d.targetDate ? new Date(d.targetDate) : null,
+        userId: auth.id,
+      },
+      select: { id: true },
+    });
+    return NextResponse.json({ data: { id: created.id } }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
