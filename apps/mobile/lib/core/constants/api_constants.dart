@@ -39,6 +39,7 @@ class ApiConstants {
   static const String plans = '/plans';
 
   static String planById(String id) => '/plans/$id';
+  static String planItems(String planId) => '/plans/$planId/items';
   static String planItemBuy(String planId, String itemId) => '/plans/$planId/items/$itemId/buy';
   static String planItem(String planId, String itemId) => '/plans/$planId/items/$itemId';
 
