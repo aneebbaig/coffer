@@ -1,11 +1,11 @@
-name: Mobile · version + release AAB
+name: Mobile · version + release APK
 
-# Tag-only, Conventional-Commits SemVer. On a push to main that touches the
-# mobile app, analyse the commits since the last tag, bump the version, push a
-# vX.Y.Z tag, build a signed AAB, and deploy it to the Google Play "internal"
-# track. No GitHub Release is ever created — the app is only distributed
-# through Play. workflow_dispatch builds the current pubspec version on demand
-# (used for the one-time bootstrap AAB before Play auto-deploy is wired up).
+# Tag-only, Conventional-Commits SemVer for Obtainium distribution. On a push to
+# main that touches the mobile app, analyse the commits since the last tag, bump
+# the version, push a vX.Y.Z tag, build a signed APK, and publish it as a
+# GitHub Release. Obtainium tracks this repo's Releases and installs the latest
+# APK. workflow_dispatch builds the current pubspec version on demand (used to
+# mint the first v1.0.0 release).
 
 on:
   push:
@@ -78,8 +78,8 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Resolved: version=$VERSION tag=$TAG"
 
-  # ── Build the signed AAB and deploy to Play internal ───────────────────────
-  build-deploy:
+  # ── Build the signed APK and publish a GitHub Release ──────────────────────
+  build-release:
     needs: version
     if: needs.version.outputs.tag != ''
     runs-on: ubuntu-latest
@@ -129,54 +129,39 @@ jobs:
           storeFile=keystore.jks
           EOF
 
-      # AAB for Google Play. No --target-platform: the bundle carries all ABIs
-      # so Play can split per-device on install. versionCode = run_number keeps
-      # climbing monotonically as Play requires.
-      - name: Build signed AAB
+      - name: Build signed APK
         run: |
-          flutter build appbundle --release \
+          flutter build apk --release \
             --no-pub \
+            --target-platform android-arm64 \
             --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }} \
             --build-name="${{ needs.version.outputs.version }}" \
             --build-number=${{ github.run_number }} \
             --split-debug-info=build/debug-symbols \
             --obfuscate
 
-      # Guard: launcher label must be "Align". Caught a "Coffer" regression once.
-      # Read the label straight from the AAB manifest via bundletool (seconds).
+      # Guard: the launcher label must be "Align". Catches branding
+      # regressions in app_constants.dart / build.gradle.kts - already
+      # happened once, the APK just installed labeled "Coffer".
       - name: Verify branding
         run: |
-          AAB=build/app/outputs/bundle/release/app-release.aab
-          BT_JAR="$RUNNER_TEMP/bundletool.jar"
-          curl -sSL -o "$BT_JAR" https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar
-          LABEL="$(java -jar "$BT_JAR" dump manifest --bundle "$AAB" \
-            --xpath /manifest/application/@android:label)"
-          echo "AAB launcher label: '$LABEL'"
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt 2>/dev/null | sort -V | tail -1)"
+          if [ -z "$AAPT" ]; then echo "::error::aapt not found"; exit 1; fi
+          LABEL="$("$AAPT" dump badging "$APK" | grep -oE "application-label:'[^']*'" | head -1 | cut -d"'" -f2)"
+          echo "APK launcher label: '$LABEL'"
           if [ "$LABEL" != "Align" ]; then
-            echo "::error::AAB label is '$LABEL', expected 'Align'."
+            echo "::error::APK label is '$LABEL', expected 'Align'."
             exit 1
           fi
 
-      # The AAB is only ever a workflow artifact — never a GitHub Release.
-      - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+      # Publish the APK as a GitHub Release — this is what Obtainium tracks.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: align-${{ needs.version.outputs.tag }}-aab
-          path: apps/mobile/build/app/outputs/bundle/release/app-release.aab
-          retention-days: 30
-          if-no-files-found: error
-
-      # Deploy to Play "internal testing". Runs only once the service-account
-      # secret is set — i.e. after the one-time manual bootstrap. uses: steps
-      # ignore defaults.working-directory, so releaseFiles is repo-root relative.
-      - name: Deploy to Play internal testing
-        if: ${{ env.PLAY_JSON != '' }}
-        env:
-          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.anhib.align
-          releaseFiles: apps/mobile/build/app/outputs/bundle/release/app-release.aab
-          track: internal
-          status: completed
+          tag_name: ${{ needs.version.outputs.tag }}
+          files: apps/mobile/build/app/outputs/flutter-apk/app-release.apk
+          name: "Align ${{ needs.version.outputs.tag }}"
+          generate_release_notes: true
+          make_latest: true
+          draft: false
