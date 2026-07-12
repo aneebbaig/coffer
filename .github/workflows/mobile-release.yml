@@ -1,9 +1,19 @@
-name: Build & Release APK
+name: Mobile · version + release AAB
+
+# Tag-only, Conventional-Commits SemVer. On a push to main that touches the
+# mobile app, analyse the commits since the last tag, bump the version, push a
+# vX.Y.Z tag, build a signed AAB, and deploy it to the Google Play "internal"
+# track. No GitHub Release is ever created — the app is only distributed
+# through Play. workflow_dispatch builds the current pubspec version on demand
+# (used for the one-time bootstrap AAB before Play auto-deploy is wired up).
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-release.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,14 +21,71 @@ permissions:
 env:
   FLUTTER_VERSION: "3.44.4"
 
-defaults:
-  run:
-    working-directory: apps/mobile
-
 jobs:
-  build-apk:
+  # ── Decide the version and (on push) create the tag ────────────────────────
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # Auto-bump only once a baseline tag exists. The very first release
+      # (v1.0.0) is minted deliberately via workflow_dispatch — otherwise, with
+      # no tags, the bump action would scan all historical feat: commits and
+      # mint a stray version on the first push.
+      - name: Check for existing tags
+        id: tags
+        if: github.event_name == 'push'
+        run: |
+          if [ -n "$(git tag)" ]; then echo "exist=true" >> "$GITHUB_OUTPUT"; else echo "exist=false" >> "$GITHUB_OUTPUT"; fi
+
+      # Conventional-Commits bump (feat→minor, fix→patch, BREAKING→major).
+      # default_bump:false → no feat/fix since last tag means no release.
+      - name: Compute next tag
+        id: bump
+        if: github.event_name == 'push' && steps.tags.outputs.exist == 'true'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: main
+          tag_prefix: v
+          default_bump: false
+
+      # For manual runs, release the version already in pubspec.yaml and tag it
+      # if that tag doesn't exist yet (this is how the first v1.0.0 is minted).
+      - name: Resolve version
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="$(grep -m1 '^version:' apps/mobile/pubspec.yaml | sed 's/version:[[:space:]]*//; s/+.*//')"
+            TAG="v$VERSION"
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              echo "Tag $TAG already exists — building without re-tagging."
+            else
+              git tag "$TAG"
+              git push origin "$TAG"
+            fi
+          else
+            TAG="${{ steps.bump.outputs.new_tag }}"
+            VERSION="${{ steps.bump.outputs.new_version }}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved: version=$VERSION tag=$TAG"
+
+  # ── Build the signed AAB and deploy to Play internal ───────────────────────
+  build-deploy:
+    needs: version
+    if: needs.version.outputs.tag != ''
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,39 +129,54 @@ jobs:
           storeFile=keystore.jks
           EOF
 
-      - name: Build signed APK
+      # AAB for Google Play. No --target-platform: the bundle carries all ABIs
+      # so Play can split per-device on install. versionCode = run_number keeps
+      # climbing monotonically as Play requires.
+      - name: Build signed AAB
         run: |
-          VERSION="${{ github.ref_name }}"
-          BUILD_NAME="${VERSION#v}"
-          flutter build apk --release \
+          flutter build appbundle --release \
             --no-pub \
-            --target-platform android-arm64 \
             --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }} \
-            --build-name="$BUILD_NAME" \
+            --build-name="${{ needs.version.outputs.version }}" \
             --build-number=${{ github.run_number }} \
             --split-debug-info=build/debug-symbols \
             --obfuscate
 
-      # Guard: the launcher label must be "Align". Catches branding
-      # regressions in app_constants.dart / build.gradle.kts - already
-      # happened once, the APK just installed labeled "Coffer".
+      # Guard: launcher label must be "Align". Caught a "Coffer" regression once.
+      # Read the label straight from the AAB manifest via bundletool (seconds).
       - name: Verify branding
         run: |
-          APK=build/app/outputs/flutter-apk/app-release.apk
-          AAPT="$(ls "$ANDROID_HOME"/build-tools/*/aapt 2>/dev/null | sort -V | tail -1)"
-          if [ -z "$AAPT" ]; then echo "::error::aapt not found"; exit 1; fi
-          LABEL="$("$AAPT" dump badging "$APK" | grep -oE "application-label:'[^']*'" | head -1 | cut -d"'" -f2)"
-          echo "APK launcher label: '$LABEL'"
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          BT_JAR="$RUNNER_TEMP/bundletool.jar"
+          curl -sSL -o "$BT_JAR" https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar
+          LABEL="$(java -jar "$BT_JAR" dump manifest --bundle "$AAB" \
+            --xpath /manifest/application/@android:label)"
+          echo "AAB launcher label: '$LABEL'"
           if [ "$LABEL" != "Align" ]; then
-            echo "::error::APK label is '$LABEL', expected 'Align'."
+            echo "::error::AAB label is '$LABEL', expected 'Align'."
             exit 1
           fi
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      # The AAB is only ever a workflow artifact — never a GitHub Release.
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: apps/mobile/build/app/outputs/flutter-apk/app-release.apk
-          name: "Align ${{ github.ref_name }}"
-          generate_release_notes: true
-          make_latest: true
-          draft: false
+          name: align-${{ needs.version.outputs.tag }}-aab
+          path: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+          if-no-files-found: error
+
+      # Deploy to Play "internal testing". Runs only once the service-account
+      # secret is set — i.e. after the one-time manual bootstrap. uses: steps
+      # ignore defaults.working-directory, so releaseFiles is repo-root relative.
+      - name: Deploy to Play internal testing
+        if: ${{ env.PLAY_JSON != '' }}
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.anhib.align
+          releaseFiles: apps/mobile/build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
