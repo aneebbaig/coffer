@@ -55,6 +55,19 @@ Longer version in [apps/web/README.md](apps/web/README.md). Deploying to Vercel 
 
 Want to call it something other than "Align"? Set `NEXT_PUBLIC_APP_NAME` and it changes everywhere in the UI.
 
+### Or with Docker
+
+Brings up Postgres and the web app together — no local Node or Postgres needed:
+
+```bash
+cp .env.docker.example .env    # then set the three secrets it lists
+docker compose up --build      # http://localhost:3000
+```
+
+The database starts first, migrations run automatically, and (with
+`SEED_ON_START=true`) a first admin user is created from the `USER1_*` values in
+your `.env`. Postgres is exposed on `localhost:5434` if you want to poke at it.
+
 ## Running the mobile app
 
 ```bash
